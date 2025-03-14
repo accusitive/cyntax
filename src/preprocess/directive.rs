@@ -23,6 +23,10 @@ impl PreProcessor {
         let items = if self.consume_if_present(ts, &PreprocessingToken::Newline)?.value {
             Ok(vec![])
         } else {
+            if !matches!(self.peek_non_whitespace_token(ts, 0)?.value, PreprocessingToken::Identifier(_)) {
+                dbg!(&"returning early on {}", &self.peek_non_whitespace_token(ts, 0)?.value);
+                return Ok(vec![])
+            }
             let directive = self.next_non_whitespace_token(ts)?;
 
             match directive.value.as_identifier().unwrap().as_str() {
@@ -34,7 +38,6 @@ impl PreProcessor {
                     if !self.is_active() {
                         self.conditions.pop().unwrap();
                         self.conditions.push(Condition {
-                            // kind: ConditionKind::Simple(true),
                             value: true
                         });
                     } else {
@@ -90,7 +93,7 @@ impl PreProcessor {
                         value: !exists
                     });
                 }
-                d if self.should_skip() => {
+                _ if self.should_skip() => {
                     let mut skipped_tokens = vec![];
                     // Need to consume until newline
                     while let Ok(token) = self.peek_token(ts) {
@@ -100,7 +103,7 @@ impl PreProcessor {
                         }
                         skipped_tokens.push(self.next_token(ts)?);
                     }
-                    dbg!("skipping", &d, &skipped_tokens);
+                    // dbg!("skipping", &d, &skipped_tokens);
 
                     return Ok(vec![]);
                 }
@@ -165,7 +168,7 @@ impl PreProcessor {
                             format!("/usr/include/{}", hn.0)
                         }
                         crate::lexer::HeaderNameKind::Q => {
-                            format!("./{}", hn.0)
+                            format!("{}", hn.0)
                         }
                     };
                     dbg!(&path);
@@ -177,7 +180,7 @@ impl PreProcessor {
                     let this_file = self.file_id.clone();
                     self.file_id = file;
                     let tokens = lexer.tokenize();
-                    let tokens = tokens.iter().map(|t| t.clone().double(file)).collect::<Vec<_>>();
+                    let tokens = tokens.iter().map(|t: &crate::location::Located<PreprocessingToken>| t.clone().double(file)).collect::<Vec<_>>();
 
                     let mut stream = tokens.iter().peekmore();
                     let expanded = self.process_token_stream(&mut stream);

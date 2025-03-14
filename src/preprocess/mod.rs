@@ -15,12 +15,14 @@ use peekmore::{PeekMore, PeekMoreIterator};
 use crate::{
     lexer::{HeaderNameKind, Lexer, PreprocessingToken, Punctuator},
     location::{Located, LocationHistory},
-    parser::ast::Keyword,
+    parser::ast::{Expression, Keyword},
 };
 
 pub mod ast;
 pub mod eval;
+pub mod print;
 pub mod process;
+
 type PPResult<T> = Result<T, Diagnostic<usize>>;
 type TokenStream<'a> = PeekMoreIterator<Iter<'a, LocationHistory<PreprocessingToken>>>;
 
@@ -63,12 +65,12 @@ impl PreProcessor {
         h.insert("__STDC_NO_COMPLEX__".to_string(), Macro::Object(vec![]));
         h.insert("__STDC_NO_THREADS__".to_string(), Macro::Object(vec![]));
         h.insert("__STDC_NO_VLA__".to_string(), Macro::Object(one.clone()));
-        // h.insert("__GNUC__".to_string(), Macro::Object(vec![]));
+        // h.insert("__GNUC__".to_string(), Macro::Object(one));
         // h.insert(
         //     "__cplusplus".to_string(),
         //     Macro::Object(vec![LocationHistory::x(()).same(PreprocessingToken::Number("0".to_string()))]),
         // );
-        h.insert("__x86_64__".to_string(), Macro::Object(vec![]));
+        h.insert("__x86_64__".to_string(), Macro::Object(one));
         h
     }
     pub fn next_token<'a>(&mut self, ts: &mut TokenStream<'a>) -> PPResult<&'a LocationHistory<PreprocessingToken>> {
@@ -93,7 +95,10 @@ impl PreProcessor {
                 value: PreprocessingToken::Whitespace(_),
                 ..
             }) => self.next_non_whitespace_token(ts),
-            Some(e) => Ok(e),
+            Some(e) => {
+                self.cursor = e.shell();
+                Ok(e)
+            }
             // None => panic!()
             None => Err(Diagnostic::error()
                 .with_message("EOF next_non_whitespace_token")
@@ -106,7 +111,10 @@ impl PreProcessor {
                 value: PreprocessingToken::Whitespace(_),
                 ..
             }) => self.peek_non_whitespace_token(ts, offset + 1),
-            Some(e) => Ok(e),
+            Some(e) => {
+                self.cursor = e.shell();
+                Ok(e)
+            },
             None => Err(Diagnostic::error()
                 .with_message("EOF peek_token")
                 .with_labels(vec![Label::primary(self.file_id, self.cursor.location_range()).with_message("Around this area")])),
@@ -134,9 +142,12 @@ impl PreProcessor {
         match &token.value {
             PreprocessingToken::Identifier(i) => i.to_string(),
             PreprocessingToken::Number(num) => num.to_string(),
-            PreprocessingToken::StringLiteral(s) => format!("\"{}\"", s),
-            PreprocessingToken::Punctuator(punctuator) => format!("'{}'", punctuator.stringify()),
-            _ => unimplemented!(),
+            PreprocessingToken::StringLiteral(s) => s.to_string(),
+            PreprocessingToken::Punctuator(punctuator) => punctuator.stringify().to_string(),
+            // PreprocessingToken::StringLiteral(s) => format!("\"{}\"", s),
+            // PreprocessingToken::Punctuator(punctuator) => format!("{}", punctuator.stringify()),
+            PreprocessingToken::Whitespace(w) => w.to_string(),
+            token => unimplemented!("token {:?} is not stringifiable yet", &token),
         }
     }
     fn consume_if_present(&mut self, ts: &mut TokenStream, expected: &PreprocessingToken) -> PPResult<LocationHistory<bool>> {
@@ -155,6 +166,10 @@ impl PreProcessor {
     fn collect_tokens_until_comma(&mut self, ts: &mut TokenStream) -> PPResult<Vec<LocationHistory<PreprocessingToken>>> {
         let mut tokens = vec![];
         let mut parenthesis_balance = 0;
+        if matches!(self.peek_token(ts)?.value, PreprocessingToken::Punctuator(Punctuator::Comma)){
+            self.next_token(ts)?;
+            return Ok(tokens);
+        }
         while let Ok(token) = self.peek_token(ts) {
             if matches!(token.value, PreprocessingToken::Punctuator(Punctuator::LParen)) {
                 parenthesis_balance += 1;
@@ -176,7 +191,7 @@ impl PreProcessor {
     }
 
     fn include(&mut self, hn: &(&String, &HeaderNameKind)) -> Option<String> {
-        let paths = ["/usr/include/", "/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/include/", "./"];
+        let paths = ["/usr/include/", "/usr/lib/gcc/x86_64-pc-linux-gnu/14.2.1/include/", "./", ""];
         for path in paths {
             if let Ok(s) = std::fs::read_to_string(format!("{}{}", path, hn.0)) {
                 return Some(s);
@@ -199,9 +214,6 @@ impl PreProcessor {
                     panic!();
                 }
                 Ok(None) => {
-                    dbg!(&ts);
-                    // assert!(accumulator.len() > 0 );
-
                     break;
                 }
             }
@@ -284,3 +296,4 @@ pub fn pp_token_to_token(token: LocationHistory<PreprocessingToken>) -> Location
         token => unimplemented!("processing for token {:?} not implemented", token),
     })
 }
+

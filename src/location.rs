@@ -1,4 +1,4 @@
-use std::{fmt::Debug, ops::Range};
+use std::{fmt::{Debug, Display}, ops::{Deref, Range}};
 
 use codespan_reporting::{
     diagnostic::{Diagnostic, Label},
@@ -221,5 +221,18 @@ impl<T> LocationHistory<Option<T>> {
                 panic!();
             }
         }
+    }
+}
+
+impl<T> Deref for LocationHistory<T> {
+    type Target =T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+impl<T: Display> Display for LocationHistory<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.value.fmt(f)
     }
 }

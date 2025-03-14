@@ -14,6 +14,8 @@
         "timesize.h": "c",
         "cdefs.h": "c",
         "cstdarg": "c",
-        "stubs.h": "c"
+        "stubs.h": "c",
+        "tcc.h": "c",
+        "stdlib.h": "c"
     }
 }

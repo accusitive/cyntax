@@ -23,7 +23,7 @@ pub mod declaration;
 pub mod expression;
 pub mod specifier;
 pub mod statement;
-
+mod pp;
 #[derive(Debug)]
 pub struct Parser<'a> {
     pub tokens: PeekMoreIterator<core::slice::Iter<'a, LocationHistory<Token>>>,
@@ -45,7 +45,7 @@ impl<'a> Parser<'a> {
         self.symbol_stack.push(HashMap::new());
     }
     pub fn pop_scope(&mut self) {
-        dbg!(self.symbol_stack.pop().unwrap());
+        self.symbol_stack.pop().unwrap();
     }
     pub fn default_symbol_stack() -> Vec<HashMap<String, LocationHistory<Symbol>>> {
         let mut stack = vec![];

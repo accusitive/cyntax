@@ -250,7 +250,7 @@ fn test_digits() {
     assert_eq!(IntConstant::parse(&LocationHistory::x("123".to_string())).map(|con| con.digits), Ok("123".to_string()));
     assert_eq!(IntConstant::parse(&LocationHistory::x("0x123".to_string())).map(|con| con.digits), Ok("123".to_string()));
     assert_eq!(IntConstant::parse(&LocationHistory::x("0123".to_string())).map(|con| con.digits), Ok("123".to_string()));
-    assert!(IntConstant::parse(&LocationHistory::x("0".to_string())).is_err());
+    assert!(IntConstant::parse(&LocationHistory::x("0".to_string())).is_ok());
     assert!(IntConstant::parse(&LocationHistory::x("".to_string())).is_err());
     assert!(IntConstant::parse(&LocationHistory::x("0x".to_string())).is_err());
     assert!(IntConstant::parse(&LocationHistory::x("ll".to_string())).is_err());

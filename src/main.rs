@@ -17,15 +17,16 @@ pub mod lexer;
 pub mod location;
 pub mod parser;
 pub mod preprocess;
-pub mod print;
 
 fn main() {
-    let source = include_str!("../input.c");
+    // let source = include_str!("../input.c");
+    let source = std::fs::read_to_string("./input.c").unwrap();
+    let source = source.as_str();
     let mut lexer = Lexer::from(source);
     let tokens = lexer.tokenize();
 
     let mut files = SimpleFiles::new();
-    let f = files.add("input.c".to_string(), source.to_string());
+    let f = files.add("tcc.c".to_string(), source.to_string());
 
     for token in &tokens {
         let d = Diagnostic::note()
@@ -46,6 +47,7 @@ fn main() {
     };
 
     let preprocessed_tokens = pp.process(tokens);
+    preprocess::print::print(&preprocessed_tokens);
     for token in &preprocessed_tokens {
         let d = Diagnostic::note().with_message(format!("Token {:?}", token)).with_labels(token.generate_location_labels());
         // .with_labels(vec![Label::primary(f, token.location.start.offset..token.location.start.offset)]);
@@ -53,8 +55,9 @@ fn main() {
         let config = codespan_reporting::term::Config::default();
         term::emit(&mut writer.lock(), &config, &pp.files, &d).unwrap();
     }
+
     assert!(pp.conditions.len() == 0);
-    dbg!(&preprocessed_tokens);
+    // dbg!(&preprocessed_tokens);
 
     let mut parser = Parser {
         tokens: preprocessed_tokens.iter().peekmore(),
@@ -79,7 +82,7 @@ fn main() {
             // Label::secondary(declaration.value.declarator.location.file_id, declaration.value.declarator.location_range()).with_message("declarator span"),
         ]);
 
-        term::emit(&mut writer.lock(), &config, &pp.files, &diagnostic).unwrap();
+        // term::emit(&mut writer.lock(), &config, &pp.files, &diagnostic).unwrap();
         // println!("{:#?}", declaration);
     }
     println!("{}", unit.declarations.len());
