@@ -26,11 +26,10 @@ fn main() {
     let lexer_tokens = lexer.tokenize().iter().cloned().map(|tok| tok.double(0)).collect::<Vec<_>>();
     dbg!(&lexer_tokens);
     let mut pp = PP::new();
-    dbg!(&pp.parse_translation_unit(&mut lexer_tokens.iter().peekmore()).unwrap());
-    dbg!(&pp);
-    // let groups = pp.parse_groups(&mut lexer_tokens.iter().peekmore()).unwrap();
-    // dbg!(&groups);
-    // let s = pp.s(&groups);
+    let unit = &pp.parse_translation_unit(&mut lexer_tokens.iter().peekmore()).unwrap();
+    dbg!(&unit);
+    let s = pp.s(&unit);
+    println!("{}", s);
     // println!("{}", &s);
     // // let source = include_str!("../input.c");
     // let source = std::fs::read_to_string("./input.c").unwrap();

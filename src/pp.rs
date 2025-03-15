@@ -15,7 +15,13 @@ use crate::{
 };
 type PPR<T> = Result<T, Diagnostic<usize>>;
 type TokenSubset<'a> = PeekMoreIterator<Iter<'a, LocationHistory<PreprocessingToken>>>;
+type L<T> = LocationHistory<T>;
 
+macro_rules! loc {
+    ($p: pat) => {
+        L { value: $p, .. }
+    };
+}
 #[derive(Debug)]
 pub struct TranslationUnit {
     groups: Vec<GroupChild>,
@@ -52,94 +58,110 @@ pub enum IfGroupKind {
 }
 #[derive(Debug)]
 pub struct PP {
-    current_group: Group,
+    groups: Vec<Group>,
+    current_group: Vec<usize>, // current_group: Group,
 }
 
 impl PP {
     pub fn new() -> Self {
         Self {
-            current_group: Group {
+            groups: vec![Group {
                 kind: GroupKind::Global,
                 children: vec![],
-            },
+            }],
+            current_group: vec![0],
         }
     }
-    pub fn parse_translation_unit(&mut self, token_stream: &mut TokenSubset) -> PPR<()> {
-        while let Ok(Some(processed)) = self.process_token(token_stream) {}
+    pub fn parse_translation_unit(&mut self, token_stream: &mut TokenSubset) -> PPR<TranslationUnit> {
+        let mut children = vec![];
+        while let Ok(Some(processed)) = self.process_token(token_stream) {
+            children.push(processed);
+        }
+        dbg!(&children);
 
-        Ok(())
+        Ok(TranslationUnit{
+            groups: children
+        })
     }
-    // fn peek(&mut self, token_stream: &mut TokenSubset) -> PPR<&PreprocessingToken> {
-    //     match token_stream.peek() {
-    //         Some(t) => Ok(t),
-    //         None => Ok(),
-    //     }
-    // }
-    pub fn process_token(&mut self, token_stream: &mut TokenSubset) -> PPR<Option<()>> {
-        let next = token_stream.peek();
-        if next.is_none() {
+    fn next_non_whitespace_token<'a>(&self, token_stream: &'a mut TokenSubset) -> PPR<&'a LocationHistory<PreprocessingToken>> {
+        match token_stream.next() {
+            Some(loc!(PreprocessingToken::Whitespace(_))) => self.next_non_whitespace_token(token_stream),
+            Some(tok) => Ok(tok),
+            None => Err(Diagnostic::error().with_message("out of tokens")),
+        }
+    }
+    pub fn process_token(&self, token_stream: &mut TokenSubset) -> PPR<Option<GroupChild>> {
+        // let mut tokens = vec![];
+        let token = token_stream.peek();
+        if token.is_none() {
             return Ok(None);
         };
-        let next = next.unwrap();
+        let next = token.unwrap();
         match &next.value {
             PreprocessingToken::Punctuator(Punctuator::Hash) if next.location.start.col == 0 => {
-                
+                // skip if only a newline
+                if matches!(token_stream.peek(), Some(loc!(PreprocessingToken::Newline))) {
+                    token_stream.next().unwrap();
+                    // skip
+                    return self.process_token(token_stream);
+                } else {
+                    // eat #
+                    token_stream.next().unwrap();
+                }
+
+                let directive = self.next_non_whitespace_token(token_stream)?.clone();
+                let directive = directive.as_identifier().unwrap();
+                match directive.as_str() {
+                    "ifdef" => {
+                        let mut group_body = vec![];
+                        while let Ok(Some(t)) = self.process_token(token_stream) {
+                            match &t {
+                                GroupChild::Endif => break,
+                                GroupChild::Group(g) => {
+                                    if matches!(g.kind, GroupKind::Else()) {
+                                        break;
+                                    } else {
+                                        group_body.push(t)   
+                                    }
+                                }
+                                _ => group_body.push(t),
+                            }
+                        }
+                        return Ok(Some(GroupChild::Group(Box::new(Group {
+                            kind: GroupKind::If(IfGroupKind::Ifdef),
+                            children: group_body,
+                        }))));
+                    }
+                    "else" => {
+                        let mut group_body = vec![];
+                        while let Ok(Some(t)) = self.process_token(token_stream) {
+                            match t {
+                                GroupChild::Endif => break,
+                                _ => group_body.push(t),
+                            }
+                        }
+                        return Ok(Some(GroupChild::Group(Box::new(Group {
+                            kind: GroupKind::Else(),
+                            children: group_body,
+                        }))));
+                    }
+                    "endif" => {
+                        return Ok(Some(GroupChild::Endif));
+                        // unreachable!()
+                    }
+                    _ => {}
+                }
+                dbg!(&directive);
+                Err(Diagnostic::bug())
             }
             _ => {
-                self.current_group.children.push(GroupChild::Token((token_stream.next().unwrap()).clone()));
+                dbg!(&self.groups, &self.current_group);
+                Ok(Some(GroupChild::Token(token_stream.next().unwrap().clone())))
             }
         }
-        Ok(Some(()))
+        // Ok(Some(tokens))
     }
-    // pub fn collect_until_closer(&mut self, token_stream: &mut TokenSubset) -> (Vec<GroupChild>, Option<GroupChild>) {
-    //     let mut c = vec![];
-    //     let mut last = None;
-    //     while let Ok(Some(group)) = self.parse_group_child(token_stream) {
-    //         match group {
-    //             GroupChild::Group(ref inner_group) => match inner_group.deref().kind {
-    //                 GroupKind::Else() | GroupKind::Elif => {
-    //                     // c.push(group.clone());
 
-    //                     // for child in &inner_group.children {
-    //                     //     c.push(child.clone());
-    //                     // }
-    //                     // return c;
-    //                     last = Some(group.clone());;
-    //                     break;
-
-    //                 }
-    //                 _ => {
-    //                     c.push(group);
-    //                 }
-    //             },
-    //             GroupChild::Endif => return c,
-    //             _ => {
-    //                 c.push(group);
-    //             }
-    //         }
-    //     }
-    //     (c, last)
-    // }
-    // pub fn collect_until_newline<'a, 'b: 'a>(&'b self, token_stream: &'b mut TokenSubset) -> Vec<&'a LocationHistory<PreprocessingToken>> {
-    //     let mut c: Vec<&LocationHistory<PreprocessingToken>> = vec![];
-    //     while let Some(token) = token_stream.peek() {
-    //         match token.value {
-    //             PreprocessingToken::Newline => {
-    //                 break;
-    //             }
-    //             _ => c.push(token_stream.next().unwrap()),
-    //         }
-    //     }
-    //     c
-    // }
-    // /// Continually call parse_grop_child until it fails
-    // pub fn parse_group_children(&mut self, token_stream: &mut TokenSubset) -> PPR<Vec<GroupChild>> {
-    //     let mut children = vec![];
-    //     while let Some(_) = token_stream.peek() {
-    //         children.push(self.parse_group_child(token_stream)?.unwrap());
-    //     }
-    //     Ok(children)
-    // }
     pub fn pp_token_to_token<'a, T: IntoIterator<Item = &'a LocationHistory<PreprocessingToken>>>(&self, token_stream: T) -> Vec<LocationHistory<Token>> {
         let mut tokens = vec![];
 
@@ -161,55 +183,56 @@ impl PP {
         }
         tokens
     }
-    // pub fn s(&self, t: &TranslationUnit) -> String {
-    //     let mut s = String::new();
-    //     for group in &t.groups {
-    //         self.s_g(&mut s, group, 0);
-    //     }
-    //     s
-    // }
+    pub fn s(&self, t: &TranslationUnit) -> String {
+        let mut s = String::new();
+        for group in &t.groups {
+            self.s_g(&mut s, group, 0);
+        }
+        s
+    }
 
-    // pub fn s_g(&self, s: &mut String, g: &GroupChild, indent: usize) {
-    //     let indent_str = "|".to_string() + &(" ".repeat(indent));
-    //     match g {
-    //         GroupChild::Group(group) => {
-    //             s.push_str(&indent_str);
-    //             match &group.kind {
-    //                 GroupKind::If(IfGroupKind::If(_)) => s.push_str("#if"),
-    //                 GroupKind::If(IfGroupKind::Ifdef) => s.push_str("#ifdef"),
-    //                 GroupKind::If(IfGroupKind::Ifndef) => s.push_str("#ifndef"),
-    //                 GroupKind::Else() => s.push_str("#else"),
-    //                 GroupKind::Elif => s.push_str("#elif"),
-    //             }
-    //             s.push('\n');
-    //             for child in &group.children {
-    //                 self.s_g(s, child, indent + 2);
-    //             }
-    //         }
-    //         GroupChild::Directive => {
-    //             s.push_str("#");
-    //         }
-    //         GroupChild::Endif => {
-    //             s.push_str(&indent_str);
-    //             s.push_str("#endif\n");
-    //         }
-    //         GroupChild::Token(location_history) => {
-    //             s.push_str(&indent_str);
-    //             s.push_str(&self.stringify_token(location_history));
-    //             s.push('\n');
-    //         }
-    //     }
-    // }
+    pub fn s_g(&self, s: &mut String, g: &GroupChild, indent: usize) {
+        let indent_str = "|".to_string() + &(" ".repeat(indent));
+        match g {
+            GroupChild::Group(group) => {
+                s.push_str(&indent_str);
+                match &group.kind {
+                    GroupKind::If(IfGroupKind::If(_)) => s.push_str("#if"),
+                    GroupKind::If(IfGroupKind::Ifdef) => s.push_str("#ifdef"),
+                    GroupKind::If(IfGroupKind::Ifndef) => s.push_str("#ifndef"),
+                    GroupKind::Else() => s.push_str("#else"),
+                    GroupKind::Elif => s.push_str("#elif"),
+                    GroupKind::Global => {},
+                                    }
+                s.push('\n');
+                for child in &group.children {
+                    self.s_g(s, child, indent + 2);
+                }
+            }
+            GroupChild::Directive => {
+                s.push_str("#");
+            }
+            GroupChild::Endif => {
+                s.push_str(&indent_str);
+                s.push_str("#endif\n");
+            }
+            GroupChild::Token(location_history) => {
+                s.push_str(&indent_str);
+                s.push_str(&self.stringify_token(location_history));
+                s.push('\n');
+            }
+        }
+    }
 
-    // pub fn stringify_token(&self, token: &LocationHistory<PreprocessingToken>) -> String {
-    //     match &token.value {
-    //         PreprocessingToken::Identifier(i) => i.to_string(),
-    //         PreprocessingToken::Number(num) => num.to_string(),
-    //         PreprocessingToken::StringLiteral(s) => s.to_string(),
-    //         PreprocessingToken::Punctuator(punctuator) => punctuator.stringify().to_string(),
-    //         PreprocessingToken::Whitespace(w) => w.to_string(),
-    //         PreprocessingToken::Newline => "".to_string(),
-    //         token => unimplemented!("token {:?} is not stringifiable yet", &token),
-    //     }
-    // }
+    pub fn stringify_token(&self, token: &LocationHistory<PreprocessingToken>) -> String {
+        match &token.value {
+            PreprocessingToken::Identifier(i) => i.to_string(),
+            PreprocessingToken::Number(num) => num.to_string(),
+            PreprocessingToken::StringLiteral(s) => s.to_string(),
+            PreprocessingToken::Punctuator(punctuator) => punctuator.stringify().to_string(),
+            PreprocessingToken::Whitespace(w) => w.to_string(),
+            PreprocessingToken::Newline => "".to_string(),
+            token => unimplemented!("token {:?} is not stringifiable yet", &token),
+        }
+    }
 }

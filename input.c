@@ -1,4 +1,10 @@
-#ifdef 
+#ifdef
 int a
-#else 
+#ifdef clam
+int innermost;
+#endif
+int ended
+#else
 int b
+#endif
+int endedagain
