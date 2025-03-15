@@ -23,7 +23,6 @@ pub mod declaration;
 pub mod expression;
 pub mod specifier;
 pub mod statement;
-mod pp;
 #[derive(Debug)]
 pub struct Parser<'a> {
     pub tokens: PeekMoreIterator<core::slice::Iter<'a, LocationHistory<Token>>>,

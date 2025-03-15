@@ -139,7 +139,7 @@ impl<'a> Parser<'a> {
             }
             if self.consume_if_present(&Token::Punctuator(Punctuator::LBracket))?.value {
                 let e = self.parse_expression()?.unwrap();
-                crate::preprocess::PreProcessor::assert_expression_constant(&e)?;
+                // crate::preprocess::PreProcessor::assert_expression_constant(&e)?;
                 self.expect_token_trace(&Token::Punctuator(Punctuator::RBracket), line!())?;
 
                 declarator.value.derived.push(DerivedDeclarator::Array(e));
