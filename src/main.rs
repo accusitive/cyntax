@@ -23,13 +23,15 @@ fn main() {
     let source = source.as_str();
     let mut lexer = Lexer::from(source);
 
-    let mut lexer_tokens = lexer.tokenize().iter().cloned().map(|tok| tok.double(0)).collect::<Vec<_>>();
+    let lexer_tokens = lexer.tokenize().iter().cloned().map(|tok| tok.double(0)).collect::<Vec<_>>();
     dbg!(&lexer_tokens);
     let mut pp = PP::new();
-    let groups = pp.parse_groups(&mut lexer_tokens.iter().peekmore()).unwrap();
-    dbg!(&groups);
-    let s = pp.s(&groups);
-    println!("{}", &s);
+    dbg!(&pp.parse_translation_unit(&mut lexer_tokens.iter().peekmore()).unwrap());
+    dbg!(&pp);
+    // let groups = pp.parse_groups(&mut lexer_tokens.iter().peekmore()).unwrap();
+    // dbg!(&groups);
+    // let s = pp.s(&groups);
+    // println!("{}", &s);
     // // let source = include_str!("../input.c");
     // let source = std::fs::read_to_string("./input.c").unwrap();
     // let source = source.as_str();
