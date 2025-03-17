@@ -1,4 +1,7 @@
-use std::{fmt::{Debug, Display}, ops::{Deref, Range}};
+use std::{
+    fmt::{Debug, Display},
+    ops::{Deref, Range},
+};
 
 use codespan_reporting::{
     diagnostic::{Diagnostic, Label},
@@ -225,7 +228,7 @@ impl<T> LocationHistory<Option<T>> {
 }
 
 impl<T> Deref for LocationHistory<T> {
-    type Target =T;
+    type Target = T;
 
     fn deref(&self) -> &Self::Target {
         &self.value

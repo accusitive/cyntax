@@ -1,5 +1,7 @@
 #ifdef test
-int a
-#else
-int b
+int a;
+#elif 2== 2
+int b;
+#else 
+int c;
 #endif

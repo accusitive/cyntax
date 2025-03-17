@@ -11,12 +11,10 @@ use lexer::Lexer;
 use location::LocationHistory;
 use parser::Parser;
 use peekmore::PeekMore;
-use pp::PP;
 
 pub mod lexer;
 pub mod location;
 pub mod parser;
-pub mod pp;
 pub mod preprocess;
 fn main() {
     let source = std::fs::read_to_string("./input.c").unwrap();
@@ -25,18 +23,12 @@ fn main() {
 
     let lexer_tokens = lexer.tokenize().iter().cloned().map(|tok| tok.double(0)).collect::<Vec<_>>();
     dbg!(&lexer_tokens);
-    let mut pp = PP::new();
+    let mut pp = preprocess::Preprocessor::new();
     let groups = pp.groups_tokens(&mut lexer_tokens.iter().peekmore()).unwrap();
     dbg!(&groups);
-    let groups = pp.pg(&mut groups.iter().peekmore());
+    let groups = pp.parse_all_groups(&mut groups.iter().peekmore());
     dbg!(&groups);
 
-    let mut s = String::new();
-    for group in groups {
-        pp.print_group(&mut s, 0, &group);
-
-    }
-    println!("{}", s);
     // let global = pp.parse_global(&mut groups.iter().peekmore()).unwrap();
     // dbg!(&global);
     // let unit = &pp.parse_translation_unit(&mut lexer_tokens.iter().peekmore()).unwrap();
