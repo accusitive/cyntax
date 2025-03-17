@@ -28,8 +28,15 @@ fn main() {
     let mut pp = PP::new();
     let groups = pp.groups_tokens(&mut lexer_tokens.iter().peekmore()).unwrap();
     dbg!(&groups);
-    let g = pp.pg(&mut groups.iter().peekmore());
-    dbg!(&g);
+    let groups = pp.pg(&mut groups.iter().peekmore());
+    dbg!(&groups);
+
+    let mut s = String::new();
+    for group in groups {
+        pp.print_group(&mut s, 0, &group);
+
+    }
+    println!("{}", s);
     // let global = pp.parse_global(&mut groups.iter().peekmore()).unwrap();
     // dbg!(&global);
     // let unit = &pp.parse_translation_unit(&mut lexer_tokens.iter().peekmore()).unwrap();

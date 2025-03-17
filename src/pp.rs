@@ -1,4 +1,4 @@
-use std::{ops::Deref, slice::Iter};
+use std::{fmt::Write, ops::Deref, slice::Iter};
 
 use codespan_reporting::{diagnostic::Diagnostic, files::SimpleFiles};
 use peekmore::{PeekMore, PeekMoreIterator};
@@ -35,6 +35,7 @@ pub enum DirectiveKind {
     IfNdef(String),
     Endif,
     Else,
+    ElseIf,
     DefineObject(L<PreprocessingToken>),
     DefineFunction(L<PreprocessingToken>),
 }
@@ -184,7 +185,7 @@ impl PP {
                         // self.expect_endif(stretch_stream).unwrap();
                         let mut group_body = vec![];
                         while let Some(stretch) = stretch_stream.peek() {
-                            if let UnstructuredTokenStretch::Directive(DirectiveKind::Endif) = stretch {
+                            if let UnstructuredTokenStretch::Directive(DirectiveKind::Endif | DirectiveKind::Else) = stretch {
                                 self.expect_endif(stretch_stream);
                                 break;
                             }
@@ -193,16 +194,35 @@ impl PP {
                             group_body.extend(inner_group);
                         }
 
+                        let opposition = self.parse_group(stretch_stream).unwrap();
+                        dbg!(&opposition);
+
                         Some(Group {
                             kind: GroupKind::Ifdef,
                             content: group_body,
                         })
                     }
-                    DirectiveKind::IfNdef(_) => todo!(),
-                    DirectiveKind::Endif => todo!(),
-                    DirectiveKind::Else => todo!(),
-                    DirectiveKind::DefineObject(location_history) => todo!(),
-                    DirectiveKind::DefineFunction(location_history) => todo!(),
+                    DirectiveKind::Else => {
+                        let mut group_body = vec![];
+                        while let Some(stretch) = stretch_stream.peek() {
+                            if let UnstructuredTokenStretch::Directive(DirectiveKind::Endif) = stretch {
+                                self.expect_endif(stretch_stream);
+                                break;
+                            }
+                            if let UnstructuredTokenStretch::Directive(DirectiveKind::Else) = stretch {
+                                panic!("encountered else while looking for closer for else!")
+                            }
+                            let inner = self.parse_group(stretch_stream);
+                            let inner_group = inner.map(|g| vec![GroupChild::Group(g)]).unwrap_or(vec![]);
+                            group_body.extend(inner_group);
+                        }
+
+                        Some(Group {
+                            kind: GroupKind::Else,
+                            content: group_body,
+                        })
+                    }
+                    x => todo!("todo: implement {:#?} directive", x),
                 }
             }
         }
@@ -214,6 +234,49 @@ impl PP {
             return Some(());
         } else {
             return None;
+        }
+    }
+    pub fn stringify_token(&self, indent: usize, token: &LocationHistory<PreprocessingToken>) -> String {
+        match &token.value {
+            PreprocessingToken::Identifier(i) => i.to_string(),
+
+            PreprocessingToken::Number(num) => num.to_string(),
+
+            PreprocessingToken::StringLiteral(s) => s.to_string(),
+
+            PreprocessingToken::Punctuator(punctuator) => punctuator.stringify().to_string(),
+
+            PreprocessingToken::Whitespace(w) => w.to_string(),
+
+            PreprocessingToken::Newline => format!("\n{}", " ".repeat(indent)),
+
+            token => unimplemented!("token {:?} is not stringifiable yet", &token),
+        }
+    }
+    pub fn print_group(&mut self, s: &mut String, indent: usize, g: &Group) {
+        let mut is_global = false;
+        match g.kind {
+            GroupKind::Ifdef => s.write_str("#ifdef"),
+            GroupKind::Else => s.write_str("#else"),
+            GroupKind::Elif => s.write_str("#elif"),
+            GroupKind::Global => {
+                is_global = true;
+                s.write_str("")
+            }
+        }
+        .unwrap();
+
+        for content in &g.content {
+            let i = if is_global { 0 } else { 2 };
+            self.print_group_child(s, indent + i, content);
+        }
+    }
+    pub fn print_group_child(&mut self, s: &mut String, indent: usize, gc: &GroupChild) {
+        match gc {
+            GroupChild::Token(token) => {
+                s.push_str(&self.stringify_token(indent, token));
+            }
+            GroupChild::Group(group) => self.print_group(s, indent , group),
         }
     }
 }

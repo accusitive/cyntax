@@ -1,6 +1,5 @@
-#ifdef a
+#ifdef test
 int a
-#ifdef b
+#else
 int b
-#endif
 #endif
