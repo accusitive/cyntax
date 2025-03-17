@@ -1,7 +1,8 @@
-#ifdef test
+#define am
+#define bm
+#ifdef a
 int a;
-#elif 2== 2
+#ifdef b
 int b;
-#else 
-int c;
+#endif
 #endif

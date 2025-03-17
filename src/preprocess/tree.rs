@@ -13,9 +13,9 @@ type StretchStream<'a> = PeekMoreIterator<Iter<'a, UnstructuredTokenStretch>>;
 
 type DirectiveCondition = Vec<L<PreprocessingToken>>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum DirectiveKind {
-    DefineObject(L<PreprocessingToken>),
+    DefineObject(L<PreprocessingToken>, Vec<L<PreprocessingToken>>),
     DefineFunction(L<PreprocessingToken>),
 
     Ifdef(String),
@@ -34,7 +34,7 @@ pub enum UnstructuredTokenStretch {
     Directive(DirectiveKind),
 }
 impl Preprocessor {
-    pub fn groups_tokens(&mut self, token_stream: &mut TokenStream) -> PPResult<Vec<UnstructuredTokenStretch>> {
+    pub fn create_token_stretches(&mut self, token_stream: &mut TokenStream) -> PPResult<Vec<UnstructuredTokenStretch>> {
         let mut tg = vec![];
         while let Some(t) = token_stream.peek() {
             match t.value {
@@ -60,7 +60,7 @@ impl Preprocessor {
                         "ifndef" => {
                             let macro_name = self.next_non_whitespace_token(&mut directive_tokens).map_err(|_| {
                                 Diagnostic::error()
-                                    .with_message("Ifdef directive must be followed by an identifier")
+                                    .with_message("Ifndef directive must be followed by an identifier")
                                     .with_labels(directive.generate_location_labels())
                             })?;
                             tg.push(UnstructuredTokenStretch::Directive(DirectiveKind::IfNdef(
@@ -91,9 +91,11 @@ impl Preprocessor {
 
                             // Function style
                             if let Some(loc!(PreprocessingToken::Punctuator(Punctuator::LParen))) = token_stream.peek() {
+                                todo!();
                                 tg.push(UnstructuredTokenStretch::Directive(DirectiveKind::DefineFunction(macro_name)));
                             } else {
-                                tg.push(UnstructuredTokenStretch::Directive(DirectiveKind::DefineObject(macro_name)));
+                                let replacement_list = directive_tokens.cloned().collect();
+                                tg.push(UnstructuredTokenStretch::Directive(DirectiveKind::DefineObject(macro_name, replacement_list)));
                             }
                         }
                         other => unimplemented!(" {other:?} is unimplemented"),
@@ -115,22 +117,24 @@ impl Preprocessor {
 
 #[derive(Debug)]
 pub enum GroupKind {
-    IfDef(Option<Box<Group>>),
-    IfNDef(Option<Box<Group>>),
+    IfDef(String, Option<Box<Group>>),
+    IfNDef(String, Option<Box<Group>>),
     If(Vec<L<PreprocessingToken>>, Option<Box<Group>>),
     Elif(Vec<L<PreprocessingToken>>, Option<Box<Group>>),
 
     Else,
-    Global,
+    Body,
 }
 #[derive(Debug)]
 pub struct Group {
-    kind: GroupKind,
-    content: Vec<GroupChild>,
+    pub kind: GroupKind,
+    pub content: Vec<GroupChild>,
 }
 #[derive(Debug)]
 pub enum GroupChild {
     Token(LocationHistory<PreprocessingToken>),
+    /// May only be DirectiveKind::Define
+    Directive(DirectiveKind),
     Group(Group),
 }
 impl Preprocessor {
@@ -155,13 +159,32 @@ impl Preprocessor {
             x => unreachable!("{:?}", x),
         }
     }
-    pub fn create_unconditional_group_kind(&mut self, directive_kind: &DirectiveKind, opposition: Option<Box<Group>>) -> GroupKind {
+    pub fn create_macro_group_kind(&mut self, directive_kind: &DirectiveKind, macro_name: String, opposition: Option<Box<Group>>) -> GroupKind {
         match directive_kind {
-            DirectiveKind::Ifdef(_) => GroupKind::IfDef(opposition),
-            DirectiveKind::IfNdef(_) => GroupKind::IfNDef(opposition),
+            DirectiveKind::Ifdef(_) => GroupKind::IfDef(macro_name, opposition),
+            DirectiveKind::IfNdef(_) => GroupKind::IfNDef(macro_name, opposition),
 
-            DirectiveKind::Else => GroupKind::Else,
             _ => unreachable!(),
+        }
+    }
+    pub fn peek_non_whitespace<'long: 'short, 'short>(&'long mut self, stretch_stream: &'long mut StretchStream, n: usize) -> Option<&'short UnstructuredTokenStretch> {
+        match stretch_stream.peek_nth(n) {
+            tok @ Some(UnstructuredTokenStretch::Tokens(tokens)) => {
+                let mut is_all_whitespace = true;
+                for token in tokens {
+                    if !matches!(token.value, PreprocessingToken::Whitespace(_) | PreprocessingToken::Newline) {
+                        is_all_whitespace = false;
+                    }
+                }
+                dbg!(&is_all_whitespace, &tok);
+                if is_all_whitespace {
+                    return self.peek_non_whitespace(stretch_stream, n + 1);
+                } else {
+                    return tok.map(|t| &**t);
+                }
+            }
+            Some(tok) => Some(&**tok),
+            _ => None,
         }
     }
     pub fn parse_group(&mut self, stretch_stream: &mut StretchStream) -> Option<Group> {
@@ -169,7 +192,7 @@ impl Preprocessor {
             Some(UnstructuredTokenStretch::Tokens(items)) => {
                 stretch_stream.next().unwrap();
                 let g = Group {
-                    kind: GroupKind::Global,
+                    kind: GroupKind::Body,
                     content: items.iter().map(|token| GroupChild::Token(token.clone())).collect(),
                 };
 
@@ -184,11 +207,11 @@ impl Preprocessor {
                         while let Some(stretch) = stretch_stream.peek() {
                             match stretch {
                                 UnstructuredTokenStretch::Directive(DirectiveKind::Endif) => {
-                                    self.expect_endif(stretch_stream);
+                                    // self.expect_endif(stretch_stream);
                                     break;
                                 }
                                 UnstructuredTokenStretch::Directive(DirectiveKind::Else | DirectiveKind::Elif(_)) => break,
-                                _ => {},
+                                _ => {}
                             }
                             let inner = self.parse_group(stretch_stream);
                             let inner_group = inner.map(|g| vec![GroupChild::Group(g)]).unwrap_or(vec![]);
@@ -209,34 +232,38 @@ impl Preprocessor {
                             }),
                         }
                     }
-                    DirectiveKind::Ifdef(_) | DirectiveKind::IfNdef(_) => {
+                    DirectiveKind::Ifdef(macro_name) | DirectiveKind::IfNdef(macro_name) => {
                         let mut group_body = vec![];
                         // let mut closer_loc = None;
                         while let Some(stretch) = stretch_stream.peek() {
                             match stretch {
                                 UnstructuredTokenStretch::Directive(DirectiveKind::Endif) => {
-                                    self.expect_endif(stretch_stream);
+                                    // self.expect_endif(stretch_stream).unwrap();
                                     break;
                                 }
                                 UnstructuredTokenStretch::Directive(DirectiveKind::Else | DirectiveKind::Elif(_)) => break,
-                                _ => {},
+                                _ => {}
                             }
                             let inner = self.parse_group(stretch_stream);
                             let inner_group = inner.map(|g| vec![GroupChild::Group(g)]).unwrap_or(vec![]);
                             group_body.extend(inner_group);
                         }
-                        match stretch_stream.peek() {
+                        dbg!(&macro_name, &stretch_stream);
+                        match self.peek_non_whitespace(stretch_stream, 0) {
                             Some(UnstructuredTokenStretch::Directive(DirectiveKind::Else | DirectiveKind::Elif(_))) => {
                                 let opposition = self.parse_group(stretch_stream).unwrap();
                                 Some(Group {
-                                    kind: self.create_unconditional_group_kind(directive_kind, Some(Box::new(opposition))),
+                                    kind: self.create_macro_group_kind(directive_kind, macro_name.to_string(), Some(Box::new(opposition))),
                                     content: group_body,
                                 })
                             }
-                            Some(UnstructuredTokenStretch::Directive(DirectiveKind::Endif)) => Some(Group {
-                                kind: self.create_unconditional_group_kind(directive_kind, None),
-                                content: group_body,
-                            }),
+                            Some(UnstructuredTokenStretch::Directive(DirectiveKind::Endif)) => {
+                                self.expect_endif(stretch_stream).unwrap();
+                                Some(Group {
+                                    kind: self.create_macro_group_kind(directive_kind, macro_name.to_string(), None),
+                                    content: group_body,
+                                })
+                            }
                             x => panic!("{:#?}", x),
                         }
                     }
@@ -244,7 +271,7 @@ impl Preprocessor {
                         let mut group_body = vec![];
                         while let Some(stretch) = stretch_stream.peek() {
                             if let UnstructuredTokenStretch::Directive(DirectiveKind::Endif) = stretch {
-                                self.expect_endif(stretch_stream);
+                                // self.expect_endif(stretch_stream);
                                 break;
                             }
                             if let UnstructuredTokenStretch::Directive(DirectiveKind::Else) = stretch {
@@ -259,6 +286,14 @@ impl Preprocessor {
                             kind: GroupKind::Else,
                             content: group_body,
                         })
+                    }
+                    DirectiveKind::DefineObject(_, _) => {
+                        let g = Group {
+                            kind: GroupKind::Body,
+                            content: vec![GroupChild::Directive(directive_kind.clone())],
+                        };
+
+                        Some(g)
                     }
                     _ => unreachable!(),
                 }
@@ -278,17 +313,11 @@ impl Preprocessor {
     pub fn stringify_token(&self, indent: usize, token: &LocationHistory<PreprocessingToken>) -> String {
         match &token.value {
             PreprocessingToken::Identifier(i) => i.to_string(),
-
             PreprocessingToken::Number(num) => num.to_string(),
-
             PreprocessingToken::StringLiteral(s) => s.to_string(),
-
             PreprocessingToken::Punctuator(punctuator) => punctuator.stringify().to_string(),
-
             PreprocessingToken::Whitespace(w) => w.to_string(),
-
             PreprocessingToken::Newline => format!("\n{}", " ".repeat(indent)),
-
             token => unimplemented!("token {:?} is not stringifiable yet", &token),
         }
     }

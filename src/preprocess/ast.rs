@@ -45,7 +45,7 @@ pub struct IntConstant {
     pub base: IntegerConstantBase,
     pub suffix: Option<IntegerSuffix>,
     /// the actual digit component of the constant
-    /// 0x15A0e5
+    /// 0x15A0
     ///   ^^^^
     pub digits: String,
 }

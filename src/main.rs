@@ -24,10 +24,17 @@ fn main() {
     let lexer_tokens = lexer.tokenize().iter().cloned().map(|tok| tok.double(0)).collect::<Vec<_>>();
     dbg!(&lexer_tokens);
     let mut pp = preprocess::Preprocessor::new();
-    let groups = pp.groups_tokens(&mut lexer_tokens.iter().peekmore()).unwrap();
+    let groups = pp.create_token_stretches(&mut lexer_tokens.iter().peekmore()).unwrap();
     dbg!(&groups);
     let groups = pp.parse_all_groups(&mut groups.iter().peekmore());
     dbg!(&groups);
+    let mut expanded_tokens = vec![];
+    for group in &groups {
+        expanded_tokens.extend(pp.expand_group(group));
+    }
+    dbg!(&expanded_tokens);
+
+    // dbg!(&pp.expand_group(group));
 
     // let global = pp.parse_global(&mut groups.iter().peekmore()).unwrap();
     // dbg!(&global);

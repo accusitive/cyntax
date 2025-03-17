@@ -1,9 +1,10 @@
-use std::slice::Iter;
+use std::{collections::HashMap, slice::Iter};
 
+use ast::{Constant, FloatConstant, IntConstant, Token};
 use codespan_reporting::diagnostic::Diagnostic;
 use peekmore::PeekMoreIterator;
 
-use crate::{lexer::PreprocessingToken, location::LocationHistory};
+use crate::{lexer::PreprocessingToken, location::LocationHistory, parser::ast::Keyword};
 
 macro_rules! loc {
     ($p: pat) => {
@@ -16,14 +17,22 @@ type TokenStream<'a> = PeekMoreIterator<Iter<'a, LocationHistory<PreprocessingTo
 type L<T> = LocationHistory<T>;
 
 pub mod ast;
+pub mod eval;
+pub mod expand;
 pub mod tree;
 
 #[derive(Debug)]
-pub struct Preprocessor {}
+pub struct Preprocessor {
+    pub macros: HashMap<String, Macro>,
+}
+#[derive(Debug)]
+pub enum Macro {
+    Object(Vec<L<PreprocessingToken>>),
+}
 
 impl Preprocessor {
     pub fn new() -> Self {
-        Self {}
+        Self { macros: HashMap::new() }
     }
     pub fn next_non_whitespace_token<'a: 'b, 'b>(&mut self, token_stream: &'a mut TokenStream) -> PPResult<LocationHistory<PreprocessingToken>> {
         match token_stream.next() {
@@ -43,5 +52,27 @@ impl Preprocessor {
         }
 
         tokens
+    }
+    pub fn pp_token_to_token(token: LocationHistory<PreprocessingToken>) -> Option<LocationHistory<Token>> {
+        let token_shell = token.shell();
+        if let loc!(PreprocessingToken::Whitespace(_)) = token {
+            return None;
+        }
+        Some(token_shell.same(match token.value {
+            PreprocessingToken::Identifier(i) if Keyword::from_str(&i).is_some() => Token::Keyword(Keyword::from_str(&i).unwrap()),
+            PreprocessingToken::Identifier(i) => Token::Identifier(i),
+            PreprocessingToken::Number(n) => {
+                let constant = if n.contains(".") {
+                    Constant::Float(FloatConstant::parse(&token_shell.same(n.clone())).unwrap())
+                } else {
+                    Constant::Integer(IntConstant::parse(&token_shell.same(n.clone())).unwrap())
+                };
+                Token::Constant(constant)
+            }
+            PreprocessingToken::StringLiteral(s) => Token::StringLiteral(s),
+            PreprocessingToken::Punctuator(p) => Token::Punctuator(p),
+
+            token => unimplemented!("processing for token {:?} not implemented", token),
+        }))
     }
 }
