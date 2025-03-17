@@ -20,7 +20,7 @@ pub mod ast;
 pub mod eval;
 pub mod expand;
 pub mod tree;
-
+pub mod include;
 #[derive(Debug)]
 pub struct Preprocessor {
     pub macros: HashMap<String, Macro>,

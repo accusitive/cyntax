@@ -30,7 +30,7 @@ fn main() {
     dbg!(&groups);
     let mut expanded_tokens = vec![];
     for group in &groups {
-        expanded_tokens.extend(pp.expand_group(group));
+        expanded_tokens.extend(pp.expand_group(group).unwrap());
     }
     dbg!(&expanded_tokens);
 

@@ -17,6 +17,9 @@ type DirectiveCondition = Vec<L<PreprocessingToken>>;
 pub enum DirectiveKind {
     DefineObject(L<PreprocessingToken>, Vec<L<PreprocessingToken>>),
     DefineFunction(L<PreprocessingToken>),
+    Undefine(L<PreprocessingToken>),
+    Error(L<PreprocessingToken>),
+    Include(L<PreprocessingToken>),
 
     Ifdef(String),
     IfNdef(String),
@@ -85,7 +88,7 @@ impl Preprocessor {
                         "define" => {
                             let macro_name = self.next_non_whitespace_token(&mut directive_tokens).map_err(|_| {
                                 Diagnostic::error()
-                                    .with_message("Ifdef directive must be followed by an identifier")
+                                    .with_message("define directive must be followed by an identifier")
                                     .with_labels(directive.generate_location_labels())
                             })?;
 
@@ -97,6 +100,32 @@ impl Preprocessor {
                                 let replacement_list = directive_tokens.cloned().collect();
                                 tg.push(UnstructuredTokenStretch::Directive(DirectiveKind::DefineObject(macro_name, replacement_list)));
                             }
+                        }
+                        "undef" => {
+                            let macro_name = self.next_non_whitespace_token(&mut directive_tokens).map_err(|_| {
+                                Diagnostic::error()
+                                    .with_message("undef directive must be followed by an identifier")
+                                    .with_labels(directive.generate_location_labels())
+                            })?;
+
+                            // Function style
+                            tg.push(UnstructuredTokenStretch::Directive(DirectiveKind::Undefine(macro_name)));
+                        }
+                        "error" => {
+                            let error_reason = self.next_non_whitespace_token(&mut directive_tokens).map_err(|_| {
+                                Diagnostic::error()
+                                    .with_message("error directive must be followed by a reason")
+                                    .with_labels(directive.generate_location_labels())
+                            })?;
+                            tg.push(UnstructuredTokenStretch::Directive(DirectiveKind::Error(error_reason)))
+                        }
+                        "include" => {
+                            let header_name = self.next_non_whitespace_token(&mut directive_tokens).map_err(|_| {
+                                Diagnostic::error()
+                                    .with_message("include directive must be followed by a \"header-name\"/<header-name>")
+                                    .with_labels(directive.generate_location_labels())
+                            })?;
+                            tg.push(UnstructuredTokenStretch::Directive(DirectiveKind::Include(header_name)))
                         }
                         other => unimplemented!(" {other:?} is unimplemented"),
                     }
@@ -234,11 +263,9 @@ impl Preprocessor {
                     }
                     DirectiveKind::Ifdef(macro_name) | DirectiveKind::IfNdef(macro_name) => {
                         let mut group_body = vec![];
-                        // let mut closer_loc = None;
                         while let Some(stretch) = stretch_stream.peek() {
                             match stretch {
                                 UnstructuredTokenStretch::Directive(DirectiveKind::Endif) => {
-                                    // self.expect_endif(stretch_stream).unwrap();
                                     break;
                                 }
                                 UnstructuredTokenStretch::Directive(DirectiveKind::Else | DirectiveKind::Elif(_)) => break,
@@ -249,6 +276,7 @@ impl Preprocessor {
                             group_body.extend(inner_group);
                         }
                         dbg!(&macro_name, &stretch_stream);
+
                         match self.peek_non_whitespace(stretch_stream, 0) {
                             Some(UnstructuredTokenStretch::Directive(DirectiveKind::Else | DirectiveKind::Elif(_))) => {
                                 let opposition = self.parse_group(stretch_stream).unwrap();
@@ -282,12 +310,21 @@ impl Preprocessor {
                             group_body.extend(inner_group);
                         }
 
-                        Some(Group {
-                            kind: GroupKind::Else,
-                            content: group_body,
-                        })
+                        match self.peek_non_whitespace(stretch_stream, 0) {
+                            Some(UnstructuredTokenStretch::Directive(DirectiveKind::Else) | UnstructuredTokenStretch::Directive(DirectiveKind::Elif(_))) => {
+                                panic!("Cannot have else directive opposing and else directive")
+                            }
+                            Some(UnstructuredTokenStretch::Directive(DirectiveKind::Endif)) => {
+                                self.expect_endif(stretch_stream).unwrap();
+                                Some(Group {
+                                    kind: GroupKind::Else,
+                                    content: group_body,
+                                })
+                            }
+                            x => panic!("{:#?}", x),
+                        }
                     }
-                    DirectiveKind::DefineObject(_, _) => {
+                    DirectiveKind::DefineObject(_, _) | DirectiveKind::Undefine(_) | DirectiveKind::Error(_) | DirectiveKind::Include(_)=> {
                         let g = Group {
                             kind: GroupKind::Body,
                             content: vec![GroupChild::Directive(directive_kind.clone())],
@@ -295,7 +332,8 @@ impl Preprocessor {
 
                         Some(g)
                     }
-                    _ => unreachable!(),
+
+                    d => unreachable!("{:#?}", d),
                 }
             }
             None => None,
