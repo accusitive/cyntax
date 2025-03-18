@@ -29,13 +29,14 @@ pub struct Preprocessor {
 #[derive(Debug)]
 pub enum Macro {
     Object(Vec<L<PreprocessingToken>>),
+    Function(Vec<String>, Vec<L<PreprocessingToken>>)
 }
 
 impl Preprocessor {
     pub fn new() -> Self {
         Self { macros: HashMap::new(), files: SimpleFiles::new() }
     }
-    pub fn next_non_whitespace_token<'a: 'b, 'b>(&mut self, token_stream: &'a mut TokenStream) -> PPResult<LocationHistory<PreprocessingToken>> {
+    pub fn next_non_whitespace_token(&self, token_stream: &mut TokenStream) -> PPResult<LocationHistory<PreprocessingToken>> {
         match token_stream.next() {
             Some(loc!(PreprocessingToken::Whitespace(_))) => self.next_non_whitespace_token(token_stream),
             Some(t) => Ok(t.clone()),

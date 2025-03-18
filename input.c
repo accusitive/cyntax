@@ -1,5 +1,3 @@
-#define a 5
-#if defined a
-int clambozo;
+#define funcstyle(a, b) a+b
 
-#endif
+funcstyle(1, 2)

@@ -4,7 +4,7 @@ use codespan_reporting::diagnostic::Diagnostic;
 use peekmore::PeekMore;
 
 use crate::{
-    lexer::{Lexer, PreprocessingToken},
+    lexer::{Lexer, PreprocessingToken, Punctuator},
     location::{LocationHistory, Region},
     parser::{expression::ParseExpressionOptions, Parser},
     preprocess::tree::DirectiveKind,
@@ -96,10 +96,8 @@ impl Preprocessor {
         let mut v = vec![];
         let mut peekable = group_children.iter().peekmore();
         while let Some(child) = peekable.next() {
-
             match child {
-                GroupChild::Token(defined_l@ loc!(PreprocessingToken::Identifier(identifier))) if identifier == "defined" => {
-
+                GroupChild::Token(defined_l @ loc!(PreprocessingToken::Identifier(identifier))) if identifier == "defined" => {
                     let next = peekable.peek();
                     if let Some(GroupChild::Token(macro_name_l @ loc!(PreprocessingToken::Identifier(macro_name)))) = next {
                         peekable.next().unwrap();
@@ -151,7 +149,15 @@ impl Preprocessor {
                         .insert(macro_name_identifier.to_string(), crate::preprocess::Macro::Object(replacement_list.to_vec()));
                     Ok(vec![])
                 }
-                super::tree::DirectiveKind::DefineFunction(_) => todo!(),
+
+                super::tree::DirectiveKind::DefineFunction(macro_name, parameters, replacement_list) => {
+                    let macro_name_identifier = macro_name.as_identifier().unwrap();
+                    self.macros.insert(
+                        macro_name_identifier.to_string(),
+                        crate::preprocess::Macro::Function(parameters.clone(), replacement_list.to_vec()),
+                    );
+                    Ok(vec![])
+                }
                 DirectiveKind::Undefine(macro_name) => {
                     self.macros.remove(macro_name.as_identifier().unwrap());
                     Ok(vec![])
@@ -189,6 +195,10 @@ impl Preprocessor {
                     let r#macro = self.macros.get(identifier).unwrap();
                     match r#macro {
                         Macro::Object(replacement_list) => output.extend(self.expand_object_macro(&token, replacement_list)),
+                        Macro::Function(parameters, replacement_list) => {
+                            
+                            output.extend(self.expand_function_macros(tokens, &token, parameters.clone(), replacement_list))
+                        },
                     }
                 }
                 _ => {
@@ -223,5 +233,62 @@ impl Preprocessor {
         } else {
             vec![]
         }
+    }
+    pub fn expand_function_macros(
+        &self,
+        tokens: &[L<PreprocessingToken>],
+        token: &L<PreprocessingToken>,
+        parameters: Vec<String>,
+        replacement_list: &Vec<L<PreprocessingToken>>,
+    ) -> Vec<L<PreprocessingToken>> {
+        let mut stream: peekmore::PeekMoreIterator<std::slice::Iter<'_, LocationHistory<PreprocessingToken>>> = tokens.iter().peekmore();
+        let macro_name = self.next_non_whitespace_token(&mut stream).unwrap();
+        dbg!(&stream);
+        assert!(matches!(
+            self.next_non_whitespace_token(&mut stream),
+            Ok(loc!(PreprocessingToken::Punctuator(Punctuator::LParen)))
+        ));
+        let mut args: Vec<Vec<L<PreprocessingToken>>> = vec![];
+        while let Some(token) = stream.peek() {
+            let mut argument = vec![];
+            if matches!(token, loc!(PreprocessingToken::Punctuator(Punctuator::RParen))) {
+                // push arg
+                break;
+            }
+
+            while let Some(token) = stream.peek() {
+                if matches!(token, loc!(PreprocessingToken::Punctuator(Punctuator::Comma))) {
+                    // push arg
+                    break;
+                }
+                argument.push(token.to_owned().clone());
+            }
+            args.push(argument);
+        }
+        dbg!(&args);
+
+        assert!(matches!(
+            self.next_non_whitespace_token(&mut stream),
+            Ok(loc!(PreprocessingToken::Punctuator(Punctuator::RParen)))
+        ));
+        panic!();
+        // let replacement_list = replacement_list
+        //     .iter()
+        //     .cloned()
+        //     .map(|mut replacement_token| {
+        //         replacement_token.origin.push(Region {
+        //             start,
+        //             end,
+        //             file_id: token.file_id(),
+        //         });
+        //         replacement_token.location = token.location.clone();
+
+        //         replacement_token
+        //     })
+        //     .collect::<Vec<_>>();
+
+        // let expanded = self.expand_tokens(&replacement_list);
+
+        vec![]
     }
 }

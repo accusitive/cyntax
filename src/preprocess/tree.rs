@@ -12,11 +12,12 @@ use super::{PPResult, Preprocessor, TokenStream, L};
 type StretchStream<'a> = PeekMoreIterator<Iter<'a, UnstructuredTokenStretch>>;
 
 type DirectiveCondition = Vec<L<PreprocessingToken>>;
+type MacroName = L<PreprocessingToken>;
 
 #[derive(Debug, Clone)]
 pub enum DirectiveKind {
-    DefineObject(L<PreprocessingToken>, Vec<L<PreprocessingToken>>),
-    DefineFunction(L<PreprocessingToken>),
+    DefineObject(MacroName, Vec<L<PreprocessingToken>>),
+    DefineFunction(MacroName, Vec<String>, Vec<L<PreprocessingToken>>),
     Undefine(L<PreprocessingToken>),
     Error(L<PreprocessingToken>),
     Include(L<PreprocessingToken>),
@@ -47,7 +48,8 @@ impl Preprocessor {
                     let directive_name = directive.value.as_identifier().unwrap().clone();
 
                     let directive_tokens = self.collect_until_newline(token_stream);
-                    let mut directive_tokens = directive_tokens.iter().peekmore();
+                    let mut directive_tokens0 = directive_tokens.iter().peekmore();
+                    let mut directive_tokens = &mut directive_tokens0;
 
                     match directive_name.as_str() {
                         "ifdef" => {
@@ -93,9 +95,36 @@ impl Preprocessor {
                             })?;
 
                             // Function style
-                            if let Some(loc!(PreprocessingToken::Punctuator(Punctuator::LParen))) = token_stream.peek() {
-                                todo!();
-                                tg.push(UnstructuredTokenStretch::Directive(DirectiveKind::DefineFunction(macro_name)));
+                            if let Some(loc!(PreprocessingToken::Punctuator(Punctuator::LParen))) = directive_tokens.peek() {
+                                let _lparen = directive_tokens.next().unwrap(); // consume LPAREN
+                                let mut parameters = vec![];
+                                while let Some(next_token) = directive_tokens.peek() {
+                                    if matches!(next_token.value, PreprocessingToken::Punctuator(Punctuator::RParen)) {
+                                        break;
+                                    }
+
+                                    // dbg!(&parameters, &next_token);
+                                    let next = self.next_non_whitespace_token(directive_tokens).unwrap();
+                                    match next.as_identifier() {
+                                        Some(identifier) => {
+                                            parameters.push(identifier.clone());
+                                        }
+                                        None => {
+                                            return Err(Diagnostic::error()
+                                                .with_message("Function-style macro parameters must be identifier")
+                                                .with_labels(next.generate_location_labels()))
+                                        }
+                                    }
+                                    if parameters.len() > 0 {
+                                        if let Some(loc!(PreprocessingToken::Punctuator(Punctuator::Comma))) = directive_tokens.peek() {
+                                            let _comma = directive_tokens.next().unwrap();
+                                        }
+                                    }
+                                }
+                                assert!(matches!(directive_tokens.next(), Some(loc!(PreprocessingToken::Punctuator(Punctuator::RParen)))));
+
+                                let replacement_list = directive_tokens.cloned().collect();
+                                tg.push(UnstructuredTokenStretch::Directive(DirectiveKind::DefineFunction(macro_name, parameters, replacement_list)));
                             } else {
                                 let replacement_list = directive_tokens.cloned().collect();
                                 tg.push(UnstructuredTokenStretch::Directive(DirectiveKind::DefineObject(macro_name, replacement_list)));
@@ -263,7 +292,7 @@ impl Preprocessor {
                                     content: group_body,
                                 })
                             }
-                            Some(UnstructuredTokenStretch::Directive(DirectiveKind::Endif )) => {
+                            Some(UnstructuredTokenStretch::Directive(DirectiveKind::Endif)) => {
                                 self.expect_endif(stretch_stream).unwrap();
                                 Some(Group {
                                     kind: self.create_conditional_group_kind(directive_kind, condition.to_vec(), None),
@@ -339,7 +368,11 @@ impl Preprocessor {
                             x => panic!("{:#?}", x),
                         }
                     }
-                    DirectiveKind::DefineObject(_, _) | DirectiveKind::Undefine(_) | DirectiveKind::Error(_) | DirectiveKind::Include(_)=> {
+                    DirectiveKind::DefineObject(_, _)
+                    | DirectiveKind::DefineFunction(_, _, _)
+                    | DirectiveKind::Undefine(_)
+                    | DirectiveKind::Error(_)
+                    | DirectiveKind::Include(_) => {
                         let g = Group {
                             kind: GroupKind::Body,
                             content: vec![GroupChild::Directive(directive_kind.clone())],
