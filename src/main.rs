@@ -1,15 +1,8 @@
-use codespan_reporting::{
-    diagnostic::{Diagnostic, Label},
-    files::SimpleFiles,
-    term::{
-        self,
-        termcolor::{ColorChoice, StandardStream},
-        Chars, DisplayStyle,
-    },
+use codespan_reporting::term::{
+    self,
+    termcolor::{ColorChoice, StandardStream},
 };
 use lexer::Lexer;
-use location::LocationHistory;
-use parser::Parser;
 use peekmore::PeekMore;
 
 pub mod lexer;
