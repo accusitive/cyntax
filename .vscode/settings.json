@@ -16,6 +16,7 @@
         "cstdarg": "c",
         "stubs.h": "c",
         "tcc.h": "c",
-        "stdlib.h": "c"
+        "stdlib.h": "c",
+        "input.h": "c"
     }
 }

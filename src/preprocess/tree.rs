@@ -119,6 +119,14 @@ impl Preprocessor {
                             })?;
                             tg.push(UnstructuredTokenStretch::Directive(DirectiveKind::Error(error_reason)))
                         }
+                        "warning" => {
+                            // let error_reason = self.next_non_whitespace_token(&mut directive_tokens).map_err(|_| {
+                            //     Diagnostic::error()
+                            //         .with_message("warning directive must be followed by a reason")
+                            //         .with_labels(directive.generate_location_labels())
+                            // })?;
+                            // tg.push(UnstructuredTokenStretch::Directive(DirectiveKind::Error(error_reason)))
+                        }
                         "include" => {
                             let header_name = self.next_non_whitespace_token(&mut directive_tokens).map_err(|_| {
                                 Diagnostic::error()
@@ -252,6 +260,13 @@ impl Preprocessor {
                                 let opposition = self.parse_group(stretch_stream).unwrap();
                                 Some(Group {
                                     kind: self.create_conditional_group_kind(directive_kind, condition.to_vec(), Some(Box::new(opposition))),
+                                    content: group_body,
+                                })
+                            }
+                            Some(UnstructuredTokenStretch::Directive(DirectiveKind::Endif )) => {
+                                self.expect_endif(stretch_stream).unwrap();
+                                Some(Group {
+                                    kind: self.create_conditional_group_kind(directive_kind, condition.to_vec(), None),
                                     content: group_body,
                                 })
                             }

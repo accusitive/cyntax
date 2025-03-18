@@ -1,7 +1,7 @@
 use std::{collections::HashMap, slice::Iter};
 
 use ast::{Constant, FloatConstant, IntConstant, Token};
-use codespan_reporting::diagnostic::Diagnostic;
+use codespan_reporting::{diagnostic::Diagnostic, files::SimpleFiles};
 use peekmore::PeekMoreIterator;
 
 use crate::{lexer::PreprocessingToken, location::LocationHistory, parser::ast::Keyword};
@@ -24,6 +24,7 @@ pub mod include;
 #[derive(Debug)]
 pub struct Preprocessor {
     pub macros: HashMap<String, Macro>,
+    pub files: SimpleFiles<String, String,>
 }
 #[derive(Debug)]
 pub enum Macro {
@@ -32,7 +33,7 @@ pub enum Macro {
 
 impl Preprocessor {
     pub fn new() -> Self {
-        Self { macros: HashMap::new() }
+        Self { macros: HashMap::new(), files: SimpleFiles::new() }
     }
     pub fn next_non_whitespace_token<'a: 'b, 'b>(&mut self, token_stream: &'a mut TokenStream) -> PPResult<LocationHistory<PreprocessingToken>> {
         match token_stream.next() {

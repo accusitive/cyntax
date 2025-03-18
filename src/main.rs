@@ -24,13 +24,24 @@ fn main() {
     let lexer_tokens = lexer.tokenize().iter().cloned().map(|tok| tok.double(0)).collect::<Vec<_>>();
     dbg!(&lexer_tokens);
     let mut pp = preprocess::Preprocessor::new();
+    pp.files.add("input.c".to_string(), source.to_string());
     let groups = pp.create_token_stretches(&mut lexer_tokens.iter().peekmore()).unwrap();
     dbg!(&groups);
     let groups = pp.parse_all_groups(&mut groups.iter().peekmore());
     dbg!(&groups);
     let mut expanded_tokens = vec![];
     for group in &groups {
-        expanded_tokens.extend(pp.expand_group(group).unwrap());
+        let gr = pp.expand_group(group);
+        match gr {
+            Ok(o) => {
+                expanded_tokens.extend(o);
+            }
+            Err(e) => {
+                let writer: StandardStream = StandardStream::stderr(ColorChoice::Always);
+                let config = codespan_reporting::term::Config::default();
+                term::emit(&mut writer.lock(), &config, &pp.files, &e).unwrap();
+            }
+        }
     }
     dbg!(&expanded_tokens);
 
