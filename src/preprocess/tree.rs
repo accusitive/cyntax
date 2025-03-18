@@ -368,11 +368,15 @@ impl Preprocessor {
                             x => panic!("{:#?}", x),
                         }
                     }
+<<<<<<< HEAD
                     DirectiveKind::DefineObject(_, _)
                     | DirectiveKind::DefineFunction(_, _, _)
                     | DirectiveKind::Undefine(_)
                     | DirectiveKind::Error(_)
                     | DirectiveKind::Include(_) => {
+=======
+                    DirectiveKind::DefineObject(_, _) | DirectiveKind::Undefine(_) | DirectiveKind::Error(_) | DirectiveKind::Include(_) => {
+>>>>>>> a8eaa5e (add pre expand pass for parsing if directive expressionl, to handle defined operator)
                         let g = Group {
                             kind: GroupKind::Body,
                             content: vec![GroupChild::Directive(directive_kind.clone())],

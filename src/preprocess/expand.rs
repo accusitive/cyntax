@@ -39,8 +39,10 @@ impl Preprocessor {
                 }
             }
             super::tree::GroupKind::If(condition, elze) | super::tree::GroupKind::Elif(condition, elze) => {
+                let pre_expanded = self.pre_expand_tokens(&condition);
+
                 let tokens: Vec<_> = self
-                    .expand_tokens(&condition)
+                    .expand_tokens(&pre_expanded)
                     .iter()
                     .filter_map(|token| Preprocessor::pp_token_to_token(token.clone()))
                     .collect();
@@ -112,22 +114,6 @@ impl Preprocessor {
     pub fn expand_group_child(&mut self, group_child: &GroupChild) -> PPResult<Vec<L<PreprocessingToken>>> {
         match group_child {
             GroupChild::Token(token) => match token {
-                // loc!(PreprocessingToken::Identifier(identifier)) if self.macros.get(identifier).is_some() => match self.macros.get(identifier) {
-                //     Some(Macro::Object(replacement_list)) => Ok(self.expand_object_macro(token, replacement_list)),
-                //     _ => Ok(vec![token.clone()]),
-                // },
-
-                // loc!(PreprocessingToken::Identifier(identifier)) if identifier == "defined" => {
-                //     let macro_name = self.next_non_whitespace_token(token_stream)?;
-
-                //     if let Some(_) = self.macros.get(macro_name.value.as_identifier().unwrap()) {
-                //         let one = token.same(PreprocessingToken::Number("1".to_string()));
-                //         Ok(vec![one])
-                //     } else {
-                //         let zero = token.same(PreprocessingToken::Number("0".to_string()));
-                //         Ok(vec![zero])
-                //     }
-                // }
                 loc!(PreprocessingToken::Identifier(identifier)) if self.macros.get(identifier).is_some() => Ok(self.expand_tokens(&[token.clone()])),
                 _ => Ok(vec![token.clone()]),
             },
@@ -176,6 +162,42 @@ impl Preprocessor {
             },
             GroupChild::Group(group) => self.expand_group(group),
         }
+    }
+    /// Expand `defined a` and `defined(a)` in conditional group's expression
+    fn pre_expand_tokens(&self, tokens: &[L<PreprocessingToken>]) -> Vec<L<PreprocessingToken>> {
+        let mut v = vec![];
+        let mut tokens = tokens.iter().peekmore();
+
+        while let Some(token) = tokens.next() {
+            match &token.value {
+                PreprocessingToken::Identifier(identifier) if identifier == "defined" => {
+                    let need_rparen = if matches!(tokens.peek(), Some(loc!(PreprocessingToken::Punctuator(Punctuator::LParen)))) {
+                        tokens.next().unwrap();
+                        true
+                    } else {
+                        tokens.next().unwrap(); // whitespace
+                        false
+                    };
+
+                    match tokens.next() {
+                        Some(loc!(PreprocessingToken::Identifier(macro_name))) => {
+                            if self.macros.get(macro_name).is_some() {
+                                v.push(LocationHistory::x(PreprocessingToken::Number("1".to_string())));
+                            } else {
+                                v.push(LocationHistory::x(PreprocessingToken::Number("0".to_string())));
+                            }
+                        }
+
+                        x => panic!("defined operator must be followed by an identifier! not {:#?}", x),
+                    }
+                    if need_rparen {
+                        assert!(matches!(tokens.next().unwrap(), loc!(PreprocessingToken::Punctuator(Punctuator::RParen))));
+                    }
+                }
+                _ => v.push(token.clone()),
+            }
+        }
+        v
     }
     fn expand_tokens(&self, tokens: &[L<PreprocessingToken>]) -> Vec<L<PreprocessingToken>> {
         let mut output = vec![];

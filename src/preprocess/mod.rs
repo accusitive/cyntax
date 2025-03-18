@@ -19,12 +19,12 @@ type L<T> = LocationHistory<T>;
 pub mod ast;
 pub mod eval;
 pub mod expand;
-pub mod tree;
 pub mod include;
+pub mod tree;
 #[derive(Debug)]
 pub struct Preprocessor {
     pub macros: HashMap<String, Macro>,
-    pub files: SimpleFiles<String, String,>
+    pub files: SimpleFiles<String, String>,
 }
 #[derive(Debug)]
 pub enum Macro {
@@ -51,7 +51,10 @@ impl Macro {
 
 impl Preprocessor {
     pub fn new() -> Self {
-        Self { macros: HashMap::new(), files: SimpleFiles::new() }
+        Self {
+            macros: HashMap::new(),
+            files: SimpleFiles::new(),
+        }
     }
     pub fn next_non_whitespace_token(&self, token_stream: &mut TokenStream) -> PPResult<LocationHistory<PreprocessingToken>> {
         match token_stream.next() {

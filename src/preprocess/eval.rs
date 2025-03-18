@@ -75,7 +75,7 @@ impl Preprocessor {
                 let val = self.evaluate_constant_expression(expr)?;
 
                 match op.value {
-                    crate::parser::ast::UnaryOperator::Negate => Ok( if val != 0 { 0 } else { 1 }),
+                    crate::parser::ast::UnaryOperator::Negate => Ok(if val != 0 { 0 } else { 1 }),
                     _ => unimplemented!(),
                 }
             }
