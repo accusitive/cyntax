@@ -1,3 +1,5 @@
 #define funcstyle(a, b) a+b
-
-funcstyle(1, 2)
+#define EMPTY
+int test = funcstyle(1,\
+2);
+int a = 5;

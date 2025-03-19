@@ -1,7 +1,7 @@
 use std::{net::ToSocketAddrs, ops::Deref};
 
 use codespan_reporting::diagnostic::Diagnostic;
-use peekmore::PeekMore;
+use peekmore::{PeekMore, PeekMoreIterator};
 
 use crate::{
     lexer::{Lexer, PreprocessingToken, Punctuator},
@@ -23,9 +23,6 @@ impl Preprocessor {
             super::tree::GroupKind::IfDef(macro_name, elze) => {
                 if self.macros.get(macro_name).is_some() {
                     v.extend(self.expand_group_children(&group.content)?);
-                    // for child in &group.content {
-                    //     v.extend(self.expand_group_child(child)?);
-                    // }
                 } else {
                     if let Some(group) = elze {
                         v.extend(self.expand_group(group.deref())?);
@@ -34,9 +31,6 @@ impl Preprocessor {
             }
             super::tree::GroupKind::IfNDef(macro_name, elze) => {
                 if self.macros.get(macro_name).is_none() {
-                    // for child in &group.content {
-                    //     v.extend(self.expand_group_child(child)?);
-                    // }
                     v.extend(self.expand_group_children(&group.content)?);
                 } else {
                     if let Some(group) = elze {
@@ -51,7 +45,6 @@ impl Preprocessor {
                     .filter_map(|token| Preprocessor::pp_token_to_token(token.clone()))
                     .collect();
 
-                // let tokens: Vec<_> = condition.iter().filter_map(|token| Preprocessor::pp_token_to_token(token.clone())).collect();
                 let mut parser = Parser {
                     tokens: tokens.iter().peekmore(),
                     files: self.files.clone(),
@@ -68,9 +61,6 @@ impl Preprocessor {
                 self.files = parser.files;
                 if self.evaluate_constant_expression(&condition).unwrap() != 0 {
                     v.extend(self.expand_group_children(&group.content)?);
-                    // for child in &group.content {
-                    //     v.extend(self.expand_group_child(child)?);
-                    // }
                 } else {
                     if let Some(group) = elze {
                         v.extend(self.expand_group(group.deref())?);
@@ -78,15 +68,9 @@ impl Preprocessor {
                 }
             }
             super::tree::GroupKind::Else => {
-                // for child in &group.content {
-                //     v.extend(self.expand_group_child(child)?);
-                // }
                 v.extend(self.expand_group_children(&group.content)?);
             }
             super::tree::GroupKind::Body => {
-                // for child in &group.content {
-                //     v.extend(self.expand_group_child(child)?);
-                // }
                 v.extend(self.expand_group_children(&group.content)?);
             }
         }
@@ -95,21 +79,27 @@ impl Preprocessor {
     pub fn expand_group_children(&mut self, group_children: &[GroupChild]) -> PPResult<Vec<LocationHistory<PreprocessingToken>>> {
         let mut v = vec![];
         let mut peekable = group_children.iter().peekmore();
+
         while let Some(child) = peekable.next() {
+            dbg!(&child, &peekable);
+            
             match child {
                 GroupChild::Token(defined_l @ loc!(PreprocessingToken::Identifier(identifier))) if identifier == "defined" => {
                     let next = peekable.peek();
                     if let Some(GroupChild::Token(macro_name_l @ loc!(PreprocessingToken::Identifier(macro_name)))) = next {
                         peekable.next().unwrap();
-                        panic!();
                         let one = macro_name_l.same(PreprocessingToken::Number("1".to_string()));
                         v.push(one);
                     } else {
                         peekable.next().unwrap();
-                        panic!();
                         let zero = defined_l.same(PreprocessingToken::Number("0".to_string()));
                         v.push(zero);
                     }
+                }
+                GroupChild::Token(macro_name_l @ loc!(PreprocessingToken::Identifier(m))) if self.is_function_style_macro(m) => {
+                    let mac = self.macros.get(m).unwrap().as_function().unwrap();
+                    // let e = self.expand_function_macros(&mut peekable, macro_name_l, mac.0, mac.1);
+                    panic!();
                 }
                 _ => {
                     v.extend(self.expand_group_child(child)?);
@@ -195,10 +185,12 @@ impl Preprocessor {
                     let r#macro = self.macros.get(identifier).unwrap();
                     match r#macro {
                         Macro::Object(replacement_list) => output.extend(self.expand_object_macro(&token, replacement_list)),
-                        Macro::Function(parameters, replacement_list) => {
-                            
-                            output.extend(self.expand_function_macros(tokens, &token, parameters.clone(), replacement_list))
-                        },
+                        // Macro::Function(parameters, replacement_list) => {
+                        //     dbg!(&tokens);
+                        //     panic!();
+                        //     output.extend(self.expand_function_macros(tokens, &token, parameters.clone(), replacement_list))
+                        // },
+                        _ => {}
                     }
                 }
                 _ => {
@@ -236,16 +228,17 @@ impl Preprocessor {
     }
     pub fn expand_function_macros(
         &self,
-        tokens: &[L<PreprocessingToken>],
+        // tokens: &[L<PreprocessingToken>],
+        stream: &mut PeekMoreIterator<std::slice::Iter<'_, LocationHistory<PreprocessingToken>>>,
         token: &L<PreprocessingToken>,
         parameters: Vec<String>,
         replacement_list: &Vec<L<PreprocessingToken>>,
     ) -> Vec<L<PreprocessingToken>> {
-        let mut stream: peekmore::PeekMoreIterator<std::slice::Iter<'_, LocationHistory<PreprocessingToken>>> = tokens.iter().peekmore();
-        let macro_name = self.next_non_whitespace_token(&mut stream).unwrap();
-        dbg!(&stream);
+        // let mut stream: peekmore::PeekMoreIterator<std::slice::Iter<'_, LocationHistory<PreprocessingToken>>> = tokens.iter().peekmore();
+        let macro_name = self.next_non_whitespace_token(stream).unwrap();
+        // dbg!(&stream);
         assert!(matches!(
-            self.next_non_whitespace_token(&mut stream),
+            self.next_non_whitespace_token(stream),
             Ok(loc!(PreprocessingToken::Punctuator(Punctuator::LParen)))
         ));
         let mut args: Vec<Vec<L<PreprocessingToken>>> = vec![];
@@ -268,7 +261,7 @@ impl Preprocessor {
         dbg!(&args);
 
         assert!(matches!(
-            self.next_non_whitespace_token(&mut stream),
+            self.next_non_whitespace_token(stream),
             Ok(loc!(PreprocessingToken::Punctuator(Punctuator::RParen)))
         ));
         panic!();
@@ -290,5 +283,11 @@ impl Preprocessor {
         // let expanded = self.expand_tokens(&replacement_list);
 
         vec![]
+    }
+    pub fn is_function_style_macro(&self, macro_name: &str) -> bool {
+        match self.macros.get(macro_name) {
+            Some(Macro::Function(_, _)) => true,
+            _ => false,
+        }
     }
 }

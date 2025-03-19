@@ -32,6 +32,23 @@ pub enum Macro {
     Function(Vec<String>, Vec<L<PreprocessingToken>>)
 }
 
+impl Macro {
+    pub fn as_object(&self) -> Option<&Vec<L<PreprocessingToken>>> {
+        if let Self::Object(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+    pub fn as_function(&self) -> Option<(&Vec<String>, &Vec<L<PreprocessingToken>>)> {
+        if let Self::Function(params, replacement_list) = self {
+            Some((params, replacement_list))
+        } else {
+            None
+        }
+    }
+}
+
 impl Preprocessor {
     pub fn new() -> Self {
         Self { macros: HashMap::new(), files: SimpleFiles::new() }
