@@ -203,6 +203,16 @@ pub enum GroupChild {
     Directive(DirectiveKind),
     Group(Group),
 }
+
+impl GroupChild {
+    pub fn as_token(&self) -> Option<&LocationHistory<PreprocessingToken>> {
+        if let Self::Token(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+}
 impl Preprocessor {
     pub fn parse_all_groups(&mut self, stretch_stream: &mut StretchStream) -> Vec<Group> {
         let mut groups = vec![];

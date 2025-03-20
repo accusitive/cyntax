@@ -100,7 +100,7 @@ impl Preprocessor {
                 }
                 GroupChild::Token(macro_name_l @ loc!(PreprocessingToken::Identifier(m))) if self.is_function_style_macro(m) => {
                     let mac = self.macros.get(m).unwrap().as_function().unwrap();
-                    // let e = self.expand_function_macros(&mut peekable, macro_name_l, mac.0, mac.1);
+                    let e = self.expand_function_macros(&mut peekable, macro_name_l, mac.0, mac.1);
                     panic!();
                 }
                 _ => {
@@ -251,20 +251,25 @@ impl Preprocessor {
     pub fn expand_function_macros(
         &self,
         // tokens: &[L<PreprocessingToken>],
-        stream: &mut PeekMoreIterator<std::slice::Iter<'_, LocationHistory<PreprocessingToken>>>,
+        stream: &mut PeekMoreIterator<std::slice::Iter<'_, GroupChild>>,
         token: &L<PreprocessingToken>,
-        parameters: Vec<String>,
+        parameters: &[String],
         replacement_list: &Vec<L<PreprocessingToken>>,
     ) -> Vec<L<PreprocessingToken>> {
         // let mut stream: peekmore::PeekMoreIterator<std::slice::Iter<'_, LocationHistory<PreprocessingToken>>> = tokens.iter().peekmore();
-        let macro_name = self.next_non_whitespace_token(stream).unwrap();
+        // let macro_name = self.next_non_whitespace_token(stream).unwrap();
+        
         // dbg!(&stream);
-        assert!(matches!(
-            self.next_non_whitespace_token(stream),
-            Ok(loc!(PreprocessingToken::Punctuator(Punctuator::LParen)))
-        ));
+            assert!(matches!(stream.next().unwrap().as_token().unwrap(), loc!(PreprocessingToken::Punctuator(Punctuator::LParen))));
+        // assert!(matches!(
+        //     self.next_non_whitespace_token(stream),
+        //     Ok(loc!(PreprocessingToken::Punctuator(Punctuator::LParen)))
+        // ));
+
         let mut args: Vec<Vec<L<PreprocessingToken>>> = vec![];
-        while let Some(token) = stream.peek() {
+        'outer: while let Some(token) = stream.peek() {
+            let token = token.as_token().unwrap();
+
             let mut argument = vec![];
             if matches!(token, loc!(PreprocessingToken::Punctuator(Punctuator::RParen))) {
                 // push arg
@@ -272,9 +277,16 @@ impl Preprocessor {
             }
 
             while let Some(token) = stream.peek() {
+                // let token = token.as_token().unwrap();
+                let token = stream.next().unwrap().as_token().unwrap();
+
                 if matches!(token, loc!(PreprocessingToken::Punctuator(Punctuator::Comma))) {
                     // push arg
                     break;
+                }
+                if matches!(token, loc!(PreprocessingToken::Punctuator(Punctuator::RParen))) {
+                    args.push(argument);
+                    break 'outer;
                 }
                 argument.push(token.to_owned().clone());
             }
@@ -282,10 +294,10 @@ impl Preprocessor {
         }
         dbg!(&args);
 
-        assert!(matches!(
-            self.next_non_whitespace_token(stream),
-            Ok(loc!(PreprocessingToken::Punctuator(Punctuator::RParen)))
-        ));
+        // assert!(matches!(
+        //     self.next_non_whitespace_token(stream),
+        //     Ok(loc!(PreprocessingToken::Punctuator(Punctuator::RParen)))
+        // ));
         panic!();
         // let replacement_list = replacement_list
         //     .iter()
