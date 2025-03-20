@@ -1,4 +1,4 @@
-use std::{net::ToSocketAddrs, ops::Deref};
+use std::{collections::HashMap, net::ToSocketAddrs, ops::Deref};
 
 use codespan_reporting::diagnostic::Diagnostic;
 use peekmore::{PeekMore, PeekMoreIterator};
@@ -101,7 +101,7 @@ impl Preprocessor {
                 GroupChild::Token(macro_name_l @ loc!(PreprocessingToken::Identifier(m))) if self.is_function_style_macro(m) => {
                     let mac = self.macros.get(m).unwrap().as_function().unwrap();
                     let e = self.expand_function_macros(&mut peekable, macro_name_l, mac.0, mac.1);
-                    panic!();
+                    v.extend(e);
                 }
                 _ => {
                     v.extend(self.expand_group_child(child)?);
@@ -294,11 +294,31 @@ impl Preprocessor {
         }
         dbg!(&args);
 
+        
+        let mut arg_to_param = HashMap::new();
+        for (param, index) in parameters.iter().zip(0..) {
+            arg_to_param.insert(param, args[index].clone());
+        }
+        dbg!(&arg_to_param);
+
+        let mut patched_replacement_list: Vec<_> = vec![];
+
+        for token in replacement_list {
+            match &token.value {
+                PreprocessingToken::Identifier(identifier) if arg_to_param.get(identifier).is_some() => {
+                    patched_replacement_list.extend(arg_to_param.get(identifier).unwrap().clone());
+                }
+                _ => {
+                    patched_replacement_list.push(token.clone());
+                }
+            }
+        }
+        patched_replacement_list
         // assert!(matches!(
         //     self.next_non_whitespace_token(stream),
         //     Ok(loc!(PreprocessingToken::Punctuator(Punctuator::RParen)))
         // ));
-        panic!();
+        // panic!();
         // let replacement_list = replacement_list
         //     .iter()
         //     .cloned()
@@ -316,7 +336,7 @@ impl Preprocessor {
 
         // let expanded = self.expand_tokens(&replacement_list);
 
-        vec![]
+        // vec![]
     }
     pub fn is_function_style_macro(&self, macro_name: &str) -> bool {
         match self.macros.get(macro_name) {

@@ -3,6 +3,7 @@ use std::{collections::HashMap, slice::Iter};
 use ast::{Constant, FloatConstant, IntConstant, Token};
 use codespan_reporting::{diagnostic::Diagnostic, files::SimpleFiles};
 use peekmore::PeekMoreIterator;
+use tree::GroupChild;
 
 use crate::{lexer::PreprocessingToken, location::LocationHistory, parser::ast::Keyword};
 
@@ -63,6 +64,13 @@ impl Preprocessor {
             None => Err(Diagnostic::bug().with_message("Unexpected EOF")),
         }
     }
+    // pub fn next_non_whitespace_token_gc(&self, token_stream: &mut PeekMoreIterator<Iter<'_, LocationHistory<GroupChild>>>) -> PPResult<LocationHistory<PreprocessingToken>> {
+    //     match self.expand_group_child(token_stream.next().unwrap())? {
+    //         loc!(PreprocessingToken::Whitespace(_)) => self.next_non_whitespace_token_gc(token_stream),
+    //         t => Ok(t.clone()),
+    //         _ => Err(Diagnostic::bug().with_message("Unexpected EOF")),
+    //     }
+    // }
     pub fn collect_until_newline(&mut self, token_stream: &mut TokenStream) -> Vec<LocationHistory<PreprocessingToken>> {
         let mut tokens = vec![];
         while let Some(t) = token_stream.peek() {
