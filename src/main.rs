@@ -3,6 +3,8 @@ use codespan_reporting::term::{
     termcolor::{ColorChoice, StandardStream},
 };
 use lexer::Lexer;
+use location::LocationHistory;
+use parser::Parser;
 use peekmore::PeekMore;
 
 pub mod lexer;
@@ -88,7 +90,7 @@ fn main() {
     // // dbg!(&preprocessed_tokens);
 
     // let mut parser = Parser {
-    //     tokens: preprocessed_tokens.iter().peekmore(),
+    //     tokens: expanded_tokens.iter().peekmore(),
     //     files: pp.files.clone(),
     //     symbol_stack: Parser::default_symbol_stack(),
     //     location: LocationHistory::x(()),
