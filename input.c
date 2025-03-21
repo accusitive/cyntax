@@ -1,14 +1,6 @@
-// Normal macro
-#define PI 3.14159
-#define MESSAGE "Hello, Macro!"
+// #include <stdio.h>
 
-// Function-style macros
-#define SQUARE(x) ((x) * (x))
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-#define MULTIPLY(x, y) ((x) * (y))
+#define preq(maj, min) 1
+#if 1 && preq(2, 4)
 
-int pi = PI;
-int msg = MESSAGE;
-
-int a = 5;
-int square_a = SQUARE(a);
+#endif

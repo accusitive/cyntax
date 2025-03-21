@@ -40,6 +40,10 @@ fn main() {
     }
     dbg!(&expanded_tokens);
 
+    for token in expanded_tokens {
+        print!("{}", pp.stringify_token(0, &token));
+    }
+    println!("");
     // dbg!(&pp.expand_group(group));
 
     // let global = pp.parse_global(&mut groups.iter().peekmore()).unwrap();

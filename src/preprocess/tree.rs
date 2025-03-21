@@ -105,6 +105,10 @@ impl Preprocessor {
 
                                     // dbg!(&parameters, &next_token);
                                     let next = self.next_non_whitespace_token(directive_tokens).unwrap();
+                                    if let loc!(PreprocessingToken::Punctuator(Punctuator::DotDotDot)) = next {
+                                        // variadic
+                                        break;
+                                    }
                                     match next.as_identifier() {
                                         Some(identifier) => {
                                             parameters.push(identifier.clone());
@@ -410,7 +414,7 @@ impl Preprocessor {
         match &token.value {
             PreprocessingToken::Identifier(i) => i.to_string(),
             PreprocessingToken::Number(num) => num.to_string(),
-            PreprocessingToken::StringLiteral(s) => s.to_string(),
+            PreprocessingToken::StringLiteral(s) => format!("\"{}\"", s.to_string()),
             PreprocessingToken::Punctuator(punctuator) => punctuator.stringify().to_string(),
             PreprocessingToken::Whitespace(w) => w.to_string(),
             PreprocessingToken::Newline => format!("\n{}", " ".repeat(indent)),

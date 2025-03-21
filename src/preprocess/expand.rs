@@ -40,9 +40,11 @@ impl Preprocessor {
             }
             super::tree::GroupKind::If(condition, elze) | super::tree::GroupKind::Elif(condition, elze) => {
                 let pre_expanded = self.pre_expand_tokens(&condition);
+                let expanded = self.expand_tokens(&pre_expanded);
 
+                dbg!(&expanded);
                 let tokens: Vec<_> = self
-                    .expand_tokens(&pre_expanded)
+                    .expand_tokens(&expanded)
                     .iter()
                     .filter_map(|token| Preprocessor::pp_token_to_token(token.clone()))
                     .collect();
@@ -61,6 +63,7 @@ impl Preprocessor {
                     })?
                     .unwrap();
                 self.files = parser.files;
+
                 if self.evaluate_constant_expression(&condition).unwrap() != 0 {
                     v.extend(self.expand_group_children(&group.content)?);
                 } else {
@@ -83,7 +86,7 @@ impl Preprocessor {
         let mut peekable = group_children.iter().peekmore();
 
         while let Some(child) = peekable.next() {
-            dbg!(&child, &peekable);
+            // dbg!(&child, &peekable);
 
             match child {
                 GroupChild::Token(defined_l @ loc!(PreprocessingToken::Identifier(identifier))) if identifier == "defined" => {
@@ -207,6 +210,10 @@ impl Preprocessor {
                     let r#macro = self.macros.get(identifier).unwrap();
                     match r#macro {
                         Macro::Object(replacement_list) => output.extend(self.expand_object_macro(&token, replacement_list)),
+                        Macro::Function(parameters, replacement_list) => {
+                            dbg!(&parameters, replacement_list, tokens);
+                            panic!();
+                        }
                         // Macro::Function(parameters, replacement_list) => {
                         //     dbg!(&tokens);
                         //     panic!();
@@ -291,6 +298,7 @@ impl Preprocessor {
             }
             args.push(argument);
         }
+
         dbg!(&args);
 
         let mut arg_to_param = HashMap::new();
