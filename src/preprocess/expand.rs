@@ -101,11 +101,11 @@ impl Preprocessor {
                         v.push(zero);
                     }
                 }
-                GroupChild::Token(macro_name_l @ loc!(PreprocessingToken::Identifier(m))) if self.is_function_style_macro(m) => {
-                    let mac = self.macros.get(m).unwrap().as_function().unwrap();
-                    let e = self.expand_function_macros(&mut peekable, macro_name_l, mac.0, mac.1);
-                    v.extend(e);
-                }
+                // GroupChild::Token(macro_name_l @ loc!(PreprocessingToken::Identifier(m))) if self.is_function_style_macro(m) => {
+                //     let mac = self.macros.get(m).unwrap().as_function().unwrap();
+                //     let e = self.expand_function_macros(&mut peekable, macro_name_l, mac.0, mac.1);
+                //     v.extend(e);
+                // }
                 _ => {
                     v.extend(self.expand_group_child(child)?);
                 }
@@ -146,7 +146,9 @@ impl Preprocessor {
                     .with_message(self.stringify_token(0, reason))
                     .with_labels(reason.generate_location_labels())),
                 DirectiveKind::Include(header_name) => {
-                    let path = self.locate_header(header_name).unwrap();
+                    let path = self
+                        .locate_header(header_name)
+                        .expect(&format!("failed to include {}", self.stringify_token(0, header_name)));
                     let file_id = self.files.add(header_name.as_header_name().unwrap().0.to_string(), path.clone());
                     let mut lexer = Lexer::from(path.as_str());
                     let lexer_tokens = lexer.tokenize().into_iter().map(|tok| tok.double(file_id)).collect::<Vec<_>>();
@@ -174,17 +176,20 @@ impl Preprocessor {
         while let Some(token) = tokens.next() {
             match &token.value {
                 PreprocessingToken::Identifier(identifier) if identifier == "defined" => {
-                    let need_rparen = if matches!(tokens.peek(), Some(loc!(PreprocessingToken::Punctuator(Punctuator::LParen)))) {
-                        tokens.next().unwrap();
+                    let need_rparen = if matches!(self.peek_non_whitespace_token(0, &mut tokens), Ok(loc!(PreprocessingToken::Punctuator(Punctuator::LParen)))) {
+                        // tokens.next().unwrap();
+                        // self.next_non_whitespace_token(&mut tokens).unwrap();
+                        assert!(matches!(self.next_non_whitespace_token(&mut tokens).unwrap(), loc!(PreprocessingToken::Punctuator(Punctuator::LParen))));
                         true
                     } else {
-                        tokens.next().unwrap(); // whitespace
+                        // tokens.next().unwrap(); // whitespace
                         false
                     };
 
-                    match tokens.next() {
-                        Some(loc!(PreprocessingToken::Identifier(macro_name))) => {
-                            if self.macros.get(macro_name).is_some() {
+                    match self.next_non_whitespace_token(&mut tokens) {
+                        // Ok(loc!(PreprocessingToken::Punctuator(Punctuator::LParen))) => {}
+                        Ok(loc!(PreprocessingToken::Identifier(macro_name))) => {
+                            if self.macros.get(&macro_name).is_some() {
                                 v.push(LocationHistory::x(PreprocessingToken::Number("1".to_string())));
                             } else {
                                 v.push(LocationHistory::x(PreprocessingToken::Number("0".to_string())));
@@ -194,7 +199,7 @@ impl Preprocessor {
                         x => panic!("defined operator must be followed by an identifier! not {:#?}", x),
                     }
                     if need_rparen {
-                        assert!(matches!(tokens.next().unwrap(), loc!(PreprocessingToken::Punctuator(Punctuator::RParen))));
+                        assert!(matches!(self.next_non_whitespace_token(&mut tokens).unwrap(), loc!(PreprocessingToken::Punctuator(Punctuator::RParen))));
                     }
                 }
                 _ => v.push(token.clone()),
@@ -203,8 +208,10 @@ impl Preprocessor {
         v
     }
     fn expand_tokens(&self, tokens: &[L<PreprocessingToken>]) -> Vec<L<PreprocessingToken>> {
+        let mut token_stream = tokens.iter().peekmore();
+
         let mut output = vec![];
-        for token in tokens {
+        while let Some(token) = token_stream.next() {
             match &token.value {
                 PreprocessingToken::Identifier(identifier) if self.macros.get(identifier).is_some() => {
                     let r#macro = self.macros.get(identifier).unwrap();
@@ -212,7 +219,11 @@ impl Preprocessor {
                         Macro::Object(replacement_list) => output.extend(self.expand_object_macro(&token, replacement_list)),
                         Macro::Function(parameters, replacement_list) => {
                             dbg!(&parameters, replacement_list, tokens);
-                            panic!();
+                            // let z = token_stream.clone().cloned().collect::<Vec<_>>();
+                            // let pre_expanded = self.pre_expand_tokens(&z);
+                            let fm = self.expand_function_macros(&mut token_stream, token, parameters, replacement_list);
+                            dbg!(&fm);
+                            output.extend(fm);
                         }
                         // Macro::Function(parameters, replacement_list) => {
                         //     dbg!(&tokens);
@@ -258,23 +269,23 @@ impl Preprocessor {
     pub fn expand_function_macros(
         &self,
         // tokens: &[L<PreprocessingToken>],
-        stream: &mut PeekMoreIterator<std::slice::Iter<'_, GroupChild>>,
+        stream: &mut PeekMoreIterator<std::slice::Iter<'_, L<PreprocessingToken>>>,
         token: &L<PreprocessingToken>,
         parameters: &[String],
         replacement_list: &Vec<L<PreprocessingToken>>,
     ) -> Vec<L<PreprocessingToken>> {
-        assert!(matches!(
-            stream.next().unwrap().as_token().unwrap(),
-            loc!(PreprocessingToken::Punctuator(Punctuator::LParen))
-        ));
         // assert!(matches!(
-        //     self.next_non_whitespace_token(stream),
-        //     Ok(loc!(PreprocessingToken::Punctuator(Punctuator::LParen)))
+        // stream.next().unwrap(),
+        // loc!(PreprocessingToken::Punctuator(Punctuator::LParen))
         // ));
+        assert!(matches!(
+            self.next_non_whitespace_token(stream),
+            Ok(loc!(PreprocessingToken::Punctuator(Punctuator::LParen)))
+        ));
 
         let mut args: Vec<Vec<L<PreprocessingToken>>> = vec![];
         'outer: while let Some(token) = stream.peek() {
-            let token = token.as_token().unwrap();
+            let token = token;
 
             let mut argument = vec![];
             if matches!(token, loc!(PreprocessingToken::Punctuator(Punctuator::RParen))) {
@@ -284,7 +295,7 @@ impl Preprocessor {
 
             while let Some(_) = stream.peek() {
                 // let token = token.as_token().unwrap();
-                let token = stream.next().unwrap().as_token().unwrap();
+                let token = stream.next().unwrap();
 
                 if matches!(token, loc!(PreprocessingToken::Punctuator(Punctuator::Comma))) {
                     // push arg
@@ -303,7 +314,6 @@ impl Preprocessor {
 
         let mut arg_to_param = HashMap::new();
         for (param, index) in parameters.iter().zip(0..) {
-            
             arg_to_param.insert(param, self.expand_tokens(&args[index].clone()));
         }
         dbg!(&arg_to_param);

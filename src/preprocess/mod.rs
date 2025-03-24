@@ -52,8 +52,13 @@ impl Macro {
 
 impl Preprocessor {
     pub fn new() -> Self {
+        let mut macros = HashMap::new();
+        // macros.insert("__cplusplus ".to_string(), Macro::Object(vec![LocationHistory::x(PreprocessingToken::Number("0".to_string()))]));
+        macros.insert("__STDC_NO_VLA__".to_string(), Macro::Object(vec![LocationHistory::x(PreprocessingToken::Number("1".to_string()))]));
+        macros.insert("__x86_64__".to_string(), Macro::Object(vec![LocationHistory::x(PreprocessingToken::Number("1".to_string()))]));
+
         Self {
-            macros: HashMap::new(),
+            macros,
             files: SimpleFiles::new(),
         }
     }
@@ -61,6 +66,13 @@ impl Preprocessor {
         match token_stream.next() {
             Some(loc!(PreprocessingToken::Whitespace(_))) => self.next_non_whitespace_token(token_stream),
             Some(t) => Ok(t.clone()),
+            None => Err(Diagnostic::bug().with_message("Unexpected EOF")),
+        }
+    }
+    pub fn peek_non_whitespace_token(&self, n: usize, token_stream: &mut TokenStream) -> PPResult<LocationHistory<PreprocessingToken>> {
+        match token_stream.peek_nth(n) {
+            Some(loc!(PreprocessingToken::Whitespace(_))) => self.peek_non_whitespace_token(n+1, token_stream),
+            Some(&t) => Ok(t.clone()),
             None => Err(Diagnostic::bug().with_message("Unexpected EOF")),
         }
     }

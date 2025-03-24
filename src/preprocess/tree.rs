@@ -4,7 +4,7 @@ use codespan_reporting::diagnostic::Diagnostic;
 use peekmore::{PeekMore, PeekMoreIterator};
 
 use crate::{
-    lexer::{PreprocessingToken, Punctuator},
+    lexer::{HeaderNameKind, PreprocessingToken, Punctuator},
     location::LocationHistory,
 };
 
@@ -333,7 +333,7 @@ impl Preprocessor {
                             let inner_group = inner.map(|g| vec![GroupChild::Group(g)]).unwrap_or(vec![]);
                             group_body.extend(inner_group);
                         }
-                        dbg!(&macro_name, &stretch_stream);
+                        // dbg!(&macro_name, &stretch_stream);
 
                         match self.peek_non_whitespace(stretch_stream, 0) {
                             Some(UnstructuredTokenStretch::Directive(DirectiveKind::Else | DirectiveKind::Elif(_))) => {
@@ -418,6 +418,8 @@ impl Preprocessor {
             PreprocessingToken::Punctuator(punctuator) => punctuator.stringify().to_string(),
             PreprocessingToken::Whitespace(w) => w.to_string(),
             PreprocessingToken::Newline => format!("\n{}", " ".repeat(indent)),
+            PreprocessingToken::HeaderName(s, HeaderNameKind::H) => format!("<{}>", s),
+            PreprocessingToken::HeaderName(s, HeaderNameKind::Q) => format!("\"{}\"", s),
             token => unimplemented!("token {:?} is not stringifiable yet", &token),
         }
     }
