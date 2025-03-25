@@ -141,10 +141,16 @@ impl Preprocessor {
                     self.macros.remove(macro_name.as_identifier().unwrap());
                     Ok(vec![])
                 }
-                DirectiveKind::Error(reason) => Err(Diagnostic::error()
-                    .with_message("Encountered error directive")
-                    .with_message(self.stringify_token(0, reason))
-                    .with_labels(reason.generate_location_labels())),
+                DirectiveKind::Error(reason) => {
+                    let mut diagnostic = Diagnostic::error()
+                        .with_message("Encountered error directive");
+                    if let Some(reason) = reason {
+                        diagnostic.message = self.stringify_token(0, reason);
+                        diagnostic.labels.extend(reason.generate_location_labels());
+                    }
+                        
+                    Err(diagnostic)
+                }
                 DirectiveKind::Include(header_name) => {
                     let path = self
                         .locate_header(header_name)
@@ -179,7 +185,10 @@ impl Preprocessor {
                     let need_rparen = if matches!(self.peek_non_whitespace_token(0, &mut tokens), Ok(loc!(PreprocessingToken::Punctuator(Punctuator::LParen)))) {
                         // tokens.next().unwrap();
                         // self.next_non_whitespace_token(&mut tokens).unwrap();
-                        assert!(matches!(self.next_non_whitespace_token(&mut tokens).unwrap(), loc!(PreprocessingToken::Punctuator(Punctuator::LParen))));
+                        assert!(matches!(
+                            self.next_non_whitespace_token(&mut tokens).unwrap(),
+                            loc!(PreprocessingToken::Punctuator(Punctuator::LParen))
+                        ));
                         true
                     } else {
                         // tokens.next().unwrap(); // whitespace
@@ -199,7 +208,10 @@ impl Preprocessor {
                         x => panic!("defined operator must be followed by an identifier! not {:#?}", x),
                     }
                     if need_rparen {
-                        assert!(matches!(self.next_non_whitespace_token(&mut tokens).unwrap(), loc!(PreprocessingToken::Punctuator(Punctuator::RParen))));
+                        assert!(matches!(
+                            self.next_non_whitespace_token(&mut tokens).unwrap(),
+                            loc!(PreprocessingToken::Punctuator(Punctuator::RParen))
+                        ));
                     }
                 }
                 _ => v.push(token.clone()),
@@ -278,10 +290,15 @@ impl Preprocessor {
         // stream.next().unwrap(),
         // loc!(PreprocessingToken::Punctuator(Punctuator::LParen))
         // ));
-        assert!(matches!(
-            self.next_non_whitespace_token(stream),
-            Ok(loc!(PreprocessingToken::Punctuator(Punctuator::LParen)))
-        ));
+        {
+            let next = self.next_non_whitespace_token(stream);
+            dbg!(&token.location.start);
+            assert!(matches!(
+                next,
+                Ok(loc!(PreprocessingToken::Punctuator(Punctuator::LParen)))
+            ));
+        }
+        
 
         let mut args: Vec<Vec<L<PreprocessingToken>>> = vec![];
         'outer: while let Some(token) = stream.peek() {

@@ -19,7 +19,7 @@ pub enum DirectiveKind {
     DefineObject(MacroName, Vec<L<PreprocessingToken>>),
     DefineFunction(MacroName, Vec<String>, Vec<L<PreprocessingToken>>),
     Undefine(L<PreprocessingToken>),
-    Error(L<PreprocessingToken>),
+    Error(Option<L<PreprocessingToken>>),
     Include(L<PreprocessingToken>),
 
     Ifdef(String),
@@ -145,11 +145,8 @@ impl Preprocessor {
                             tg.push(UnstructuredTokenStretch::Directive(DirectiveKind::Undefine(macro_name)));
                         }
                         "error" => {
-                            let error_reason = self.next_non_whitespace_token(&mut directive_tokens).map_err(|_| {
-                                Diagnostic::error()
-                                    .with_message("error directive must be followed by a reason")
-                                    .with_labels(directive.generate_location_labels())
-                            })?;
+                            let error_reason = self.next_non_whitespace_token(&mut directive_tokens).ok();
+
                             tg.push(UnstructuredTokenStretch::Directive(DirectiveKind::Error(error_reason)))
                         }
                         "warning" => {

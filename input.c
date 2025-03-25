@@ -1,3 +1,2 @@
 #include <stdio.h>
-
-int clam = __WORDSIZE;
+#include <bits/types.h>
