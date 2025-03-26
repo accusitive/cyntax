@@ -1,10 +1,6 @@
 [package]
 name = "cyntax"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
-codespan-reporting = "0.11.1"
-# used for sanity check sometimes
-# lang-c = "0.15.1"
-peekmore = "1.3.0"
