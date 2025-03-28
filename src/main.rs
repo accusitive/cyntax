@@ -46,25 +46,27 @@ impl<'a> Iterator for CLexerIterator<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         let c = self.chars.next()?;
 
-        let token = if c == '\\' && self.chars.peek_nth(0).map(|c| *c) == Some('\n') {
+        if c == '\\' && self.chars.peek_nth(0).map(|c| *c) == Some('\n') {
             self.next().unwrap();
             self.current_pos += 1;
-            self.next()
-        } else {
-            Some((
-                self.current_pos..self.current_pos + 1,
-                match c {
-                    ' ' | '\t' | '\n' => Tok::Whitespace,
-                    _ => Tok::Error,
-                },
-            ))
-            // Some((self.current_pos..self.current_pos + 1, Tok::Char(c)))
+            return self.next();
         };
-        self.current_pos = self.current_pos + 1;
-        token
+
+        match c {
+            'A'..='z' => None,
+            ' ' | '\t' | '\n' => Some((self.current_pos..self.bump_pos(1), Tok::Whitespace)),
+            _ => Some((self.current_pos..self.bump_pos(1), Tok::Char(c))),
+        }
+        // self.current_pos = token.as_ref().unwrap().0.end;
+        // token
     }
 }
-
+impl<'a> CLexerIterator<'a> {
+    fn bump_pos(&mut self, amount: usize) -> usize {
+        self.current_pos += amount;
+        self.current_pos
+    }
+}
 fn main() {
     let source = "int main\\\na";
     let mut i = CLexerIterator {
