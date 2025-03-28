@@ -6,7 +6,16 @@ version = 4
 name = "cyntax"
 version = "0.1.0"
 dependencies = [
+ "cyntax_lexer",
+ "smallvec",
+]
+
+[[package]]
+name = "cyntax_lexer"
+version = "0.1.0"
+dependencies = [
  "peekmore",
+ "smallvec",
 ]
 
 [[package]]
@@ -14,3 +23,9 @@ name = "peekmore"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9163e1259760e83d528d1b3171e5100c1767f10c52e1c4d6afad26e63d47d758"
+
+[[package]]
+name = "smallvec"
+version = "1.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7fcf8323ef1faaee30a44a340193b1ac6814fd9b7b4e88e9d4519a3e4abe1cfd"
