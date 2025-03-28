@@ -29,20 +29,16 @@ pub struct SkipEscapedNewlinesIter<'a> {
     chars: PeekMoreIterator<Chars<'a>>,
     current_pos: usize,
 }
-#[derive(Debug)]
-pub enum Tok {
-    Char(char),
-    Whitespace,
-    Error,
-}
 impl<'a> Iterator for SkipEscapedNewlinesIter<'a> {
     type Item = (Range<usize>, char);
 
     fn next(&mut self) -> Option<Self::Item> {
-        let mut current_character = self.chars.next()?;
         let start = self.current_pos;
-        let mut length = 1;
 
+        let mut current_character = self.chars.next()?;
+        let mut length = current_character.len_utf8();
+
+        // Handle trigraphs
         if current_character == '?' && self.chars.peek() == Some(&'?') {
             let trigaph_replacement = match self.chars.peek_nth(1) {
                 Some('=') => Some('#'),
@@ -58,40 +54,35 @@ impl<'a> Iterator for SkipEscapedNewlinesIter<'a> {
                 Some(_) | None => None,
             };
             if let Some(replacement) = trigaph_replacement {
-                self.chars.next().unwrap();
-                self.chars.next().unwrap();
-                length += 2;
+                length += self.chars.next().unwrap().len_utf8(); // Second ?
+                length += self.chars.next().unwrap().len_utf8(); // Actual trigraph character
 
                 current_character = replacement;
-            } 
+            }
         }
 
         if current_character == '\\' && self.chars.peek() == Some(&'\n') {
-            self.chars.next().unwrap();
-            length += 1;
+            length += self.chars.next().unwrap().len_utf8();
 
-            // self.next()?;
-
-            // let next = self.next()?;
-            // self.current_pos = next.0.end + 2;
-
-            // return Some((start..self.current_pos, next.1));
             self.current_pos += length; // \ and ?
             return self.next();
-        };
-
-        self.current_pos = start + length;
-        return Some((start..self.current_pos, current_character));
+        } else {
+            self.current_pos = start + length;
+            return Some((start..self.current_pos, current_character));
+        }
     }
 }
 
 impl<'a> SkipEscapedNewlinesIter<'a> {
-    fn new(source: &'a str) -> SkipEscapedNewlinesIter<'a>{
-        SkipEscapedNewlinesIter { chars: source.chars().peekmore(), current_pos: 0 }
+    fn new(source: &'a str) -> SkipEscapedNewlinesIter<'a> {
+        SkipEscapedNewlinesIter {
+            chars: source.chars().peekmore(),
+            current_pos: 0,
+        }
     }
 }
 fn main() {
-    let source = "Hello??=\\\nWorld";
+    let source = "?\\\n?=";
     let i = SkipEscapedNewlinesIter {
         current_pos: 0,
         chars: source.chars().peekmore(),
@@ -99,6 +90,11 @@ fn main() {
     let tokens = i.collect::<Vec<_>>();
     dbg!(&tokens);
     for (span, token) in tokens {
-        println!("{:#?} {:4?} - {:2?} ", span.clone(), &source[span], token);
+        println!(
+            "{:4?} @ {:#?} -> {:2?} ",
+            &source[span.clone()],
+            span.clone(),
+            token
+        );
     }
 }
