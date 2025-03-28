@@ -25,13 +25,26 @@ impl<'a> PartialEq for StrPieces<'a> {
     }
 }
 
-pub struct SkipEscapedNewlinesIter<'a> {
+#[derive(Debug)]
+pub struct PrelexerIter<'a> {
     chars: PeekMoreIterator<Chars<'a>>,
+    /// The end of the previous character
     current_pos: usize,
 }
-impl<'a> Iterator for SkipEscapedNewlinesIter<'a> {
+impl<'a> PrelexerIter<'a> {
+    fn new(source: &'a str) -> PrelexerIter<'a> {
+        PrelexerIter {
+            chars: source.chars().peekmore(),
+            current_pos: 0,
+        }
+    }
+}
+impl<'a> Iterator for PrelexerIter<'a> {
     type Item = (Range<usize>, char);
 
+    /// Get the next character, including a Range<usize> of bytes into the original string.
+    /// If the character is a backslash `\`, and next character is a newline `\n`, they are skipped 
+    /// If the next two characters are ??, and the one after those is a valid trigraph character, all 3 are skipped and a replacement character is returned
     fn next(&mut self) -> Option<Self::Item> {
         let start = self.current_pos;
 
@@ -64,7 +77,7 @@ impl<'a> Iterator for SkipEscapedNewlinesIter<'a> {
         if current_character == '\\' && self.chars.peek() == Some(&'\n') {
             length += self.chars.next().unwrap().len_utf8();
 
-            self.current_pos += length; // \ and ?
+            self.current_pos = start +  length; // \ and ?
             return self.next();
         } else {
             self.current_pos = start + length;
@@ -73,17 +86,10 @@ impl<'a> Iterator for SkipEscapedNewlinesIter<'a> {
     }
 }
 
-impl<'a> SkipEscapedNewlinesIter<'a> {
-    fn new(source: &'a str) -> SkipEscapedNewlinesIter<'a> {
-        SkipEscapedNewlinesIter {
-            chars: source.chars().peekmore(),
-            current_pos: 0,
-        }
-    }
-}
+
 fn main() {
-    let source = "?\\\n?=";
-    let i = SkipEscapedNewlinesIter {
+    let source = "??=abc\\\nE\nB";
+    let i = PrelexerIter {
         current_pos: 0,
         chars: source.chars().peekmore(),
     };
