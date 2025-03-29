@@ -1,9 +1,6 @@
 use std::ops::Range;
 
-use cyntax_lexer::{
-    lexer::{Punctuator, Token, Whitespace},
-    prelexer::PrelexerIter,
-};
+use cyntax_lexer::{prelexer::PrelexerIter, Punctuator, Token, Whitespace};
 
 #[cfg(test)]
 mod tests;
@@ -20,34 +17,21 @@ fn print_tokens(source: &str, tokens: &[(Range<usize>, Token)]) {
                 Whitespace::Newline => print!("\\n"),
                 Whitespace::Tab => print!("\\t"),
             },
-            Token::Punctuator(punctuator) => match punctuator {
-                Punctuator::LParen => print!("("),
-                Punctuator::RParen => print!(")"),
-            },
+            Token::Punctuator(punctuator) => print!("{}", punctuator.to_string())
         }
         println!();
     }
 }
 
 fn main() {
-    let source = "int test()";
+    let source =include_str!("../test.c");
     let prelexer = PrelexerIter::new(source);
     let lexer = cyntax_lexer::lexer::Lexer {
         chars: prelexer.peekable(),
-        source: source,
+        source,
     };
     let tokens: Vec<_> = lexer.collect();
     dbg!(&tokens);
 
     print_tokens(source, &tokens);
-    // let tokens = i.collect::<Vec<_>>();
-    // dbg!(&tokens);
-    // for (span, token) in tokens {
-    //     println!(
-    //         "{:4?} @ {:#?} -> {:2?} ",
-    //         &source[span.clone()],
-    //         span.clone(),
-    //         token
-    //     );
-    // }
 }

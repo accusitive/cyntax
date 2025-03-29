@@ -1,37 +1,21 @@
 use std::{iter::Peekable, ops::Range};
 use crate::prelexer::PrelexerIter;
+use crate::Whitespace;
+use crate::Token;
+use crate::Punctuator;
 
 #[derive(Debug)]
 pub struct Lexer<'a> {
     pub chars: Peekable<PrelexerIter<'a>>,
     pub source: &'a str,
 }
-#[derive(Debug)]
-pub enum Token {
-    Identifier(Vec<Range<usize>>),
-    Whitespace(Whitespace),
-    Punctuator(Punctuator),
-}
-#[derive(Debug)]
-pub enum Whitespace {
-    /// ` `
-    Space,
-    /// \n
-    Newline,
-    /// \t
-    Tab,
-}
-#[derive(Debug)]
-pub enum Punctuator {
-    LParen,
-    RParen,
-}
+
 impl<'a> Iterator for Lexer<'a> {
     type Item = (Range<usize>, Token);
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.chars.next()? {
-            (range, 'A'..'z') => {
+            (range, 'A'..='z') => {
                 let mut v = vec![range.clone()];
                 // Glue consecutive token stretches together
                 let mut previous_end = range.end;
@@ -48,8 +32,11 @@ impl<'a> Iterator for Lexer<'a> {
                 dbg!(&v);
                 Some((range.start..previous_end, Token::Identifier(v)))
             }
-            (range, '(') => Some((range, Token::Punctuator(Punctuator::LParen))),
-            (range, ')') => Some((range, Token::Punctuator(Punctuator::RParen))),
+            (range, '(') => Some((range, Token::Punctuator(Punctuator::LeftParen))),
+            (range, ')') => Some((range, Token::Punctuator(Punctuator::RightParen))),
+
+            (range, '{') => Some((range, Token::Punctuator(Punctuator::LeftBrace))),
+            (range, '}') => Some((range, Token::Punctuator(Punctuator::RightBrace))),
 
             (range, ' ') => Some((range, Token::Whitespace(Whitespace::Space))),
             (range, '\t') => Some((range, Token::Whitespace(Whitespace::Tab))),
