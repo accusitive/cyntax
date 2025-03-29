@@ -24,11 +24,12 @@ impl<'a> PartialEq for StrPieces<'a> {
         self_iter.eq(other_iter) // Compare character by character
     }
 }
-
 #[derive(Debug, PartialEq)]
 pub enum Token {
     Identifier(Vec<Range<usize>>),
     StringLiteral(Vec<Range<usize>>),
+    PPNumber(Vec<Range<usize>>),
+
     Whitespace(Whitespace),
     Punctuator(Punctuator),
 }

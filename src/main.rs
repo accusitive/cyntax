@@ -19,6 +19,11 @@ fn print_tokens(source: &str, tokens: &[(Range<usize>, Token)]) {
                 }
                 print!("\"");
             }
+            Token::PPNumber(ranges) => {
+                for range in ranges {
+                    print!("{}", &source[range.clone()]);
+                }
+            }
             Token::Whitespace(whitespace) => match whitespace {
                 Whitespace::Space => print!("` `"),
                 Whitespace::Newline => print!("\\n"),
