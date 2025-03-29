@@ -4,6 +4,8 @@ use strum_macros::EnumString;
 
 pub mod lexer;
 pub mod prelexer;
+
+pub mod tests;
 #[derive(Debug)]
 pub struct StrPieces<'a> {
     pieces: Vec<&'a str>,

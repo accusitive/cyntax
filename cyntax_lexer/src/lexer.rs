@@ -111,29 +111,17 @@ impl<'a> Lexer<'a> {
                 'e' | 'E' | 'p' | 'P' => {
                     last_identifier_starts_exponent = true;
                     number.push(self.chars.next().unwrap().0); // e / E / p / P
-                    continue;
                 }
-                // 'e' | 'E' | 'p' | 'P' if matches!(self.chars.peek_nth(1), Some((_, '+' | '-'))) => {
-                //     number.push(self.chars.next().unwrap().0); // e / E / p / P
-                //     let sign = self.chars.next().unwrap();
-                //     end = sign.0.end;
-                //     number.push(sign.0);
-                // }
                 '+' | '-' if last_identifier_starts_exponent => {
                     last_identifier_starts_exponent = false;
                     let sign = self.chars.next().unwrap();
                     end = sign.0.end;
                     number.push(sign.0);
                 }
-                '.' => {
-                    let dot = self.chars.next().unwrap();
-                    end = dot.0.end;
-                    number.push(dot.0);
-                }
-                digit!() => {
-                    let digit = self.chars.next().unwrap();
-                    end = digit.0.end;
-                    number.push(digit.0);
+                '.' | digit!() => {
+                    let dot_or_digit = self.chars.next().unwrap();
+                    end = dot_or_digit.0.end;
+                    number.push(dot_or_digit.0);
                 }
 
                 // Identifier parts must start with a nondigit, otherwise it would just... be a part of the preceeding number
@@ -144,7 +132,7 @@ impl<'a> Lexer<'a> {
                     match identifier.1.last().map(|c| &self.source[c.clone()]) {
                         Some("e" | "E" | "p" | "P") => {
                             last_identifier_starts_exponent = true;
-                        },
+                        }
                         _ => {}
                     }
 
@@ -156,203 +144,4 @@ impl<'a> Lexer<'a> {
 
         (start..end, Token::PPNumber(number))
     }
-}
-fn test_helper(source: &str, ranges: &[Range<usize>]) -> String {
-    let mut s = String::new();
-    for range in ranges {
-        s.push_str(&source[range.clone()]);
-    }
-    s
-}
-
-#[test]
-fn test_empty_string_literal() {
-    let source = "\"\"";
-    let mut lexer = Lexer::new(source);
-    assert_eq!(
-        lexer.next().map(|t| match t.1 {
-            Token::StringLiteral(ranges) => test_helper(source, &ranges),
-            _ => panic!("Expected StringLiteral"),
-        }),
-        Some("".to_string())
-    );
-    assert_eq!(lexer.next(), None);
-}
-
-#[test]
-fn test_simple_string_literal() {
-    let source = "\"hello\"";
-    let mut lexer = Lexer::new(source);
-    assert_eq!(
-        lexer.next().map(|t| match t.1 {
-            Token::StringLiteral(ranges) => test_helper(source, &ranges),
-            _ => panic!("Expected StringLiteral"),
-        }),
-        Some("hello".to_string())
-    );
-    assert_eq!(lexer.next(), None);
-}
-
-#[test]
-fn test_string_literal_with_spaces() {
-    let source = "\"hello world\"";
-    let mut lexer = Lexer::new(source);
-    assert_eq!(
-        lexer.next().map(|t| match t.1 {
-            Token::StringLiteral(ranges) => test_helper(source, &ranges),
-            _ => panic!("Expected StringLiteral"),
-        }),
-        Some("hello world".to_string())
-    );
-    assert_eq!(lexer.next(), None);
-}
-
-#[test]
-fn test_string_literal_with_escaped_quote() {
-    let source = "\"hello\\\"world\"";
-    let mut lexer = Lexer::new(source);
-    assert_eq!(
-        lexer.next().map(|t| match t.1 {
-            Token::StringLiteral(ranges) => test_helper(source, &ranges),
-            _ => panic!("Expected StringLiteral"),
-        }),
-        Some("hello\"world".to_string())
-    );
-    assert_eq!(lexer.next(), None);
-}
-
-#[test]
-fn test_string_literal_with_multiple_escaped_quotes() {
-    let source = "\"hello\\\"world\\\"test\"";
-    let mut lexer = Lexer::new(source);
-    assert_eq!(
-        lexer.next().map(|t| match t.1 {
-            Token::StringLiteral(ranges) => test_helper(source, &ranges),
-            _ => panic!("Expected StringLiteral"),
-        }),
-        Some("hello\"world\"test".to_string())
-    );
-    assert_eq!(lexer.next(), None);
-}
-
-#[test]
-fn test_string_literal_with_other_chars() {
-    let source = "\"hello123world!@#\"";
-    let mut lexer = Lexer::new(source);
-    assert_eq!(
-        lexer.next().map(|t| match t.1 {
-            Token::StringLiteral(ranges) => test_helper(source, &ranges),
-            _ => panic!("Expected StringLiteral"),
-        }),
-        Some("hello123world!@#".to_string())
-    );
-    assert_eq!(lexer.next(), None);
-}
-
-#[test]
-fn test_string_literal_with_identifier_after() {
-    let source = "\"hello\"world";
-    let mut lexer = Lexer::new(source);
-    assert_eq!(
-        lexer.next().map(|t| match t.1 {
-            Token::StringLiteral(ranges) => test_helper(source, &ranges),
-            _ => panic!("Expected StringLiteral"),
-        }),
-        Some("hello".to_string())
-    );
-    assert!(matches!(
-        lexer.next().map(|t| t.1),
-        Some(Token::Identifier(_))
-    ));
-    assert_eq!(lexer.next(), None);
-}
-
-#[test]
-fn test_string_literal_with_identifier_before() {
-    let source = "world\"hello\"";
-    let mut lexer = Lexer::new(source);
-    assert!(matches!(
-        lexer.next().map(|t| t.1),
-        Some(Token::Identifier(_))
-    ));
-    assert_eq!(
-        lexer.next().map(|t| match t.1 {
-            Token::StringLiteral(ranges) => test_helper(source, &ranges),
-            _ => panic!("Expected StringLiteral"),
-        }),
-        Some("hello".to_string())
-    );
-    assert_eq!(lexer.next(), None);
-}
-
-#[test]
-fn test_string_literal_with_punctuator_after() {
-    let source = "\"hello\";";
-    let mut lexer = Lexer::new(source);
-    assert_eq!(
-        lexer.next().map(|t| match t.1 {
-            Token::StringLiteral(ranges) => test_helper(source, &ranges),
-            _ => panic!("Expected StringLiteral"),
-        }),
-        Some("hello".to_string())
-    );
-    assert!(matches!(
-        lexer.next().map(|t| t.1),
-        Some(Token::Punctuator(Punctuator::Semicolon))
-    ));
-    assert_eq!(lexer.next(), None);
-}
-
-#[test]
-fn test_string_literal_with_punctuator_before() {
-    let source = ";\"hello\"";
-    let mut lexer = Lexer::new(source);
-    assert!(matches!(
-        lexer.next().map(|t| t.1),
-        Some(Token::Punctuator(Punctuator::Semicolon))
-    ));
-    assert_eq!(
-        lexer.next().map(|t| match t.1 {
-            Token::StringLiteral(ranges) => test_helper(source, &ranges),
-            _ => panic!("Expected StringLiteral"),
-        }),
-        Some("hello".to_string())
-    );
-    assert_eq!(lexer.next(), None);
-}
-
-#[test]
-fn test_string_literal_with_whitespace_before() {
-    let source = " \"hello\"";
-    let mut lexer = Lexer::new(source);
-    assert!(matches!(
-        lexer.next().map(|t| t.1),
-        Some(Token::Whitespace(Whitespace::Space))
-    ));
-    assert_eq!(
-        lexer.next().map(|t| match t.1 {
-            Token::StringLiteral(ranges) => test_helper(source, &ranges),
-            _ => panic!("Expected StringLiteral"),
-        }),
-        Some("hello".to_string())
-    );
-    assert_eq!(lexer.next(), None);
-}
-
-#[test]
-fn test_string_literal_with_whitespace_after() {
-    let source = "\"hello\" ";
-    let mut lexer = Lexer::new(source);
-    assert_eq!(
-        lexer.next().map(|t| match t.1 {
-            Token::StringLiteral(ranges) => test_helper(source, &ranges),
-            _ => panic!("Expected StringLiteral"),
-        }),
-        Some("hello".to_string())
-    );
-    assert!(matches!(
-        lexer.next().map(|t| t.1),
-        Some(Token::Whitespace(Whitespace::Space))
-    ));
-    assert_eq!(lexer.next(), None);
 }
