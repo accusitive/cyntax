@@ -1,5 +1,7 @@
 use std::ops::Range;
 
+use strum_macros::EnumString;
+
 pub mod lexer;
 pub mod prelexer;
 #[derive(Debug)]
@@ -23,13 +25,14 @@ impl<'a> PartialEq for StrPieces<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Token {
     Identifier(Vec<Range<usize>>),
+    StringLiteral(Vec<Range<usize>>),
     Whitespace(Whitespace),
     Punctuator(Punctuator),
 }
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Whitespace {
     /// ` `
     Space,
@@ -38,8 +41,7 @@ pub enum Whitespace {
     /// \t
     Tab,
 }
-#[derive(Debug)]
-#[allow(dead_code)]
+#[derive(Debug, PartialEq)]
 pub enum Punctuator {
     // Brackets and Parentheses
     LeftBracket,  // [
@@ -110,6 +112,51 @@ pub enum Punctuator {
     PercentColonPercentColon, // %:%:
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, EnumString)]
+#[strum(serialize_all = "lowercase")]
+pub enum Keyword {
+    Auto,
+    Break,
+    Case,
+    Char,
+    Const,
+    Continue,
+    Default,
+    Do,
+    Double,
+    Else,
+    Enum,
+    Extern,
+    Float,
+    For,
+    Goto,
+    If,
+    Inline,
+    Int,
+    Long,
+    Register,
+    Restrict,
+    Return,
+    Short,
+    Signed,
+    Sizeof,
+    Static,
+    Struct,
+    Switch,
+    Typedef,
+    Union,
+    Unsigned,
+    Void,
+    Volatile,
+    While,
+    #[strum(serialize = "_Bool")]
+    Bool,
+    #[strum(serialize = "_Complex")]
+    Complex,
+    #[strum(serialize = "_Imaginary")]
+    Imaginary,
+}
+
 impl Punctuator {
     pub fn to_string(&self) -> String {
         match self {
@@ -167,6 +214,39 @@ impl Punctuator {
             Punctuator::PercentGreater => "%>".to_string(),
             Punctuator::PercentColon => "%:".to_string(),
             Punctuator::PercentColonPercentColon => "%:%:".to_string(),
+        }
+    }
+    pub fn is_punctuation(c: char) -> bool {
+        Punctuator::from_char(c).is_some()
+    }
+    pub fn from_char(c: char) -> Option<Punctuator> {
+        match c {
+            '[' => Some(Punctuator::LeftBracket),
+            ']' => Some(Punctuator::RightBracket),
+            '(' => Some(Punctuator::LeftParen),
+            ')' => Some(Punctuator::RightParen),
+            '{' => Some(Punctuator::LeftBrace),
+            '}' => Some(Punctuator::RightBrace),
+            '.' => Some(Punctuator::Dot),
+            '&' => Some(Punctuator::Ampersand),
+            '*' => Some(Punctuator::Asterisk),
+            '+' => Some(Punctuator::Plus),
+            '-' => Some(Punctuator::Minus),
+            '~' => Some(Punctuator::Tilde),
+            '!' => Some(Punctuator::Exclamation),
+            '/' => Some(Punctuator::Slash),
+            '%' => Some(Punctuator::Percent),
+            '<' => Some(Punctuator::LessThan),
+            '>' => Some(Punctuator::GreaterThan),
+            '^' => Some(Punctuator::Caret),
+            '|' => Some(Punctuator::Pipe),
+            '?' => Some(Punctuator::Question),
+            ':' => Some(Punctuator::Colon),
+            ';' => Some(Punctuator::Semicolon),
+            '=' => Some(Punctuator::Assign),
+            ',' => Some(Punctuator::Comma),
+            '#' => Some(Punctuator::Hash),
+            _ => None,
         }
     }
 }

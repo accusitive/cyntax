@@ -12,12 +12,20 @@ fn print_tokens(source: &str, tokens: &[(Range<usize>, Token)]) {
                     print!("{}", &source[range.clone()]);
                 }
             }
+            Token::StringLiteral(ranges) => {
+                print!("\"");
+                for range in ranges {
+                    print!("{}", &source[range.clone()]);
+                }
+                print!("\"");
+            }
             Token::Whitespace(whitespace) => match whitespace {
                 Whitespace::Space => print!("` `"),
                 Whitespace::Newline => print!("\\n"),
                 Whitespace::Tab => print!("\\t"),
             },
-            Token::Punctuator(punctuator) => print!("{}", punctuator.to_string())
+            Token::Punctuator(punctuator) => print!("{}", punctuator.to_string()),
+           
         }
         println!();
     }
@@ -25,11 +33,7 @@ fn print_tokens(source: &str, tokens: &[(Range<usize>, Token)]) {
 
 fn main() {
     let source =include_str!("../test.c");
-    let prelexer = PrelexerIter::new(source);
-    let lexer = cyntax_lexer::lexer::Lexer {
-        chars: prelexer.peekable(),
-        source,
-    };
+    let lexer = cyntax_lexer::lexer::Lexer::new(source);
     let tokens: Vec<_> = lexer.collect();
     dbg!(&tokens);
 
