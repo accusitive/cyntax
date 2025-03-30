@@ -1,16 +1,14 @@
 use cab_why::Label;
-use cab_why::LabelSeverity;
 use peekmore::PeekMore;
 use peekmore::PeekMoreIterator;
 
 use crate::Directive;
 use crate::Punctuator;
-use crate::StrPieces;
 use crate::Token;
 use crate::Whitespace;
 use crate::prelexer::PrelexerIter;
 use crate::spanned::Spanned;
-use std::{iter::Peekable, ops::Range};
+use std::ops::Range;
 
 macro_rules! identifier {
     () => {
@@ -66,19 +64,17 @@ impl<'a> Iterator for Lexer<'a> {
             // Literals
             span!(range, '"') => {
                 let string = self.lex_string_literal(range);
-                Some(Spanned::new(string.0, Token::StringLiteral(string.1)))
+                Some(string.augment(|string| Token::StringLiteral(string)))
             }
             span!(range, digit!()) => {
                 let number = self.lex_number(range);
-                Some(Spanned::new(number.0, Token::PPNumber(number.1)))
+                Some(number.augment(|num| Token::PPNumber(num)))
             }
             // Digits can start with 0
-            span!(dot_range, '.')
-                if matches!(self.chars.peek().map(|t| t.value), Some(digit!())) =>
-            {
+            span!(dot_range, '.') if matches!(self.chars.peek(), Some(span!(digit!()))) => {
                 let number = self.lex_number(dot_range);
 
-                Some(Spanned::new(number.0, Token::PPNumber(number.1)))
+                Some(number.augment(|num| Token::PPNumber(num)))
             }
             span!(range, opening_delimiter @ opening_delimiter!()) => {
                 let (closing_delimiter, inner_tokens) =
@@ -89,8 +85,8 @@ impl<'a> Iterator for Lexer<'a> {
                 ))
             }
             // Entirely skip over line comments
-            span!(_, '/') if matches!(self.chars.peek(), Some(span!(_, '/'))) => {
-                while let Some(span!(_, char)) = self.chars.next() {
+            span!('/') if matches!(self.chars.peek(), Some(span!('/'))) => {
+                while let Some(span!(char)) = self.chars.next() {
                     if char == '\n' {
                         break;
                     }
@@ -98,7 +94,7 @@ impl<'a> Iterator for Lexer<'a> {
                 self.next()
             }
             span!(range, '#') if self.at_start_of_line => {
-                if matches!(self.chars.peek(), Some(span!(_, nondigit!()))) {
+                if matches!(self.chars.peek(), Some(span!(nondigit!()))) {
                     let directive = self.ignore_preceeding_whitespace(|this| {
                         let span!(first, _) = this.chars.next().unwrap();
                         this.lex_identifier(&first)
@@ -109,7 +105,7 @@ impl<'a> Iterator for Lexer<'a> {
                             let span!(first, _) = this.chars.next().unwrap();
                             this.lex_identifier(&first)
                         });
-                        if matches!(self.chars.peek(), Some(span!(_, '('))) {
+                        if matches!(self.chars.peek(), Some(span!('('))) {
                             let span!(lparen_range, _) = self.chars.next().unwrap();
                             let (_, parameter_list) = self.lex_delimited(&lparen_range, '(');
                             let replacement_list = self.ignore_preceeding_whitespace(|this| {
@@ -128,8 +124,10 @@ impl<'a> Iterator for Lexer<'a> {
                             ))
                         } else {
                             let replacement_list = self.ignore_preceeding_whitespace(|this| {
-                                this.take_while(|c| c.value != Token::Whitespace(Whitespace::Newline))
-                                    .collect::<Vec<_>>()
+                                this.take_while(|c| {
+                                    c.value != Token::Whitespace(Whitespace::Newline)
+                                })
+                                .collect::<Vec<_>>()
                             });
                             Some(Spanned::new(
                                 range.start..macro_name.0.end,
@@ -151,7 +149,7 @@ impl<'a> Iterator for Lexer<'a> {
                     } else {
                         unimplemented!()
                     }
-                } else if matches!(self.chars.peek(), Some(span!(_, '\n'))) {
+                } else if matches!(self.chars.peek(), Some(span!('\n'))) {
                     self.next()
                 } else {
                     todo!()
@@ -191,19 +189,19 @@ impl<'a> Lexer<'a> {
         let mut ranges = vec![first_character.start..first_character.end];
         let mut previous_end = first_character.end;
 
-        while let Some(span!(_, identifier!())) = self.chars.peek() {
+        while let Some(span!(identifier!())) = self.chars.peek() {
             let next = self.chars.next().unwrap();
             previous_end = next.range.end;
             ranges.push(next.range);
         }
         (first_character.start..previous_end, ranges)
     }
-    pub fn lex_string_literal(&mut self, range: Range<usize>) -> (Range<usize>, Vec<Range<usize>>) {
+    pub fn lex_string_literal(&mut self, range: Range<usize>) -> Spanned<Vec<Range<usize>>> {
         let mut ranges = vec![];
         let start = range.start;
         let mut end = range.end;
 
-        while let Some(span!(_, c)) = self.chars.peek() {
+        while let Some(span!(c)) = self.chars.peek() {
             if *c == '"' {
                 let end_quote = self.chars.next().unwrap();
                 end = end_quote.range.end;
@@ -220,18 +218,15 @@ impl<'a> Lexer<'a> {
             ranges.push(next.range);
         }
 
-        (start..end, ranges)
+        Spanned::new(start..end, ranges)
     }
-    pub fn lex_number(
-        &mut self,
-        first_character: Range<usize>,
-    ) -> (Range<usize>, Vec<Range<usize>>) {
+    pub fn lex_number(&mut self, first_character: Range<usize>) -> Spanned<Vec<Range<usize>>> {
         let start = first_character.start;
         let mut end = first_character.end;
         let mut number = vec![first_character];
 
         let mut expecting_exponent = false;
-        while let Some(span!(_, c)) = self.chars.peek() {
+        while let Some(span!(c)) = self.chars.peek() {
             match c {
                 'e' | 'E' | 'p' | 'P' => {
                     expecting_exponent = true;
@@ -268,19 +263,18 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        (start..end, number)
+        Spanned::new(start..end, number)
     }
     pub fn lex_delimited(
         &mut self,
         range: &Range<usize>,
         opening_delimiter: char,
-        
     ) -> (char, Spanned<Vec<Spanned<Token>>>) {
         let mut tokens = vec![];
         let closing_delimiter = Self::closing_delimiter_for(opening_delimiter);
         let mut closed = false;
         let mut end = range.end;
-        while let Some(span!(_, c)) = self.chars.peek() {
+        while let Some(span!(c)) = self.chars.peek() {
             if *c == closing_delimiter {
                 closed = true;
                 self.next().unwrap();
@@ -324,7 +318,7 @@ impl<'a> Lexer<'a> {
     where
         F: FnMut(&mut Self) -> T,
     {
-        while let Some(span!(_, ' ' | '\t')) = self.chars.peek() {
+        while let Some(span!(' ' | '\t')) = self.chars.peek() {
             self.next().unwrap();
         }
         f(self)

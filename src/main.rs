@@ -1,12 +1,12 @@
 use std::ops::Range;
 
-use cyntax_lexer::{prelexer::PrelexerIter, Punctuator, Token, Whitespace};
+use cyntax_lexer::{prelexer::PrelexerIter, spanned::Spanned, Punctuator, Token, Whitespace};
 
 #[cfg(test)]
 mod tests;
-fn print_tokens(source: &str, tokens: &[(Range<usize>, Token)]) {
-    for (_range, token) in tokens {
-        match token {
+fn print_tokens(source: &str, tokens: &[Spanned<Token>]) {
+    for spanned_token in tokens {
+        match &spanned_token.value {
             Token::Identifier(ranges) => {
                 for range in ranges {
                     print!("{}", &source[range.clone()]);
@@ -38,7 +38,7 @@ fn print_tokens(source: &str, tokens: &[(Range<usize>, Token)]) {
                         }
                         print!(" ");
                         print!("(");
-                        print_tokens(source, &parameter_list);
+                        print_tokens(source, &parameter_list.value);
                         print!(")");
                         print!(" ");
                         print_tokens(source, &replacment_list);
@@ -61,7 +61,7 @@ fn print_tokens(source: &str, tokens: &[(Range<usize>, Token)]) {
             }
             Token::Delimited(opening, closing, tokens) => {
                 print!("{}", opening);
-                print_tokens(source, tokens);
+                print_tokens(source, &tokens.value);
                 print!("{}", closing);
             }
             Token::Whitespace(whitespace) => match whitespace {
