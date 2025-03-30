@@ -61,32 +61,23 @@ impl<'a> Iterator for Lexer<'a> {
                 Some((number.0, Token::PPNumber(number.1)))
             }
             (range, opening_delimiter @ opening_delimiter!()) => {
-                let mut tokens = vec![];
-                let closing_delimiter = Self::closing_delimiter_for(opening_delimiter);
-                let mut closed = false;
-                let mut end = range.end;
-                while let Some((_, c)) = self.chars.peek() {
-                    if *c == closing_delimiter {
-                        closed = true;
-                        self.next()?;
-                        break;
-                    } else {
-                        let next = self.next().unwrap();
-                        end = next.0.end;
-                        tokens.push((next.0, next.1));
-                    }
-                }
-                
-                if !closed {
-                    let mut report = cab_why::Report::new(cab_why::ReportSeverity::Error, "Unmatched delimiter");
-                    report.push_label(Label::new(range.start..range.end, "Unmatched delimiter", cab_why::LabelSeverity::Primary));
-                    report.push_label(Label::secondary(range.start..end, "Potential location for closing delimiter"));
-                    report.push_help(format!("Add an ending delimiter `{}`", closing_delimiter));
-                    panic!("{}", report.with("test.c", self.source));
-                }
-                Some((range.start..end, Token::Delimited(opening_delimiter, closing_delimiter, tokens)))
+                let (closing_delimiter, range, tokens) =
+                    self.lex_delimited(range, opening_delimiter);
+                Some((
+                    range,
+                    Token::Delimited(opening_delimiter, closing_delimiter, tokens),
+                ))
             }
 
+            // Entirely skip over comments
+            (_, '/') if matches!(self.chars.peek(), Some((_, '/'))) => {
+                while let Some((_, char)) = self.chars.next() {
+                    if char == '\n' {
+                        break;
+                    }
+                }
+                self.next()
+            }
             (range, punctuator) if Punctuator::is_punctuation(punctuator) => Some((
                 range,
                 Token::Punctuator(Punctuator::from_char(punctuator).unwrap()),
@@ -191,6 +182,44 @@ impl<'a> Lexer<'a> {
 
         (start..end, number)
     }
+    pub fn lex_delimited(
+        &mut self,
+        range: Range<usize>,
+        opening_delimiter: char,
+    ) -> (char, Range<usize>, Vec<(Range<usize>, Token)>) {
+        let mut tokens = vec![];
+        let closing_delimiter = Self::closing_delimiter_for(opening_delimiter);
+        let mut closed = false;
+        let mut end = range.end;
+        while let Some((_, c)) = self.chars.peek() {
+            if *c == closing_delimiter {
+                closed = true;
+                self.next().unwrap();
+                break;
+            } else {
+                let next = self.next().unwrap();
+                end = next.0.end;
+                tokens.push((next.0, next.1));
+            }
+        }
+
+        if !closed {
+            let mut report =
+                cab_why::Report::new(cab_why::ReportSeverity::Error, "Unmatched delimiter");
+            report.push_label(Label::new(
+                range.start..range.end,
+                "Unmatched delimiter",
+                cab_why::LabelSeverity::Primary,
+            ));
+            report.push_label(Label::secondary(
+                end..end,
+                "Potential location for a closing delimiter",
+            ));
+            report.push_help(format!("Add an ending delimiter `{}`", closing_delimiter));
+            panic!("{}", report.with("test.c", self.source));
+        }
+        (closing_delimiter, range.start..end, tokens)
+    }
 }
 // Util functions
 impl<'a> Lexer<'a> {
@@ -199,7 +228,7 @@ impl<'a> Lexer<'a> {
             '(' => ')',
             '{' => '}',
             '[' => ']',
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }

@@ -1,4 +1,5 @@
-//😀
-int main(char p[abc])
-{
-    int a = 5;
+#define test 42
+
+int main() {
+    int x = test;
+}
