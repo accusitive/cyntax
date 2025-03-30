@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use crate::{Punctuator, Token, Whitespace, lexer::Lexer};
+use crate::{lexer::Lexer, spanned::Spanned, Punctuator, Token, Whitespace};
 fn test_helper(source: &str, ranges: &[Range<usize>]) -> String {
     let mut s = String::new();
     for range in ranges {
@@ -16,7 +16,7 @@ fn test_lex_number_basic() {
     assert_eq!(
         test_helper(
             source,
-            &match skip_whitespace(&mut lexer).unwrap().1 {
+            &match skip_whitespace(&mut lexer).unwrap().value {
                 Token::PPNumber(ranges) => ranges,
                 _ => panic!(),
             }
@@ -26,7 +26,7 @@ fn test_lex_number_basic() {
     assert_eq!(
         test_helper(
             source,
-            &match skip_whitespace(&mut lexer).unwrap().1 {
+            &match skip_whitespace(&mut lexer).unwrap().value {
                 Token::PPNumber(ranges) => ranges,
                 _ => panic!(),
             }
@@ -36,7 +36,7 @@ fn test_lex_number_basic() {
     assert_eq!(
         test_helper(
             source,
-            &match skip_whitespace(&mut lexer).unwrap().1 {
+            &match skip_whitespace(&mut lexer).unwrap().value {
                 Token::PPNumber(ranges) => ranges,
                 _ => panic!(),
             }
@@ -47,27 +47,27 @@ fn test_lex_number_basic() {
 
 #[test]
 fn test_lex_number_torture() {
-    let source = "5.15e+5testee+5 0.1.2.3e-4abc123e+10";
+    let source = "5.value5e+5testee+5 0.value.2.3e-4abc123e+10";
     let mut lexer = Lexer::new(source);
     assert_eq!(
         test_helper(
             source,
-            &match skip_whitespace(&mut lexer).unwrap().1 {
+            &match skip_whitespace(&mut lexer).unwrap().value {
                 Token::PPNumber(ranges) => ranges,
                 _ => panic!(),
             }
         ),
-        "5.15e+5testee+5".to_string()
+        "5.value5e+5testee+5".to_string()
     );
     assert_eq!(
         test_helper(
             source,
-            &match skip_whitespace(&mut lexer).unwrap().1 {
+            &match skip_whitespace(&mut lexer).unwrap().value {
                 Token::PPNumber(ranges) => ranges,
                 _ => panic!(),
             }
         ),
-        "0.1.2.3e-4abc123e+10".to_string()
+        "0.value.2.3e-4abc123e+10".to_string()
     );
 }
 
@@ -78,7 +78,7 @@ fn test_lex_number_leading_dot() {
     assert_eq!(
         test_helper(
             source,
-            &match skip_whitespace(&mut lexer).unwrap().1 {
+            &match skip_whitespace(&mut lexer).unwrap().value {
                 Token::PPNumber(ranges) => ranges,
                 _ => panic!(),
             }
@@ -88,7 +88,7 @@ fn test_lex_number_leading_dot() {
     assert_eq!(
         test_helper(
             source,
-            &match skip_whitespace(&mut lexer).unwrap().1 {
+            &match skip_whitespace(&mut lexer).unwrap().value {
                 Token::PPNumber(ranges) => ranges,
                 _ => panic!(),
             }
@@ -103,7 +103,7 @@ fn test_lex_number_ending_e() {
     assert_eq!(
         test_helper(
             source,
-            &match skip_whitespace(&mut lexer).unwrap().1 {
+            &match skip_whitespace(&mut lexer).unwrap().value {
                 Token::PPNumber(ranges) => ranges,
                 _ => panic!(),
             }
@@ -113,7 +113,7 @@ fn test_lex_number_ending_e() {
     assert_eq!(
         test_helper(
             source,
-            &match skip_whitespace(&mut lexer).unwrap().1 {
+            &match skip_whitespace(&mut lexer).unwrap().value {
                 Token::PPNumber(ranges) => ranges,
                 _ => panic!(),
             }
@@ -123,7 +123,7 @@ fn test_lex_number_ending_e() {
     assert_eq!(
         test_helper(
             source,
-            &match skip_whitespace(&mut lexer).unwrap().1 {
+            &match skip_whitespace(&mut lexer).unwrap().value {
                 Token::PPNumber(ranges) => ranges,
                 _ => panic!(),
             }
@@ -133,7 +133,7 @@ fn test_lex_number_ending_e() {
     assert_eq!(
         test_helper(
             source,
-            &match skip_whitespace(&mut lexer).unwrap().1 {
+            &match skip_whitespace(&mut lexer).unwrap().value {
                 Token::PPNumber(ranges) => ranges,
                 _ => panic!(),
             }
@@ -149,7 +149,7 @@ fn test_lex_number_ending_e_plus() {
     assert_eq!(
         test_helper(
             source,
-            &match skip_whitespace(&mut lexer).unwrap().1 {
+            &match skip_whitespace(&mut lexer).unwrap().value {
                 Token::PPNumber(ranges) => ranges,
                 _ => panic!(),
             }
@@ -159,7 +159,7 @@ fn test_lex_number_ending_e_plus() {
     assert_eq!(
         test_helper(
             source,
-            &match skip_whitespace(&mut lexer).unwrap().1 {
+            &match skip_whitespace(&mut lexer).unwrap().value {
                 Token::PPNumber(ranges) => ranges,
                 _ => panic!(),
             }
@@ -169,7 +169,7 @@ fn test_lex_number_ending_e_plus() {
     assert_eq!(
         test_helper(
             source,
-            &match skip_whitespace(&mut lexer).unwrap().1 {
+            &match skip_whitespace(&mut lexer).unwrap().value {
                 Token::PPNumber(ranges) => ranges,
                 _ => panic!(),
             }
@@ -179,7 +179,7 @@ fn test_lex_number_ending_e_plus() {
     assert_eq!(
         test_helper(
             source,
-            &match skip_whitespace(&mut lexer).unwrap().1 {
+            &match skip_whitespace(&mut lexer).unwrap().value {
                 Token::PPNumber(ranges) => ranges,
                 _ => panic!(),
             }
@@ -195,7 +195,7 @@ fn test_lex_number_ending_e_minus() {
     assert_eq!(
         test_helper(
             source,
-            &match skip_whitespace(&mut lexer).unwrap().1 {
+            &match skip_whitespace(&mut lexer).unwrap().value {
                 Token::PPNumber(ranges) => ranges,
                 _ => panic!(),
             }
@@ -205,7 +205,7 @@ fn test_lex_number_ending_e_minus() {
     assert_eq!(
         test_helper(
             source,
-            &match skip_whitespace(&mut lexer).unwrap().1 {
+            &match skip_whitespace(&mut lexer).unwrap().value {
                 Token::PPNumber(ranges) => ranges,
                 _ => panic!(),
             }
@@ -215,7 +215,7 @@ fn test_lex_number_ending_e_minus() {
     assert_eq!(
         test_helper(
             source,
-            &match skip_whitespace(&mut lexer).unwrap().1 {
+            &match skip_whitespace(&mut lexer).unwrap().value {
                 Token::PPNumber(ranges) => ranges,
                 _ => panic!(),
             }
@@ -225,7 +225,7 @@ fn test_lex_number_ending_e_minus() {
     assert_eq!(
         test_helper(
             source,
-            &match skip_whitespace(&mut lexer).unwrap().1 {
+            &match skip_whitespace(&mut lexer).unwrap().value {
                 Token::PPNumber(ranges) => ranges,
                 _ => panic!(),
             }
@@ -234,10 +234,10 @@ fn test_lex_number_ending_e_minus() {
     );
 }
 
-fn skip_whitespace(lexer: &mut Lexer) -> Option<(Range<usize>, Token)> {
+fn skip_whitespace(lexer: &mut Lexer) -> Option<Spanned<Token>> {
     loop {
         match lexer.next() {
-            Some((_, Token::Whitespace(_))) => continue,
+            Some(Spanned{range: _, value: Token::Whitespace(_)}) => continue,
             other => return other,
         }
     }
@@ -247,7 +247,7 @@ fn test_empty_string_literal() {
     let source = "\"\"";
     let mut lexer = Lexer::new(source);
     assert_eq!(
-        lexer.next().map(|t| match t.1 {
+        lexer.next().map(|t| match t.value {
             Token::StringLiteral(ranges) => test_helper(source, &ranges),
             _ => panic!("Expected StringLiteral"),
         }),
@@ -261,7 +261,7 @@ fn test_simple_string_literal() {
     let source = "\"hello\"";
     let mut lexer = Lexer::new(source);
     assert_eq!(
-        lexer.next().map(|t| match t.1 {
+        lexer.next().map(|t| match t.value {
             Token::StringLiteral(ranges) => test_helper(source, &ranges),
             _ => panic!("Expected StringLiteral"),
         }),
@@ -275,7 +275,7 @@ fn test_string_literal_with_spaces() {
     let source = "\"hello world\"";
     let mut lexer = Lexer::new(source);
     assert_eq!(
-        lexer.next().map(|t| match t.1 {
+        lexer.next().map(|t| match t.value {
             Token::StringLiteral(ranges) => test_helper(source, &ranges),
             _ => panic!("Expected StringLiteral"),
         }),
@@ -289,7 +289,7 @@ fn test_string_literal_with_escaped_quote() {
     let source = "\"hello\\\"world\"";
     let mut lexer = Lexer::new(source);
     assert_eq!(
-        lexer.next().map(|t| match t.1 {
+        lexer.next().map(|t| match t.value {
             Token::StringLiteral(ranges) => test_helper(source, &ranges),
             _ => panic!("Expected StringLiteral"),
         }),
@@ -303,7 +303,7 @@ fn test_string_literal_with_multiple_escaped_quotes() {
     let source = "\"hello\\\"world\\\"test\"";
     let mut lexer = Lexer::new(source);
     assert_eq!(
-        lexer.next().map(|t| match t.1 {
+        lexer.next().map(|t| match t.value {
             Token::StringLiteral(ranges) => test_helper(source, &ranges),
             _ => panic!("Expected StringLiteral"),
         }),
@@ -317,7 +317,7 @@ fn test_string_literal_with_other_chars() {
     let source = "\"hello123world!@#\"";
     let mut lexer = Lexer::new(source);
     assert_eq!(
-        lexer.next().map(|t| match t.1 {
+        lexer.next().map(|t| match t.value {
             Token::StringLiteral(ranges) => test_helper(source, &ranges),
             _ => panic!("Expected StringLiteral"),
         }),
@@ -331,14 +331,14 @@ fn test_string_literal_with_identifier_after() {
     let source = "\"hello\"world";
     let mut lexer = Lexer::new(source);
     assert_eq!(
-        lexer.next().map(|t| match t.1 {
+        lexer.next().map(|t| match t.value {
             Token::StringLiteral(ranges) => test_helper(source, &ranges),
             _ => panic!("Expected StringLiteral"),
         }),
         Some("hello".to_string())
     );
     assert!(matches!(
-        lexer.next().map(|t| t.1),
+        lexer.next().map(|t| t.value),
         Some(Token::Identifier(_))
     ));
     assert_eq!(lexer.next(), None);
@@ -349,11 +349,11 @@ fn test_string_literal_with_identifier_before() {
     let source = "world\"hello\"";
     let mut lexer = Lexer::new(source);
     assert!(matches!(
-        lexer.next().map(|t| t.1),
+        lexer.next().map(|t| t.value),
         Some(Token::Identifier(_))
     ));
     assert_eq!(
-        lexer.next().map(|t| match t.1 {
+        lexer.next().map(|t| match t.value {
             Token::StringLiteral(ranges) => test_helper(source, &ranges),
             _ => panic!("Expected StringLiteral"),
         }),
@@ -367,14 +367,14 @@ fn test_string_literal_with_punctuator_after() {
     let source = "\"hello\";";
     let mut lexer = Lexer::new(source);
     assert_eq!(
-        lexer.next().map(|t| match t.1 {
+        lexer.next().map(|t| match t.value {
             Token::StringLiteral(ranges) => test_helper(source, &ranges),
             _ => panic!("Expected StringLiteral"),
         }),
         Some("hello".to_string())
     );
     assert!(matches!(
-        lexer.next().map(|t| t.1),
+        lexer.next().map(|t| t.value),
         Some(Token::Punctuator(Punctuator::Semicolon))
     ));
     assert_eq!(lexer.next(), None);
@@ -385,11 +385,11 @@ fn test_string_literal_with_punctuator_before() {
     let source = ";\"hello\"";
     let mut lexer = Lexer::new(source);
     assert!(matches!(
-        lexer.next().map(|t| t.1),
+        lexer.next().map(|t| t.value),
         Some(Token::Punctuator(Punctuator::Semicolon))
     ));
     assert_eq!(
-        lexer.next().map(|t| match t.1 {
+        lexer.next().map(|t| match t.value {
             Token::StringLiteral(ranges) => test_helper(source, &ranges),
             _ => panic!("Expected StringLiteral"),
         }),
@@ -403,11 +403,11 @@ fn test_string_literal_with_whitespace_before() {
     let source = " \"hello\"";
     let mut lexer = Lexer::new(source);
     assert!(matches!(
-        lexer.next().map(|t| t.1),
+        lexer.next().map(|t| t.value),
         Some(Token::Whitespace(Whitespace::Space))
     ));
     assert_eq!(
-        lexer.next().map(|t| match t.1 {
+        lexer.next().map(|t| match t.value {
             Token::StringLiteral(ranges) => test_helper(source, &ranges),
             _ => panic!("Expected StringLiteral"),
         }),
@@ -421,14 +421,14 @@ fn test_string_literal_with_whitespace_after() {
     let source = "\"hello\" ";
     let mut lexer = Lexer::new(source);
     assert_eq!(
-        lexer.next().map(|t| match t.1 {
+        lexer.next().map(|t| match t.value {
             Token::StringLiteral(ranges) => test_helper(source, &ranges),
             _ => panic!("Expected StringLiteral"),
         }),
         Some("hello".to_string())
     );
     assert!(matches!(
-        lexer.next().map(|t| t.1),
+        lexer.next().map(|t| t.value),
         Some(Token::Whitespace(Whitespace::Space))
     ));
     assert_eq!(lexer.next(), None);

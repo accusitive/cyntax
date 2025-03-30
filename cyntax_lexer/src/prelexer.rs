@@ -2,6 +2,8 @@ use std::{ops::Range, str::Chars};
 
 use peekmore::{PeekMore, PeekMoreIterator};
 
+use crate::spanned::Spanned;
+
 
 #[derive(Debug)]
 pub struct PrelexerIter<'a> {
@@ -18,7 +20,7 @@ impl<'a> PrelexerIter<'a> {
     }
 }
 impl<'a> Iterator for PrelexerIter<'a> {
-    type Item = (Range<usize>, char);
+    type Item = Spanned<char>;
 
     /// Get the next character, including a Range<usize> of bytes into the original string.
     /// If the character is a backslash `\`, and next character is a newline `\n`, they are skipped 
@@ -83,7 +85,8 @@ impl<'a> Iterator for PrelexerIter<'a> {
             return self.next();
         } else {
             self.current_pos = start + length;
-            return Some((start..self.current_pos, current_character));
+            
+            return Some(Spanned::new(start..self.current_pos, current_character));
         }
     }
 }
