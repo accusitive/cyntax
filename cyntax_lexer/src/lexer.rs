@@ -33,15 +33,19 @@ macro_rules! opening_delimiter {
 pub struct Lexer<'a> {
     pub chars: PeekMoreIterator<PrelexerIter<'a>>,
     pub source: &'a str,
+    at_start_of_line: bool,
 }
 
 impl<'a> Iterator for Lexer<'a> {
     type Item = (Range<usize>, Token);
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.chars.next()? {
+        let next = self.chars.next()?;
+        let is_newline = matches!(next.1, '\n');
+
+        let token = match next {
             (range, nondigit!()) => {
-                let identifier: (Range<usize>, Vec<Range<usize>>) = self.lex_identifier(range);
+                let identifier: (Range<usize>, Vec<Range<usize>>) = self.lex_identifier(&range);
                 Some((identifier.0, Token::Identifier(identifier.1)))
             }
 
@@ -55,8 +59,8 @@ impl<'a> Iterator for Lexer<'a> {
                 Some((number.0, Token::PPNumber(number.1)))
             }
             // Digits can start with 0
-            (range, '.') if matches!(self.chars.peek().map(|t| t.1), Some(digit!())) => {
-                let number = self.lex_number(range);
+            (dot_range, '.') if matches!(self.chars.peek().map(|t| t.1), Some(digit!())) => {
+                let number = self.lex_number(dot_range);
 
                 Some((number.0, Token::PPNumber(number.1)))
             }
@@ -68,8 +72,7 @@ impl<'a> Iterator for Lexer<'a> {
                     Token::Delimited(opening_delimiter, closing_delimiter, tokens),
                 ))
             }
-
-            // Entirely skip over comments
+            // Entirely skip over line comments
             (_, '/') if matches!(self.chars.peek(), Some((_, '/'))) => {
                 while let Some((_, char)) = self.chars.next() {
                     if char == '\n' {
@@ -77,6 +80,19 @@ impl<'a> Iterator for Lexer<'a> {
                     }
                 }
                 self.next()
+            }
+            (_, '#') if self.at_start_of_line => {
+                if matches!(self.chars.peek(), Some((_, nondigit!()))) {
+                    let (first, _) = self.chars.next().unwrap();
+                    let identifier = self.ignore_whitespace(|this| this.lex_identifier(&first));
+
+                    dbg!(&identifier);
+                    panic!();
+                } else if matches!(self.chars.peek(), Some((_, '\n'))) {
+                    self.next()
+                } else {
+                    todo!()
+                }
             }
             (range, punctuator) if Punctuator::is_punctuation(punctuator) => Some((
                 range,
@@ -86,7 +102,13 @@ impl<'a> Iterator for Lexer<'a> {
             (range, '\t') => Some((range, Token::Whitespace(Whitespace::Tab))),
             (range, '\n') => Some((range, Token::Whitespace(Whitespace::Newline))),
             ch => unimplemented!("character {} is not implemented", ch.1),
-        }
+        };
+
+        // Set this after lexing the token, otherwise it would always be false for non-newline tokens
+        self.at_start_of_line = is_newline;
+        dbg!(&self.at_start_of_line);
+
+        token
     }
 }
 impl<'a> Lexer<'a> {
@@ -94,11 +116,12 @@ impl<'a> Lexer<'a> {
         Lexer {
             chars: PrelexerIter::new(source).peekmore(),
             source,
+            at_start_of_line: true,
         }
     }
     pub fn lex_identifier(
         &mut self,
-        first_character: Range<usize>,
+        first_character: &Range<usize>,
     ) -> (Range<usize>, Vec<Range<usize>>) {
         let mut ranges = vec![first_character.clone()];
         let mut previous_end = first_character.end;
@@ -166,7 +189,7 @@ impl<'a> Lexer<'a> {
                 nondigit!() => {
                     let nondigit = self.chars.next().unwrap();
                     end = nondigit.0.end;
-                    let identifier = self.lex_identifier(nondigit.0);
+                    let identifier = self.lex_identifier(&nondigit.0);
                     match identifier.1.last().map(|c| &self.source[c.clone()]) {
                         Some("e" | "E" | "p" | "P") => {
                             expecting_exponent = true;
@@ -230,5 +253,14 @@ impl<'a> Lexer<'a> {
             '[' => ']',
             _ => unreachable!(),
         }
+    }
+    pub fn ignore_whitespace<T, F>(&mut self, mut f: F) -> T
+    where
+        F: FnMut(&mut Self) -> T,
+    {
+        while let Some((_, ' ' | '\t')) = self.chars.peek() {
+            self.next().unwrap();
+        }
+        f(self)
     }
 }
