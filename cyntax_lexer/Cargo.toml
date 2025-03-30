@@ -8,4 +8,5 @@ peekmore = "1.3.0"
 smallvec = "1.14.0"
 strum = "0.27.1"
 strum_macros = "0.27.1"
-cab-why = {git = "https://github.com/cull-os/carcass/"}
+cab-why = {git = "https://github.com/accusitive/carcass/", default-features = false}
+# cab-why = {path = "../../carcass/cab/cab-why", default-features = false}

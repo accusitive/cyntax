@@ -24,7 +24,7 @@ fn print_tokens(source: &str, tokens: &[Spanned<Token>]) {
                 match directive {
                     cyntax_lexer::Directive::DefineObject(macro_name, replacment_list) => {
                         print!("define ");
-                        for range in &macro_name.1 {
+                        for range in &macro_name.value {
                             print!("{}", &source[range.clone()]);
                         }
                         print!(" ");
@@ -33,7 +33,7 @@ fn print_tokens(source: &str, tokens: &[Spanned<Token>]) {
                     },
                     cyntax_lexer::Directive::DefineFunction(macro_name, parameter_list, replacment_list) => {
                         print!("define ");
-                        for range in &macro_name.1 {
+                        for range in &macro_name.value {
                             print!("{}", &source[range.clone()]);
                         }
                         print!(" ");
@@ -47,7 +47,7 @@ fn print_tokens(source: &str, tokens: &[Spanned<Token>]) {
                     
                     cyntax_lexer::Directive::Undefine(macro_name) => {
                         print!("undef ");
-                        for range in &macro_name.1 {
+                        for range in &macro_name.value {
                             print!("{}", &source[range.clone()]);
                         }
                     },

@@ -28,11 +28,12 @@ impl<'a> PartialEq for StrPieces<'a> {
         self_iter.eq(other_iter) // Compare character by character
     }
 }
+pub type SparseChars = Vec<Range<usize>>;
 #[derive(Debug, PartialEq)]
 pub enum Token {
-    Identifier(Vec<Range<usize>>),
-    StringLiteral(Vec<Range<usize>>),
-    PPNumber(Vec<Range<usize>>),
+    Identifier(SparseChars),
+    StringLiteral(SparseChars),
+    PPNumber(SparseChars),
 
     Directive(Directive),
 
@@ -44,9 +45,9 @@ pub enum Token {
 }
 #[derive(Debug, PartialEq)]
 pub enum Directive {
-    DefineObject((Range<usize>, Vec<Range<usize>>), Vec<Spanned<Token>>),
-    DefineFunction((Range<usize>, Vec<Range<usize>>), Spanned<Vec<Spanned<Token>>>, Vec<Spanned<Token>>),
-    Undefine((Range<usize>, Vec<Range<usize>>))
+    DefineObject(Spanned<SparseChars>, Vec<Spanned<Token>>),
+    DefineFunction(Spanned<SparseChars>, Spanned<Vec<Spanned<Token>>>, Vec<Spanned<Token>>),
+    Undefine(Spanned<SparseChars>)
 
 
 }

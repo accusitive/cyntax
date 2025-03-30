@@ -57,8 +57,8 @@ impl<'a> Iterator for Lexer<'a> {
 
         let token = match next {
             span!(range, nondigit!()) => {
-                let identifier: (Range<usize>, Vec<Range<usize>>) = self.lex_identifier(&range);
-                Some(Spanned::new(identifier.0, Token::Identifier(identifier.1)))
+                let identifier= self.lex_identifier(&range);
+                Some(identifier.augment(|identifier| Token::Identifier(identifier)))
             }
 
             // Literals
@@ -100,7 +100,7 @@ impl<'a> Iterator for Lexer<'a> {
                         this.lex_identifier(&first)
                     });
 
-                    if self.is_equal_within_source(&directive.1, "define") {
+                    if self.is_equal_within_source(&directive.value, "define") {
                         let macro_name = self.ignore_preceeding_whitespace(|this| {
                             let span!(first, _) = this.chars.next().unwrap();
                             this.lex_identifier(&first)
@@ -115,7 +115,7 @@ impl<'a> Iterator for Lexer<'a> {
                                 .collect::<Vec<_>>()
                             });
                             Some(Spanned::new(
-                                range.start..macro_name.0.end,
+                                range.start..macro_name.range.end,
                                 Token::Directive(Directive::DefineFunction(
                                     macro_name,
                                     parameter_list,
@@ -130,20 +130,20 @@ impl<'a> Iterator for Lexer<'a> {
                                 .collect::<Vec<_>>()
                             });
                             Some(Spanned::new(
-                                range.start..macro_name.0.end,
+                                range.start..macro_name.range.end,
                                 Token::Directive(Directive::DefineObject(
                                     macro_name,
                                     replacement_list,
                                 )),
                             ))
                         }
-                    } else if self.is_equal_within_source(&directive.1, "undef") {
+                    } else if self.is_equal_within_source(&directive.value, "undef") {
                         let macro_name = self.ignore_preceeding_whitespace(|this| {
                             let span!(first, _) = this.chars.next().unwrap();
                             this.lex_identifier(&first)
                         });
                         Some(Spanned::new(
-                            range.start..macro_name.0.end,
+                            range.start..macro_name.range.end,
                             Token::Directive(Directive::Undefine(macro_name)),
                         ))
                     } else {
@@ -185,7 +185,7 @@ impl<'a> Lexer<'a> {
     pub fn lex_identifier(
         &mut self,
         first_character: &Range<usize>,
-    ) -> (Range<usize>, Vec<Range<usize>>) {
+    ) -> Spanned<Vec<Range<usize>>> {
         let mut ranges = vec![first_character.start..first_character.end];
         let mut previous_end = first_character.end;
 
@@ -194,7 +194,7 @@ impl<'a> Lexer<'a> {
             previous_end = next.range.end;
             ranges.push(next.range);
         }
-        (first_character.start..previous_end, ranges)
+        Spanned::new(first_character.start..previous_end, ranges)
     }
     pub fn lex_string_literal(&mut self, range: Range<usize>) -> Spanned<Vec<Range<usize>>> {
         let mut ranges = vec![];
@@ -250,14 +250,14 @@ impl<'a> Lexer<'a> {
                     let nondigit = self.chars.next().unwrap();
                     end = nondigit.range.end;
                     let identifier = self.lex_identifier(&nondigit.range);
-                    match identifier.1.last().map(|c| &self.source[c.start..c.end]) {
+                    match identifier.value.last().map(|c| &self.source[c.start..c.end]) {
                         Some("e" | "E" | "p" | "P") => {
                             expecting_exponent = true;
                         }
                         _ => {}
                     }
 
-                    number.extend(identifier.1);
+                    number.extend(identifier.value);
                 }
                 _ => break,
             }
