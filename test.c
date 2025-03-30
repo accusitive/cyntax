@@ -1,1 +1,5 @@
-#define test a 
+#define add(x, y) x + y
+
+int main () {
+    
+}

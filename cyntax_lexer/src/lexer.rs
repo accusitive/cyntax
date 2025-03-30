@@ -3,6 +3,7 @@ use cab_why::LabelSeverity;
 use peekmore::PeekMore;
 use peekmore::PeekMoreIterator;
 
+use crate::Directive;
 use crate::Punctuator;
 use crate::StrPieces;
 use crate::Token;
@@ -82,13 +83,58 @@ impl<'a> Iterator for Lexer<'a> {
                 }
                 self.next()
             }
-            (_, '#') if self.at_start_of_line => {
+            (range, '#') if self.at_start_of_line => {
                 if matches!(self.chars.peek(), Some((_, nondigit!()))) {
-                    let (first, _) = self.chars.next().unwrap();
-                    let identifier = self.ignore_whitespace(|this| this.lex_identifier(&first));
-                    let is_equal = self.is_equal_within_source(identifier.1, "define");
-                    dbg!(&is_equal);
-                    panic!();
+                    let directive = self.ignore_preceeding_whitespace(|this| {
+                        let (first, _) = this.chars.next().unwrap();
+                        this.lex_identifier(&first)
+                    });
+
+                    if self.is_equal_within_source(&directive.1, "define") {
+                        let macro_name = self.ignore_preceeding_whitespace(|this| {
+                            let (first, _) = this.chars.next().unwrap();
+                            this.lex_identifier(&first)
+                        });
+                        if matches!(self.chars.peek(), Some((_, '('))) {
+                            let (lparen_range, _) = self.chars.next().unwrap();
+                            let (_, _, parameter_list) = self.lex_delimited(lparen_range, '(');
+                            let replacement_list = self.ignore_preceeding_whitespace(|this| {
+                                this.take_while(|c| c.1 != Token::Whitespace(Whitespace::Newline))
+                                    .collect::<Vec<_>>()
+                            });
+                            Some((
+                                range.start..macro_name.0.end,
+                                Token::Directive(Directive::DefineFunction(
+                                    macro_name,
+                                    parameter_list,
+                                    replacement_list,
+                                )),
+                            ))
+                        } else {
+                            let replacement_list = self.ignore_preceeding_whitespace(|this| {
+                                this.take_while(|c| c.1 != Token::Whitespace(Whitespace::Newline))
+                                    .collect::<Vec<_>>()
+                            });
+                            Some((
+                                range.start..macro_name.0.end,
+                                Token::Directive(Directive::DefineObject(
+                                    macro_name,
+                                    replacement_list,
+                                )),
+                            ))
+                        }
+                    } else if self.is_equal_within_source(&directive.1, "undef") {
+                        let macro_name = self.ignore_preceeding_whitespace(|this| {
+                            let (first, _) = this.chars.next().unwrap();
+                            this.lex_identifier(&first)
+                        });
+                        Some((
+                            range.start..macro_name.0.end,
+                            Token::Directive(Directive::Undefine(macro_name)),
+                        ))
+                    } else {
+                        unimplemented!()
+                    }
                 } else if matches!(self.chars.peek(), Some((_, '\n'))) {
                     self.next()
                 } else {
@@ -124,7 +170,7 @@ impl<'a> Lexer<'a> {
         &mut self,
         first_character: &Range<usize>,
     ) -> (Range<usize>, Vec<Range<usize>>) {
-        let mut ranges = vec![first_character.clone()];
+        let mut ranges = vec![first_character.start..first_character.end];
         let mut previous_end = first_character.end;
 
         while let Some((_, identifier!())) = self.chars.peek() {
@@ -167,7 +213,7 @@ impl<'a> Lexer<'a> {
         let mut number = vec![first_character];
 
         let mut expecting_exponent = false;
-        while let Some((_, c)) = self.chars.peek().cloned() {
+        while let Some((_, c)) = self.chars.peek() {
             match c {
                 'e' | 'E' | 'p' | 'P' => {
                     expecting_exponent = true;
@@ -191,7 +237,7 @@ impl<'a> Lexer<'a> {
                     let nondigit = self.chars.next().unwrap();
                     end = nondigit.0.end;
                     let identifier = self.lex_identifier(&nondigit.0);
-                    match identifier.1.last().map(|c| &self.source[c.clone()]) {
+                    match identifier.1.last().map(|c| &self.source[c.start..c.end]) {
                         Some("e" | "E" | "p" | "P") => {
                             expecting_exponent = true;
                         }
@@ -255,7 +301,7 @@ impl<'a> Lexer<'a> {
             _ => unreachable!(),
         }
     }
-    pub fn ignore_whitespace<T, F>(&mut self, mut f: F) -> T
+    pub fn ignore_preceeding_whitespace<T, F>(&mut self, mut f: F) -> T
     where
         F: FnMut(&mut Self) -> T,
     {
@@ -264,15 +310,12 @@ impl<'a> Lexer<'a> {
         }
         f(self)
     }
-    pub fn is_equal_within_source(&self, left: Vec<Range<usize>>, right: &str) -> bool {
-        let pieces = StrPieces {
-            pieces: left.iter().cloned().map(|range| &self.source[range]).collect(),
-        };
-        let right = StrPieces {
-            pieces: vec![right]
-        };
+    pub fn is_equal_within_source(&self, left: &[Range<usize>], right: &str) -> bool {
+        let left = left
+            .iter()
+            .flat_map(|range| self.source[range.start..range.end].chars());
+        let right = right.chars();
 
-        pieces == right
-        
+        left.eq(right)
     }
 }

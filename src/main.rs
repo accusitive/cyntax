@@ -19,6 +19,41 @@ fn print_tokens(source: &str, tokens: &[(Range<usize>, Token)]) {
                 }
                 print!("\"");
             }
+            Token::Directive(directive)  => {
+                print!("#");
+                match directive {
+                    cyntax_lexer::Directive::DefineObject(macro_name, replacment_list) => {
+                        print!("define ");
+                        for range in &macro_name.1 {
+                            print!("{}", &source[range.clone()]);
+                        }
+                        print!(" ");
+                        print_tokens(source, &replacment_list);
+
+                    },
+                    cyntax_lexer::Directive::DefineFunction(macro_name, parameter_list, replacment_list) => {
+                        print!("define ");
+                        for range in &macro_name.1 {
+                            print!("{}", &source[range.clone()]);
+                        }
+                        print!(" ");
+                        print!("(");
+                        print_tokens(source, &parameter_list);
+                        print!(")");
+                        print!(" ");
+                        print_tokens(source, &replacment_list);
+
+                    },
+                    
+                    cyntax_lexer::Directive::Undefine(macro_name) => {
+                        print!("undef ");
+                        for range in &macro_name.1 {
+                            print!("{}", &source[range.clone()]);
+                        }
+                    },
+                }
+                print!("\n");
+            }
             Token::PPNumber(ranges) => {
                 for range in ranges {
                     print!("{}", &source[range.clone()]);

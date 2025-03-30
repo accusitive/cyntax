@@ -32,10 +32,20 @@ pub enum Token {
     StringLiteral(Vec<Range<usize>>),
     PPNumber(Vec<Range<usize>>),
 
+    Directive(Directive),
+
     Whitespace(Whitespace),
     Punctuator(Punctuator),
 
     Delimited(char, char, Vec<(Range<usize>, Token)>),
+
+}
+#[derive(Debug, PartialEq)]
+pub enum Directive {
+    DefineObject((Range<usize>, Vec<Range<usize>>), Vec<(Range<usize>, Token)>),
+    DefineFunction((Range<usize>, Vec<Range<usize>>), Vec<(Range<usize>, Token)>, Vec<(Range<usize>, Token)>),
+    Undefine((Range<usize>, Vec<Range<usize>>))
+
 
 }
 #[derive(Debug, PartialEq)]
