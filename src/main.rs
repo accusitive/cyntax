@@ -24,15 +24,20 @@ fn print_tokens(source: &str, tokens: &[(Range<usize>, Token)]) {
                     print!("{}", &source[range.clone()]);
                 }
             }
+            Token::Delimited(opening, closing, tokens) => {
+                print!("{}", opening);
+                print_tokens(source, tokens);
+                print!("{}", closing);
+            }
             Token::Whitespace(whitespace) => match whitespace {
-                Whitespace::Space => print!("` `"),
-                Whitespace::Newline => print!("\\n"),
-                Whitespace::Tab => print!("\\t"),
+                Whitespace::Space => print!(" "),
+                Whitespace::Newline => print!("\n"),
+                Whitespace::Tab => print!("\t"),
             },
             Token::Punctuator(punctuator) => print!("{}", punctuator.to_string()),
            
         }
-        println!();
+        // println!();
     }
 }
 

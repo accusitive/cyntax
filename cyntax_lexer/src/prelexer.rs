@@ -29,8 +29,29 @@ impl<'a> Iterator for PrelexerIter<'a> {
         let mut current_character = self.chars.next()?;
         let mut length = current_character.len_utf8();
 
-        if current_character == '<' {
-            
+        match (current_character, self.chars.peek()) {
+            ('<', Some(':')) => {
+                length += self.chars.next().unwrap().len_utf8();
+                current_character = '[';
+            }
+            (':', Some('>')) => {
+                length += self.chars.next().unwrap().len_utf8();
+                current_character = ']';
+            }
+            ('<', Some('%')) => {
+                length += self.chars.next().unwrap().len_utf8();
+                current_character = '{';
+            }
+            ('%', Some('>')) => {
+                length += self.chars.next().unwrap().len_utf8();
+                current_character = '}';
+            }
+            ('%', Some(':')) => {
+                length += self.chars.next().unwrap().len_utf8();
+                current_character = '#';
+            }
+           
+            _ => {}
         }
         // Handle trigraphs
         if current_character == '?' && self.chars.peek() == Some(&'?') {

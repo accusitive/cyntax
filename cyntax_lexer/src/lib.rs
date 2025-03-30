@@ -34,6 +34,9 @@ pub enum Token {
 
     Whitespace(Whitespace),
     Punctuator(Punctuator),
+
+    Delimited(char, char, Vec<(Range<usize>, Token)>),
+
 }
 #[derive(Debug, PartialEq)]
 pub enum Whitespace {

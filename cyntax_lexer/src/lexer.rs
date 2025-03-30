@@ -1,3 +1,5 @@
+use cab_why::Label;
+use cab_why::LabelSeverity;
 use peekmore::PeekMore;
 use peekmore::PeekMoreIterator;
 
@@ -22,6 +24,11 @@ macro_rules! digit {
         '0'..='9'
     };
 }
+macro_rules! opening_delimiter {
+    () => {
+        '(' | '{' | '['
+    };
+}
 #[derive(Debug)]
 pub struct Lexer<'a> {
     pub chars: PeekMoreIterator<PrelexerIter<'a>>,
@@ -34,43 +41,56 @@ impl<'a> Iterator for Lexer<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         match self.chars.next()? {
             (range, nondigit!()) => {
-                let identifier = self.lex_identifier(range);
+                let identifier: (Range<usize>, Vec<Range<usize>>) = self.lex_identifier(range);
                 Some((identifier.0, Token::Identifier(identifier.1)))
             }
 
+            // Literals
             (range, '"') => {
-                let mut ranges = vec![];
-                let start = range.start;
+                let string = self.lex_string_literal(range);
+                Some((string.0, Token::StringLiteral(string.1)))
+            }
+            (range, digit!()) => {
+                let number = self.lex_number(range);
+                Some((number.0, Token::PPNumber(number.1)))
+            }
+            // Digits can start with 0
+            (range, '.') if matches!(self.chars.peek().map(|t| t.1), Some(digit!())) => {
+                let number = self.lex_number(range);
+
+                Some((number.0, Token::PPNumber(number.1)))
+            }
+            (range, opening_delimiter @ opening_delimiter!()) => {
+                let mut tokens = vec![];
+                let closing_delimiter = Self::closing_delimiter_for(opening_delimiter);
+                let mut closed = false;
                 let mut end = range.end;
-
                 while let Some((_, c)) = self.chars.peek() {
-                    if *c == '"' {
-                        let end_quote = self.chars.next().unwrap();
-                        end = end_quote.0.end;
+                    if *c == closing_delimiter {
+                        closed = true;
+                        self.next()?;
                         break;
+                    } else {
+                        let next = self.next().unwrap();
+                        end = next.0.end;
+                        tokens.push((next.0, next.1));
                     }
-                    // Handle escaped characters within string literal
-                    if *c == '\\' && matches!(self.chars.peek_nth(1).unwrap().1, '"' | '\\') {
-                        // Skip \
-                        self.chars.next().unwrap();
-                    }
-
-                    let next = self.chars.next().unwrap();
-                    end = next.0.end;
-                    ranges.push(next.0);
                 }
-                Some((start..end, Token::StringLiteral(ranges)))
+                
+                if !closed {
+                    let mut report = cab_why::Report::new(cab_why::ReportSeverity::Error, "Unmatched delimiter");
+                    report.push_label(Label::new(range.start..range.end, "Unmatched delimiter", cab_why::LabelSeverity::Primary));
+                    report.push_label(Label::secondary(range.start..end, "Potential location for closing delimiter"));
+                    report.push_help(format!("Add an ending delimiter `{}`", closing_delimiter));
+                    panic!("{}", report.with("test.c", self.source));
+                }
+                Some((range.start..end, Token::Delimited(opening_delimiter, closing_delimiter, tokens)))
             }
 
-            (range, '.') if matches!(self.chars.peek().map(|t| t.1), Some('0'..='9')) => {
-                Some(self.lex_number(range))
-            }
-            (range, digit!()) => Some(self.lex_number(range)),
             (range, punctuator) if Punctuator::is_punctuation(punctuator) => Some((
                 range,
                 Token::Punctuator(Punctuator::from_char(punctuator).unwrap()),
             )),
-
             (range, ' ') => Some((range, Token::Whitespace(Whitespace::Space))),
             (range, '\t') => Some((range, Token::Whitespace(Whitespace::Tab))),
             (range, '\n') => Some((range, Token::Whitespace(Whitespace::Newline))),
@@ -99,21 +119,48 @@ impl<'a> Lexer<'a> {
         }
         (first_character.start..previous_end, ranges)
     }
-    pub fn lex_number(&mut self, first_character: Range<usize>) -> (Range<usize>, Token) {
+    pub fn lex_string_literal(&mut self, range: Range<usize>) -> (Range<usize>, Vec<Range<usize>>) {
+        let mut ranges = vec![];
+        let start = range.start;
+        let mut end = range.end;
+
+        while let Some((_, c)) = self.chars.peek() {
+            if *c == '"' {
+                let end_quote = self.chars.next().unwrap();
+                end = end_quote.0.end;
+                break;
+            }
+            // Handle escaped characters within string literal
+            if *c == '\\' && matches!(self.chars.peek_nth(1).unwrap().1, '"' | '\\') {
+                // Skip \
+                self.chars.next().unwrap();
+            }
+
+            let next = self.chars.next().unwrap();
+            end = next.0.end;
+            ranges.push(next.0);
+        }
+
+        (start..end, ranges)
+    }
+    pub fn lex_number(
+        &mut self,
+        first_character: Range<usize>,
+    ) -> (Range<usize>, Vec<Range<usize>>) {
         let start = first_character.start;
         let mut end = first_character.end;
         let mut number = vec![first_character];
 
-        // Whether the last part of the pp-num was an identifier, and if so, did it end with e | E | p | P
-        let mut last_identifier_starts_exponent = false;
+        let mut expecting_exponent = false;
         while let Some((_, c)) = self.chars.peek().cloned() {
             match c {
                 'e' | 'E' | 'p' | 'P' => {
-                    last_identifier_starts_exponent = true;
-                    number.push(self.chars.next().unwrap().0); // e / E / p / P
+                    expecting_exponent = true;
+                    // e / E / p / P
+                    number.push(self.chars.next().unwrap().0);
                 }
-                '+' | '-' if last_identifier_starts_exponent => {
-                    last_identifier_starts_exponent = false;
+                '+' | '-' if expecting_exponent => {
+                    expecting_exponent = false;
                     let sign = self.chars.next().unwrap();
                     end = sign.0.end;
                     number.push(sign.0);
@@ -131,7 +178,7 @@ impl<'a> Lexer<'a> {
                     let identifier = self.lex_identifier(nondigit.0);
                     match identifier.1.last().map(|c| &self.source[c.clone()]) {
                         Some("e" | "E" | "p" | "P") => {
-                            last_identifier_starts_exponent = true;
+                            expecting_exponent = true;
                         }
                         _ => {}
                     }
@@ -142,6 +189,17 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        (start..end, Token::PPNumber(number))
+        (start..end, number)
+    }
+}
+// Util functions
+impl<'a> Lexer<'a> {
+    pub fn closing_delimiter_for(c: char) -> char {
+        match c {
+            '(' => ')',
+            '{' => '}',
+            '[' => ']',
+            _ => unreachable!()
+        }
     }
 }
