@@ -4,6 +4,7 @@ use peekmore::PeekMore;
 use peekmore::PeekMoreIterator;
 
 use crate::Punctuator;
+use crate::StrPieces;
 use crate::Token;
 use crate::Whitespace;
 use crate::prelexer::PrelexerIter;
@@ -85,8 +86,8 @@ impl<'a> Iterator for Lexer<'a> {
                 if matches!(self.chars.peek(), Some((_, nondigit!()))) {
                     let (first, _) = self.chars.next().unwrap();
                     let identifier = self.ignore_whitespace(|this| this.lex_identifier(&first));
-
-                    dbg!(&identifier);
+                    let is_equal = self.is_equal_within_source(identifier.1, "define");
+                    dbg!(&is_equal);
                     panic!();
                 } else if matches!(self.chars.peek(), Some((_, '\n'))) {
                     self.next()
@@ -262,5 +263,16 @@ impl<'a> Lexer<'a> {
             self.next().unwrap();
         }
         f(self)
+    }
+    pub fn is_equal_within_source(&self, left: Vec<Range<usize>>, right: &str) -> bool {
+        let pieces = StrPieces {
+            pieces: left.iter().cloned().map(|range| &self.source[range]).collect(),
+        };
+        let right = StrPieces {
+            pieces: vec![right]
+        };
+
+        pieces == right
+        
     }
 }
