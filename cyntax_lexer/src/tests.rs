@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use std::ops::Range;
     use crate::{Punctuator, Token, Whitespace, lexer::Lexer, spanned::Spanned};
+    use std::ops::Range;
     fn test_helper(source: &str, ranges: &[Range<usize>]) -> String {
         let mut s = String::new();
         for range in ranges {

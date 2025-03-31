@@ -79,7 +79,7 @@ fn print_tokens(source: &str, tokens: &[Spanned<Token>]) {
 
 fn main() {
     let source = include_str!("../test.c");
-    let lexer = cyntax_lexer::lexer::Lexer::new( "test.c", source);
+    let lexer = cyntax_lexer::lexer::Lexer::new("test.c", source);
     let tokens: Vec<_> = lexer.collect();
     dbg!(&tokens);
 

@@ -308,8 +308,20 @@ impl<'a> Lexer<'a> {
 // Util functions
 impl<'a> Lexer<'a> {
     pub fn fatal_diagnostic<E: cyntax_errors::Diagnostic>(&mut self, diagnostic: E) {
-        println!("{}", diagnostic.into_why_report().with(self.file_name, self.source));
-        println!("{}", cyntax_errors::write_codespan_report(diagnostic.into_codespan_report(), self.file_name, self.source));
+        println!(
+            "{}",
+            diagnostic
+                .into_why_report()
+                .with(self.file_name, self.source)
+        );
+        println!(
+            "{}",
+            cyntax_errors::write_codespan_report(
+                diagnostic.into_codespan_report(),
+                self.file_name,
+                self.source
+            )
+        );
         panic!();
     }
     pub fn closing_delimiter_for(c: char) -> char {

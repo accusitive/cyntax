@@ -4,7 +4,6 @@ use peekmore::{PeekMore, PeekMoreIterator};
 
 use crate::spanned::Spanned;
 
-
 #[derive(Debug)]
 pub struct PrelexerIter<'a> {
     chars: PeekMoreIterator<Chars<'a>>,
@@ -23,7 +22,7 @@ impl<'a> Iterator for PrelexerIter<'a> {
     type Item = Spanned<char>;
 
     /// Get the next character, including a Range<usize> of bytes into the original string.
-    /// If the character is a backslash `\`, and next character is a newline `\n`, they are skipped 
+    /// If the character is a backslash `\`, and next character is a newline `\n`, they are skipped
     /// If the next two characters are ??, and the one after those is a valid trigraph character, all 3 are skipped and a replacement character is returned
     fn next(&mut self) -> Option<Self::Item> {
         let start = self.current_pos;
@@ -52,7 +51,7 @@ impl<'a> Iterator for PrelexerIter<'a> {
                 length += self.chars.next().unwrap().len_utf8();
                 current_character = '#';
             }
-           
+
             _ => {}
         }
         // Handle trigraphs
@@ -81,11 +80,11 @@ impl<'a> Iterator for PrelexerIter<'a> {
         if current_character == '\\' && self.chars.peek() == Some(&'\n') {
             length += self.chars.next().unwrap().len_utf8();
 
-            self.current_pos = start +  length; // \ and ?
+            self.current_pos = start + length; // \ and ?
             return self.next();
         } else {
             self.current_pos = start + length;
-            
+
             return Some(Spanned::new(start..self.current_pos, current_character));
         }
     }

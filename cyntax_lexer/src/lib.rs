@@ -3,9 +3,9 @@ use std::ops::Range;
 use spanned::Spanned;
 use strum_macros::EnumString;
 
-pub mod spanned;
 pub mod lexer;
 pub mod prelexer;
+pub mod spanned;
 
 pub mod tests;
 #[derive(Debug)]
@@ -41,15 +41,16 @@ pub enum Token {
     Punctuator(Punctuator),
 
     Delimited(char, char, Spanned<Vec<Spanned<Token>>>),
-
 }
 #[derive(Debug, PartialEq)]
 pub enum Directive {
     DefineObject(Spanned<SparseChars>, Vec<Spanned<Token>>),
-    DefineFunction(Spanned<SparseChars>, Spanned<Vec<Spanned<Token>>>, Vec<Spanned<Token>>),
-    Undefine(Spanned<SparseChars>)
-
-
+    DefineFunction(
+        Spanned<SparseChars>,
+        Spanned<Vec<Spanned<Token>>>,
+        Vec<Spanned<Token>>,
+    ),
+    Undefine(Spanned<SparseChars>),
 }
 #[derive(Debug, PartialEq)]
 pub enum Whitespace {
