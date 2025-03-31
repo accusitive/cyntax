@@ -1,4 +1,3 @@
-use cab_why::Label;
 use peekmore::PeekMore;
 use peekmore::PeekMoreIterator;
 
@@ -48,6 +47,7 @@ pub type CharLocation = Range<usize>;
 #[derive(Debug)]
 pub struct Lexer<'a> {
     pub chars: PeekMoreIterator<PrelexerIter<'a>>,
+    pub file_name: &'a str,
     pub source: &'a str,
     at_start_of_line: bool,
 }
@@ -118,9 +118,10 @@ impl<'a> Iterator for Lexer<'a> {
     }
 }
 impl<'a> Lexer<'a> {
-    pub fn new(source: &'a str) -> Lexer<'a> {
+    pub fn new(file_name: &'a str, source: &'a str) -> Lexer<'a> {
         Lexer {
             chars: PrelexerIter::new(source).peekmore(),
+            file_name,
             source,
             at_start_of_line: true,
         }
@@ -231,19 +232,12 @@ impl<'a> Lexer<'a> {
         }
 
         if !closed {
-            let mut report =
-                cab_why::Report::new(cab_why::ReportSeverity::Error, "Unmatched delimiter");
-            report.push_label(Label::new(
-                range.start..range.end,
-                "Unmatched delimiter",
-                cab_why::LabelSeverity::Primary,
-            ));
-            report.push_label(Label::secondary(
-                end..end,
-                "Potential location for a closing delimiter",
-            ));
-            report.push_help(format!("Add an ending delimiter `{}`", closing_delimiter));
-            panic!("{}", report.with("test.c", self.source));
+            let err = cyntax_errors::UnmatchedDelimiter {
+                opening_delimiter_location: range.start..range.end,
+                potential_closing_delimiter_location: end,
+                closing_delimiter,
+            };
+            self.fatal_diagnostic(err);
         }
         (closing_delimiter, Spanned::new(range.start..end, tokens))
     }
@@ -313,6 +307,11 @@ impl<'a> Lexer<'a> {
 }
 // Util functions
 impl<'a> Lexer<'a> {
+    pub fn fatal_diagnostic<E: cyntax_errors::Diagnostic>(&mut self, diagnostic: E) {
+        println!("{}", diagnostic.into_why_report().with(self.file_name, self.source));
+        println!("{}", cyntax_errors::write_codespan_report(diagnostic.into_codespan_report(), self.file_name, self.source));
+        panic!();
+    }
     pub fn closing_delimiter_for(c: char) -> char {
         match c {
             '(' => ')',
@@ -326,7 +325,7 @@ impl<'a> Lexer<'a> {
         F: FnMut(&mut Self) -> T,
     {
         while let Some(span!(' ' | '\t')) = self.chars.peek() {
-            self.next().unwrap();
+            self.chars.next().unwrap();
         }
         f(self)
     }

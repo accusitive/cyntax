@@ -1,4 +1,5 @@
 cyntax_lexer/target
+cyntax_errors/target
 /target
 # file i use to test large debug outputs
 /a

@@ -1,1 +1,3 @@
-#ifdef a
+int main() {
+    return 42;
+}
