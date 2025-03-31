@@ -27,6 +27,10 @@ fn print_tokens(source: &str, tokens: &[Spanned<Token>]) {
                 print_tokens(source, &tokens.value);
                 print!("{}", closing);
             }
+            Token::ControlLine(inner) => {
+                print!("#");
+                print_tokens(source, &inner);
+            }
             Token::Whitespace(whitespace) => match whitespace {
                 Whitespace::Space => print!(" "),
                 Whitespace::Newline => print!("\n"),

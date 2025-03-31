@@ -40,52 +40,66 @@ impl<'a> Iterator for IntoTokenTree<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let token = self.tokens.next()?;
+
+
         match token {
-            span!(Token::Punctuator(Punctuator::Directive)) => {
-                // Skip empty directive, they're harmless
-                if matches!(
-                    self.tokens.peek(),
-                    Some(span!(Token::Whitespace(Whitespace::Newline)))
-                ) {
-                    self.tokens.next().unwrap();
-
-                    return self.next();
-                }
-
-                match self.tokens.peek() {
-                    Some(span!(Token::Identifier(inner)))
-                        if Self::is_equal_within_source(self.source, inner, "define") =>
-                    {
-                        todo!();
-                    }
-                    Some(span!(Token::Identifier(inner)))
-                        if Self::is_equal_within_source(self.source, inner, "ifdef") =>
-                    {
-                        let _ifdef = self.tokens.next().unwrap();
-                        let macro_identifier = self
-                            .ignore_preceeding_whitespace(|this| this.tokens.next())
-                            .expect("Expected macro_identifier after ifdef");
-                        // todo: handle extra tokens
-                        let body = self.until_closer();
-                        let opposition = self.maybe_opposition();
-                        dbg!(&self.tokens.peek());
-                        return Some(TokenTree::IfDef {
-                            macro_name: macro_identifier,
-                            body,
-                            opposition: None,
-                        });
-                    }
-                    Some(span!(Token::Identifier(inner)))
-                        if Self::is_equal_within_source(self.source, inner, "endif") =>
-                    {
-                        return Some(TokenTree::Endif);
-                    }
-                    _ => {}
+            span!(Token::ControlLine(inner)) => {
+                let control_line = self.parse_control_line(inner);
+                dbg!(&control_line);
+                match control_line  {
+                    ControlLine::Empty => self.next(),
+                    _ => todo!()
                 }
             }
-            _ => {}
+            _ => Some(TokenTree::Token(token))
         }
-        Some(TokenTree::Token(token))
+        // match token {
+
+        //     span!(Token::Punctuator(Punctuator::Directive)) => {
+        //         // Skip empty directive, they're harmless
+        //         if matches!(
+        //             self.tokens.peek(),
+        //             Some(span!(Token::Whitespace(Whitespace::Newline)))
+        //         ) {
+        //             self.tokens.next().unwrap();
+
+        //             return self.next();
+        //         }
+
+        //         match self.tokens.peek() {
+        //             Some(span!(Token::Identifier(inner)))
+        //                 if Self::is_equal_within_source(self.source, inner, "define") =>
+        //             {
+        //                 todo!();
+        //             }
+        //             Some(span!(Token::Identifier(inner)))
+        //                 if Self::is_equal_within_source(self.source, inner, "ifdef") =>
+        //             {
+        //                 let _ifdef = self.tokens.next().unwrap();
+        //                 let macro_identifier = self
+        //                     .ignore_preceeding_whitespace(|this| this.tokens.next())
+        //                     .expect("Expected macro_identifier after ifdef");
+        //                 // todo: handle extra tokens
+        //                 let body = self.until_closer();
+        //                 let opposition = self.maybe_opposition();
+        //                 dbg!(&self.tokens.peek());
+        //                 return Some(TokenTree::IfDef {
+        //                     macro_name: macro_identifier,
+        //                     body,
+        //                     opposition: None,
+        //                 });
+        //             }
+        //             Some(span!(Token::Identifier(inner)))
+        //                 if Self::is_equal_within_source(self.source, inner, "endif") =>
+        //             {
+        //                 return Some(TokenTree::Endif);
+        //             }
+        //             _ => {}
+        //         }
+        //     }
+        //     _ => {}
+        // }
+        
     }
 }
 impl<'a> IntoTokenTree<'a> {
@@ -114,6 +128,21 @@ impl<'a> IntoTokenTree<'a> {
 
         None
     }
+    pub fn parse_control_line(&mut self, tokens: &[Spanned<Token>]) -> ControlLine {
+        if tokens.len() == 0 {
+            return ControlLine::Empty;
+        }
+        let tokens_iter = tokens.iter();
+        // dbg!(&tokens);
+        // let directive_type = self.ignore_preceeding_whitespace(|this| this.next()).expect("WHAT");
+
+        unreachable!()
+    }
+}
+#[derive(Debug)]
+pub enum ControlLine {
+    Empty,
+
 }
 impl<'a> IntoTokenTree<'a> {
     pub fn is_equal_within_source(source: &'a str, left: &[CharLocation], right: &str) -> bool {

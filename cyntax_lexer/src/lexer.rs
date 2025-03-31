@@ -112,12 +112,18 @@ impl<'a> Iterator for Lexer<'a> {
             span!(range, '#') if self.at_start_of_line => {
                 let mut tokens = vec![];
                 let mut end = range.end;
-                while let Some(token) = self.chars.peek() {
-                    if matches!(token, span!('\n')) {
+                while let Some(span!(token)) = self.chars.peek() {
+                    if matches!(token, '\n') {
                         break;
+                    } else {
+                        let n = self.next().unwrap();
+
+                        end = n.range.end;
+                        tokens.push(n);
                     }
+
                 }
-                Some(Spanned { value: Token::ControlLine(tokens), range: range })
+                Some(Spanned { value: Token::ControlLine(tokens), range: range.start..end })
             }
             span!(range, punctuator) if Punctuator::is_punctuation(punctuator) => {
                 Some(Spanned::new(
