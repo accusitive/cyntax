@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use cyntax_lexer::{prelexer::PrelexerIter, spanned::Spanned, Punctuator, Token, Whitespace};
+use cyntax_lexer::{Punctuator, Token, Whitespace, prelexer::PrelexerIter, spanned::Spanned};
 
 #[cfg(test)]
 mod tests;
@@ -19,7 +19,7 @@ fn print_tokens(source: &str, tokens: &[Spanned<Token>]) {
                 }
                 print!("\"");
             }
-            Token::Directive(directive)  => {
+            Token::Directive(directive) => {
                 print!("#");
                 match directive {
                     cyntax_lexer::Directive::DefineObject(macro_name, replacment_list) => {
@@ -29,9 +29,12 @@ fn print_tokens(source: &str, tokens: &[Spanned<Token>]) {
                         }
                         print!(" ");
                         print_tokens(source, &replacment_list);
-
-                    },
-                    cyntax_lexer::Directive::DefineFunction(macro_name, parameter_list, replacment_list) => {
+                    }
+                    cyntax_lexer::Directive::DefineFunction(
+                        macro_name,
+                        parameter_list,
+                        replacment_list,
+                    ) => {
                         print!("define ");
                         for range in &macro_name.value {
                             print!("{}", &source[range.clone()]);
@@ -42,15 +45,14 @@ fn print_tokens(source: &str, tokens: &[Spanned<Token>]) {
                         print!(")");
                         print!(" ");
                         print_tokens(source, &replacment_list);
+                    }
 
-                    },
-                    
                     cyntax_lexer::Directive::Undefine(macro_name) => {
                         print!("undef ");
                         for range in &macro_name.value {
                             print!("{}", &source[range.clone()]);
                         }
-                    },
+                    }
                 }
                 print!("\n");
             }
@@ -70,14 +72,13 @@ fn print_tokens(source: &str, tokens: &[Spanned<Token>]) {
                 Whitespace::Tab => print!("\t"),
             },
             Token::Punctuator(punctuator) => print!("{}", punctuator.to_string()),
-           
         }
         // println!();
     }
 }
 
 fn main() {
-    let source =include_str!("../test.c");
+    let source = include_str!("../test.c");
     let lexer = cyntax_lexer::lexer::Lexer::new(source);
     let tokens: Vec<_> = lexer.collect();
     dbg!(&tokens);

@@ -41,6 +41,10 @@ macro_rules! span {
         Spanned { value: $p, .. }
     };
 }
+/// Characters can span multiple characters, so a simple `usize` index is not enough.
+/// an extreme example is a trigraph. the source `??=`, is lexed as only 1 character, that spans from 0..2
+pub type CharLocation = Range<usize>;
+
 #[derive(Debug)]
 pub struct Lexer<'a> {
     pub chars: PeekMoreIterator<PrelexerIter<'a>>,
@@ -57,7 +61,7 @@ impl<'a> Iterator for Lexer<'a> {
 
         let token = match next {
             span!(range, nondigit!()) => {
-                let identifier= self.lex_identifier(&range);
+                let identifier = self.lex_identifier(&range);
                 Some(identifier.augment(|identifier| Token::Identifier(identifier)))
             }
 
@@ -93,68 +97,7 @@ impl<'a> Iterator for Lexer<'a> {
                 }
                 self.next()
             }
-            span!(range, '#') if self.at_start_of_line => {
-                if matches!(self.chars.peek(), Some(span!(nondigit!()))) {
-                    let directive = self.ignore_preceeding_whitespace(|this| {
-                        let span!(first, _) = this.chars.next().unwrap();
-                        this.lex_identifier(&first)
-                    });
-
-                    if self.is_equal_within_source(&directive.value, "define") {
-                        let macro_name = self.ignore_preceeding_whitespace(|this| {
-                            let span!(first, _) = this.chars.next().unwrap();
-                            this.lex_identifier(&first)
-                        });
-                        if matches!(self.chars.peek(), Some(span!('('))) {
-                            let span!(lparen_range, _) = self.chars.next().unwrap();
-                            let (_, parameter_list) = self.lex_delimited(&lparen_range, '(');
-                            let replacement_list = self.ignore_preceeding_whitespace(|this| {
-                                this.take_while(|c| {
-                                    c.value != Token::Whitespace(Whitespace::Newline)
-                                })
-                                .collect::<Vec<_>>()
-                            });
-                            Some(Spanned::new(
-                                range.start..macro_name.range.end,
-                                Token::Directive(Directive::DefineFunction(
-                                    macro_name,
-                                    parameter_list,
-                                    replacement_list,
-                                )),
-                            ))
-                        } else {
-                            let replacement_list = self.ignore_preceeding_whitespace(|this| {
-                                this.take_while(|c| {
-                                    c.value != Token::Whitespace(Whitespace::Newline)
-                                })
-                                .collect::<Vec<_>>()
-                            });
-                            Some(Spanned::new(
-                                range.start..macro_name.range.end,
-                                Token::Directive(Directive::DefineObject(
-                                    macro_name,
-                                    replacement_list,
-                                )),
-                            ))
-                        }
-                    } else if self.is_equal_within_source(&directive.value, "undef") {
-                        let macro_name = self.ignore_preceeding_whitespace(|this| {
-                            let span!(first, _) = this.chars.next().unwrap();
-                            this.lex_identifier(&first)
-                        });
-                        Some(Spanned::new(
-                            range.start..macro_name.range.end,
-                            Token::Directive(Directive::Undefine(macro_name)),
-                        ))
-                    } else {
-                        unimplemented!()
-                    }
-                } else if matches!(self.chars.peek(), Some(span!('\n'))) {
-                    self.next()
-                } else {
-                    todo!()
-                }
-            }
+            span!(range, '#') if self.at_start_of_line => self.lex_directive(&range),
             span!(range, punctuator) if Punctuator::is_punctuation(punctuator) => {
                 Some(Spanned::new(
                     range,
@@ -182,10 +125,7 @@ impl<'a> Lexer<'a> {
             at_start_of_line: true,
         }
     }
-    pub fn lex_identifier(
-        &mut self,
-        first_character: &Range<usize>,
-    ) -> Spanned<Vec<Range<usize>>> {
+    pub fn lex_identifier(&mut self, first_character: &CharLocation) -> Spanned<Vec<CharLocation>> {
         let mut ranges = vec![first_character.start..first_character.end];
         let mut previous_end = first_character.end;
 
@@ -196,7 +136,7 @@ impl<'a> Lexer<'a> {
         }
         Spanned::new(first_character.start..previous_end, ranges)
     }
-    pub fn lex_string_literal(&mut self, range: Range<usize>) -> Spanned<Vec<Range<usize>>> {
+    pub fn lex_string_literal(&mut self, range: CharLocation) -> Spanned<Vec<CharLocation>> {
         let mut ranges = vec![];
         let start = range.start;
         let mut end = range.end;
@@ -220,7 +160,7 @@ impl<'a> Lexer<'a> {
 
         Spanned::new(start..end, ranges)
     }
-    pub fn lex_number(&mut self, first_character: Range<usize>) -> Spanned<Vec<Range<usize>>> {
+    pub fn lex_number(&mut self, first_character: CharLocation) -> Spanned<Vec<CharLocation>> {
         let start = first_character.start;
         let mut end = first_character.end;
         let mut number = vec![first_character];
@@ -250,7 +190,11 @@ impl<'a> Lexer<'a> {
                     let nondigit = self.chars.next().unwrap();
                     end = nondigit.range.end;
                     let identifier = self.lex_identifier(&nondigit.range);
-                    match identifier.value.last().map(|c| &self.source[c.start..c.end]) {
+                    match identifier
+                        .value
+                        .last()
+                        .map(|c| &self.source[c.start..c.end])
+                    {
                         Some("e" | "E" | "p" | "P") => {
                             expecting_exponent = true;
                         }
@@ -267,7 +211,7 @@ impl<'a> Lexer<'a> {
     }
     pub fn lex_delimited(
         &mut self,
-        range: &Range<usize>,
+        range: &CharLocation,
         opening_delimiter: char,
     ) -> (char, Spanned<Vec<Spanned<Token>>>) {
         let mut tokens = vec![];
@@ -303,6 +247,69 @@ impl<'a> Lexer<'a> {
         }
         (closing_delimiter, Spanned::new(range.start..end, tokens))
     }
+    pub fn lex_directive(&mut self, range: &CharLocation) -> Option<Spanned<Token>> {
+        let is_empty_directive = !matches!(self.chars.peek(), Some(span!(nondigit!())));
+
+        if !is_empty_directive {
+            let directive = self.ignore_preceeding_whitespace(|this| {
+                let span!(first, _) = this.chars.next().unwrap();
+                this.lex_identifier(&first)
+            });
+
+            if self.is_equal_within_source(&directive.value, "define") {
+                self.lex_define_directive(range)
+            } else if self.is_equal_within_source(&directive.value, "undef") {
+                self.lex_undefine_direcrive(range)
+            } else {
+                unimplemented!()
+            }
+        } else if matches!(self.chars.peek(), Some(span!('\n'))) {
+            self.next()
+        } else {
+            None
+        }
+    }
+    pub fn lex_define_directive(&mut self, range: &CharLocation) -> Option<Spanned<Token>> {
+        let macro_name = self.ignore_preceeding_whitespace(|this| {
+            let span!(first, _) = this.chars.next().unwrap();
+            this.lex_identifier(&first)
+        });
+        if matches!(self.chars.peek(), Some(span!('('))) {
+            let span!(lparen_range, _) = self.chars.next().unwrap();
+            let (_, parameter_list) = self.lex_delimited(&lparen_range, '(');
+            let replacement_list = self.ignore_preceeding_whitespace(|this| {
+                this.take_while(|c| c.value != Token::Whitespace(Whitespace::Newline))
+                    .collect::<Vec<_>>()
+            });
+            Some(Spanned::new(
+                range.start..macro_name.range.end,
+                Token::Directive(Directive::DefineFunction(
+                    macro_name,
+                    parameter_list,
+                    replacement_list,
+                )),
+            ))
+        } else {
+            let replacement_list = self.ignore_preceeding_whitespace(|this| {
+                this.take_while(|c| c.value != Token::Whitespace(Whitespace::Newline))
+                    .collect::<Vec<_>>()
+            });
+            Some(Spanned::new(
+                range.start..macro_name.range.end,
+                Token::Directive(Directive::DefineObject(macro_name, replacement_list)),
+            ))
+        }
+    }
+    pub fn lex_undefine_direcrive(&mut self, range: &CharLocation) -> Option<Spanned<Token>> {
+        let macro_name = self.ignore_preceeding_whitespace(|this| {
+            let span!(first, _) = this.chars.next().unwrap();
+            this.lex_identifier(&first)
+        });
+        Some(Spanned::new(
+            range.start..macro_name.range.end,
+            Token::Directive(Directive::Undefine(macro_name)),
+        ))
+    }
 }
 // Util functions
 impl<'a> Lexer<'a> {
@@ -323,7 +330,7 @@ impl<'a> Lexer<'a> {
         }
         f(self)
     }
-    pub fn is_equal_within_source(&self, left: &[Range<usize>], right: &str) -> bool {
+    pub fn is_equal_within_source(&self, left: &[CharLocation], right: &str) -> bool {
         let left = left
             .iter()
             .flat_map(|range| self.source[range.start..range.end].chars());
