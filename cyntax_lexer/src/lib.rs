@@ -36,6 +36,7 @@ pub enum Token {
     PPNumber(SparseChars),
 
     // Directive(Directive),
+    ControlLine(Vec<Token>),
 
     Whitespace(Whitespace),
     Punctuator(Punctuator),

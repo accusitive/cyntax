@@ -5,4 +5,3 @@ int test = 1;
 int inner;
 #endif
 int test = 0;
-#endif

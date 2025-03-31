@@ -69,35 +69,6 @@ pub trait Diagnostic: Sized {
     }
 }
 
-pub struct UnmatchedDelimiter {
-    pub opening_delimiter_location: Range<usize>,
-    pub potential_closing_delimiter_location: usize,
-    pub closing_delimiter: char,
-}
-impl Diagnostic for UnmatchedDelimiter {
-    fn title<'a>(&self) -> &'a str {
-        "Unmatched delimiter"
-    }
-    fn severity(&self) -> DiagnosticSeverity {
-        DiagnosticSeverity::Error
-    }
-    fn labels(&self) -> Vec<Label> {
-        vec![
-            Label {
-                kind: LabelKind::Primary,
-                range: self.opening_delimiter_location.start..self.opening_delimiter_location.end,
-                message: "Unmatched delimiter".to_string(),
-            },
-            Label {
-                kind: LabelKind::Secondary,
-                range: self.potential_closing_delimiter_location
-                    ..self.potential_closing_delimiter_location,
-                message: "Potential location for a closing delimiter".to_string(),
-            },
-        ]
-    }
-}
-
 pub fn write_codespan_report(
     diag: codespan_reporting::diagnostic::Diagnostic<usize>,
     file_name: &str,
@@ -113,3 +84,6 @@ pub fn write_codespan_report(
 
     String::from_utf8(output_buffer).unwrap()
 }
+
+
+pub mod errors;

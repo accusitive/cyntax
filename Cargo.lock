@@ -71,6 +71,7 @@ dependencies = [
 name = "cyntax_preprocessor"
 version = "0.1.0"
 dependencies = [
+ "cyntax_errors",
  "cyntax_lexer",
  "peekmore",
 ]

@@ -13,7 +13,7 @@ impl<T> Spanned<T> {
             range,
         }
     }
-    pub fn augment<U, F: Fn(T) -> U>(self, f: F) -> Spanned<U> {
+    pub fn map<U, F: Fn(T) -> U>(self, f: F) -> Spanned<U> {
         Spanned {
             range: self.range.start..self.range.end,
             value: f(self.value),

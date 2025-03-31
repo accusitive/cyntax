@@ -74,23 +74,23 @@ impl<'a> Iterator for Lexer<'a> {
         let token = match next {
             span!(range, nondigit!()) => {
                 let identifier = self.lex_identifier(&range);
-                Some(identifier.augment(|identifier| Token::Identifier(identifier)))
+                Some(identifier.map(|identifier| Token::Identifier(identifier)))
             }
 
             // Literals
             span!(range, '"') => {
                 let string = self.lex_string_literal(range);
-                Some(string.augment(|string| Token::StringLiteral(string)))
+                Some(string.map(|string| Token::StringLiteral(string)))
             }
             span!(range, digit!()) => {
                 let number = self.lex_number(range);
-                Some(number.augment(|num| Token::PPNumber(num)))
+                Some(number.map(|num| Token::PPNumber(num)))
             }
             // Digits can start with 0
             span!(dot_range, '.') if matches!(self.chars.peek(), Some(span!(digit!()))) => {
                 let number = self.lex_number(dot_range);
 
-                Some(number.augment(|num| Token::PPNumber(num)))
+                Some(number.map(|num| Token::PPNumber(num)))
             }
             span!(range, opening_delimiter @ opening_delimiter!()) => {
                 let (closing_delimiter, inner_tokens) =
@@ -109,7 +109,16 @@ impl<'a> Iterator for Lexer<'a> {
                 }
                 self.next()
             }
-            span!(range, '#') if self.at_start_of_line => Some(Spanned::new(range, Token::Punctuator(Punctuator::Directive))),
+            span!(range, '#') if self.at_start_of_line => {
+                let mut tokens = vec![];
+                let mut end = range.end;
+                while let Some(token) = self.chars.peek() {
+                    if matches!(token, span!('\n')) {
+                        break;
+                    }
+                }
+                Some(Spanned { value: Token::ControlLine(tokens), range: range })
+            }
             span!(range, punctuator) if Punctuator::is_punctuation(punctuator) => {
                 Some(Spanned::new(
                     range,
@@ -242,7 +251,7 @@ impl<'a> Lexer<'a> {
         }
 
         if !closed {
-            let err = cyntax_errors::UnmatchedDelimiter {
+            let err = cyntax_errors::errors::UnmatchedDelimiter {
                 opening_delimiter_location: range.start..range.end,
                 potential_closing_delimiter_location: end,
                 closing_delimiter,

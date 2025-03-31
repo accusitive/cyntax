@@ -1,11 +1,7 @@
 use std::iter::Peekable;
 
-use cyntax_lexer::{
-    Punctuator, Token, Whitespace,
-    lexer::{self, CharLocation, Lexer},
-    span,
-    spanned::Spanned,
-};
+use cyntax_errors::errors::UnmatchedDelimiter;
+use cyntax_lexer::{Punctuator, Token, Whitespace, lexer::CharLocation, span, spanned::Spanned};
 
 pub struct Preprocessor<'a> {
     // macros and whatever
@@ -71,13 +67,18 @@ impl<'a> Iterator for IntoTokenTree<'a> {
                             .expect("Expected macro_identifier after ifdef");
                         // todo: handle extra tokens
                         let body = self.until_closer();
-                        dbg!(&macro_identifier);
-                        dbg!(&body);
+                        let opposition = self.maybe_opposition();
+                        dbg!(&self.tokens.peek());
+                        return Some(TokenTree::IfDef {
+                            macro_name: macro_identifier,
+                            body,
+                            opposition: None,
+                        });
                     }
                     Some(span!(Token::Identifier(inner)))
                         if Self::is_equal_within_source(self.source, inner, "endif") =>
                     {
-                        return Some(TokenTree::Endif)
+                        return Some(TokenTree::Endif);
                     }
                     _ => {}
                 }
@@ -88,14 +89,14 @@ impl<'a> Iterator for IntoTokenTree<'a> {
     }
 }
 impl<'a> IntoTokenTree<'a> {
-    pub fn until_closer(&mut self) -> Vec<TokenTree<'a>>{
+    pub fn until_closer(&mut self) -> Vec<TokenTree<'a>> {
         let mut body = vec![];
 
         while let Some(token) = self.tokens.peek() {
             // if the next token is a directive
             if matches!(token, span!(Token::Punctuator(Punctuator::Directive))) {
                 let directive = self.next().unwrap();
-                if matches!(directive, TokenTree::Endif) {
+                if matches!(directive, TokenTree::Endif | TokenTree::Else { .. }) {
                     break;
                 } else {
                     body.push(directive)
@@ -105,6 +106,13 @@ impl<'a> IntoTokenTree<'a> {
             }
         }
         body
+    }
+    pub fn maybe_opposition(&mut self) -> Option<TokenTree<'a>> {
+        // match self.tokens.peek() {
+        //     Some(span!(Token::))
+        // }
+
+        None
     }
 }
 impl<'a> IntoTokenTree<'a> {
@@ -131,27 +139,27 @@ impl<'a> IntoTokenTree<'a> {
 #[derive(Debug)]
 pub enum TokenTree<'a> {
     IfDef {
-        condition: Spanned<Token>,
+        macro_name: &'a Spanned<Token>,
         body: Vec<TokenTree<'a>>,
-        opposition: Option<Box<TokenTree<'a>>>
+        opposition: Option<Box<TokenTree<'a>>>,
     },
     IfNDef {
-        condition: Spanned<Token>,
+        macro_name: &'a Spanned<Token>,
         body: Vec<TokenTree<'a>>,
-        opposition: Option<Box<TokenTree<'a>>>
+        opposition: Option<Box<TokenTree<'a>>>,
     },
     If {
         condition: Vec<Spanned<Token>>,
         body: Vec<TokenTree<'a>>,
-        opposition: Option<Box<TokenTree<'a>>>
+        opposition: Option<Box<TokenTree<'a>>>,
     },
     ElseIf {
         condition: Vec<Spanned<Token>>,
         body: Vec<TokenTree<'a>>,
-        opposition: Option<Box<TokenTree<'a>>>
+        opposition: Option<Box<TokenTree<'a>>>,
     },
     Else {
-        body: Vec<TokenTree<'a>>
+        body: Vec<TokenTree<'a>>,
     },
     Endif,
     Token(&'a Spanned<Token>),
