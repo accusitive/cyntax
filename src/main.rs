@@ -1,6 +1,4 @@
-use std::ops::Range;
-
-use cyntax_lexer::{Punctuator, Token, Whitespace, prelexer::PrelexerIter, spanned::Spanned};
+use cyntax_lexer::{Token, Whitespace, spanned::Spanned};
 
 #[cfg(test)]
 mod tests;
@@ -19,43 +17,6 @@ fn print_tokens(source: &str, tokens: &[Spanned<Token>]) {
                 }
                 print!("\"");
             }
-            Token::Directive(directive) => {
-                print!("#");
-                match directive {
-                    cyntax_lexer::Directive::DefineObject(macro_name, replacment_list) => {
-                        print!("define ");
-                        for range in &macro_name.value {
-                            print!("{}", &source[range.clone()]);
-                        }
-                        print!(" ");
-                        print_tokens(source, &replacment_list);
-                    }
-                    cyntax_lexer::Directive::DefineFunction(
-                        macro_name,
-                        parameter_list,
-                        replacment_list,
-                    ) => {
-                        print!("define ");
-                        for range in &macro_name.value {
-                            print!("{}", &source[range.clone()]);
-                        }
-                        print!(" ");
-                        print!("(");
-                        print_tokens(source, &parameter_list.value);
-                        print!(")");
-                        print!(" ");
-                        print_tokens(source, &replacment_list);
-                    }
-
-                    cyntax_lexer::Directive::Undefine(macro_name) => {
-                        print!("undef ");
-                        for range in &macro_name.value {
-                            print!("{}", &source[range.clone()]);
-                        }
-                    }
-                }
-                print!("\n");
-            }
             Token::PPNumber(ranges) => {
                 for range in ranges {
                     print!("{}", &source[range.clone()]);
@@ -73,7 +34,6 @@ fn print_tokens(source: &str, tokens: &[Spanned<Token>]) {
             },
             Token::Punctuator(punctuator) => print!("{}", punctuator.to_string()),
         }
-        // println!();
     }
 }
 
@@ -82,6 +42,8 @@ fn main() {
     let lexer = cyntax_lexer::lexer::Lexer::new("test.c", source);
     let tokens: Vec<_> = lexer.collect();
     dbg!(&tokens);
-
     print_tokens(source, &tokens);
+
+    let mut pp = cyntax_preprocessor::Preprocessor::new("test.c", source, &tokens);
+    pp.create_token_tree();
 }

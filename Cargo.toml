@@ -5,4 +5,5 @@ edition = "2024"
 
 [dependencies]
 cyntax_lexer = {path = "./cyntax_lexer"}
+cyntax_preprocessor = {path = "./cyntax_preprocessor"}
 smallvec = "1.14.0"

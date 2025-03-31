@@ -35,7 +35,7 @@ pub enum Token {
     StringLiteral(SparseChars),
     PPNumber(SparseChars),
 
-    Directive(Directive),
+    // Directive(Directive),
 
     Whitespace(Whitespace),
     Punctuator(Punctuator),
@@ -120,6 +120,7 @@ pub enum Punctuator {
 
     // Miscellaneous
     Comma,    // ,
+    Directive, // #, but only if its the first non-whitespace character of the line
     Hash,     // #
     HashHash, // ##
 
@@ -226,6 +227,8 @@ impl Punctuator {
             Punctuator::XorAssign => "^=".to_string(),
             Punctuator::OrAssign => "|=".to_string(),
             Punctuator::Comma => ",".to_string(),
+            // Use alternate character `♯` instead of `#` for debug printing, to make it clear that its a Directive not a Hash
+            Punctuator::Directive => "♯".to_string(),
             Punctuator::Hash => "#".to_string(),
             Punctuator::HashHash => "##".to_string(),
             Punctuator::LessColon => "<:".to_string(),

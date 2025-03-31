@@ -1,4 +1,4 @@
-use std::{ops::Range, str::Chars};
+use std::str::Chars;
 
 use peekmore::{PeekMore, PeekMoreIterator};
 

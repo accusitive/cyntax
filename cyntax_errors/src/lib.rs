@@ -1,11 +1,8 @@
 use std::ops::Range;
 
 use codespan_reporting::{
-    files::{Files, SimpleFiles},
-    term::{
-        self,
-        termcolor::{Ansi, ColorChoice, StandardStream},
-    },
+    files::SimpleFiles,
+    term::termcolor::Ansi,
 };
 
 pub enum DiagnosticSeverity {
@@ -54,7 +51,6 @@ pub trait Diagnostic: Sized {
         let diag = match self.severity() {
             DiagnosticSeverity::Error => codespan_reporting::diagnostic::Diagnostic::error(),
             DiagnosticSeverity::Warning => codespan_reporting::diagnostic::Diagnostic::warning(),
-            _ => unimplemented!(),
         };
         let mut diag = diag.with_message(self.title());
         for label in self.labels() {
@@ -63,7 +59,6 @@ pub trait Diagnostic: Sized {
                 LabelKind::Secondary => codespan_reporting::diagnostic::LabelStyle::Secondary,
                 LabelKind::Help => unimplemented!(),
             };
-
             diag.labels.push(
                 codespan_reporting::diagnostic::Label::new(style, 0, label.range)
                     .with_message(label.message),
@@ -109,12 +104,12 @@ pub fn write_codespan_report(
     file_source: &str,
 ) -> String {
     let config = codespan_reporting::term::Config::default();
-    let mut buf = Vec::new();
-    let mut s = Ansi::new(&mut buf);
+    let mut output_buffer = Vec::new();
+    let mut ansi_writer = Ansi::new(&mut output_buffer);
     let mut files = SimpleFiles::new();
     files.add(file_name, file_source);
 
-    term::emit(&mut s, &config, &files, &diag).unwrap();
+    codespan_reporting::term::emit(&mut ansi_writer, &config, &files, &diag).unwrap();
 
-    String::from_utf8(buf).unwrap()
+    String::from_utf8(output_buffer).unwrap()
 }
