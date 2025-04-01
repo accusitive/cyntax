@@ -171,7 +171,10 @@ impl<'a> Lexer<'a> {
             previous_end = next.range.end;
             ranges.push(next.range);
         }
-        Spanned::new(first_character.start..previous_end, SparseChars::new(ranges))
+        Spanned::new(
+            first_character.start..previous_end,
+            SparseChars::new(ranges),
+        )
     }
     pub fn lex_string_literal(&mut self, range: CharLocation) -> Spanned<Vec<CharLocation>> {
         let mut ranges = vec![];
@@ -244,7 +247,7 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        Spanned::new(start..end, SparseChars::new(number ))
+        Spanned::new(start..end, SparseChars::new(number))
     }
     pub fn lex_delimited(
         &mut self,

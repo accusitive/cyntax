@@ -1,4 +1,7 @@
-use std::{hash::{DefaultHasher, Hash, Hasher}, ops::Range};
+use std::{
+    hash::{DefaultHasher, Hash, Hasher},
+    ops::Range,
+};
 
 use radix_trie::TrieKey;
 use spanned::Spanned;
@@ -20,7 +23,11 @@ pub type HashedSparseChars = u64;
 
 impl SparseChars {
     pub fn new(parts: Vec<Range<usize>>) -> Self {
-        let mut sp = SparseChars { parts, first: None, last: None };
+        let mut sp = SparseChars {
+            parts,
+            first: None,
+            last: None,
+        };
         if sp.parts.len() > 0 {
             let first = sp.parts.get(0).unwrap();
             sp.first = Some(first.start..first.end);

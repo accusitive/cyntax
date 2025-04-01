@@ -1,13 +1,7 @@
-
 use std::iter::Peekable;
 
-use cyntax_errors::{
-    Diagnostic,
-    errors::UnterminatedTreeNode,
-};
-use cyntax_lexer::{
-    SparseChars, Token, Whitespace, lexer::CharLocation, span, spanned::Spanned,
-};
+use cyntax_errors::{Diagnostic, errors::UnterminatedTreeNode};
+use cyntax_lexer::{SparseChars, Token, Whitespace, lexer::CharLocation, span, spanned::Spanned};
 pub struct IntoTokenTree<'a> {
     pub(crate) source: &'a str,
     pub(crate) tokens: Peekable<core::slice::Iter<'a, Spanned<Token>>>,
@@ -198,10 +192,7 @@ impl<'a> IntoTokenTree<'a> {
                 let macro_name = self
                     .expect_identifier(&mut tokens_iter)
                     .expect("expected macro_name in ifdef directive");
-                if matches!(
-                    tokens_iter.peek(),
-                    Some(span!(Token::Delimited('(', _, _)))
-                ) {
+                if matches!(tokens_iter.peek(), Some(span!(Token::Delimited('(', _, _)))) {
                     let parameters = tokens_iter.next().unwrap();
                     let replacement_list = tokens_iter.collect();
                     return ControlLine::DefineFunction {
@@ -342,5 +333,5 @@ pub enum TokenTree<'a> {
     // Which doesnt seem beneficial in any way
     Endif,
     Token(&'a Spanned<Token>),
-    Directive(ControlLine<'a>)
+    Directive(ControlLine<'a>),
 }

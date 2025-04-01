@@ -2,7 +2,7 @@ use cyntax_lexer::{Token, Whitespace, spanned::Spanned};
 
 #[cfg(test)]
 mod tests;
-fn print_tokens(source: &str, tokens: &[Spanned<Token>]) {
+fn print_tokens<'a, I: Iterator<Item = &'a Spanned<Token>>>(source: &str, tokens: I) {
     for spanned_token in tokens {
         match &spanned_token.value {
             Token::Identifier(ranges) => {
@@ -24,12 +24,12 @@ fn print_tokens(source: &str, tokens: &[Spanned<Token>]) {
             }
             Token::Delimited(opening, closing, tokens) => {
                 print!("{}", opening);
-                print_tokens(source, &tokens.value);
+                print_tokens(source, tokens.value.iter());
                 print!("{}", closing);
             }
             Token::ControlLine(inner) => {
                 print!("#");
-                print_tokens(source, &inner);
+                print_tokens(source, inner.iter());
             }
             Token::Whitespace(whitespace) => match whitespace {
                 Whitespace::Space => print!(" "),
@@ -47,8 +47,12 @@ fn main() {
     let lexer = cyntax_lexer::lexer::Lexer::new("test.c", source);
     let tokens: Vec<_> = lexer.collect();
     // dbg!(&tokens);
-    print_tokens(source, &tokens);
+    print_tokens(source, tokens.iter());
 
     let mut pp = cyntax_preprocessor::Preprocessor::new("test.c", source, &tokens);
-    pp.create_token_tree();
+    {
+        let expanded = pp.expand();
+        println!("========================================================");
+        print_tokens(source, expanded.into_iter());
+    }
 }

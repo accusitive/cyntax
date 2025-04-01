@@ -1,6 +1,6 @@
 use std::{collections::HashMap, iter::once, marker::PhantomData, ops::Deref};
 
-use cyntax_lexer::{span, spanned::Spanned, HashedSparseChars, SparseChars, Token};
+use cyntax_lexer::{HashedSparseChars, SparseChars, Token, span, spanned::Spanned};
 use radix_trie::Trie;
 
 use crate::tree::{ControlLine, TokenTree};
@@ -8,9 +8,11 @@ use crate::tree::{ControlLine, TokenTree};
 pub struct ExpandTokens<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> {
     pub source: &'src str,
     pub state: &'state mut HashMap<HashedSparseChars, &'src Vec<&'src Spanned<Token>>>,
-    pub token_trees: I
+    pub token_trees: I,
 }
-impl<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> Iterator for ExpandTokens<'src, 'state, I> {
+impl<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> Iterator
+    for ExpandTokens<'src, 'state, I>
+{
     type Item = Vec<&'src Spanned<Token>>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -21,10 +23,17 @@ impl<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> Iterator for Expan
             //     // }
             //     todo!()
             // }
-            TokenTree::Token(spanned) => {
-                return Some(vec![spanned])
-            },
-            tt @ (TokenTree::IfDef { macro_name, body, opposition } | TokenTree::IfNDef { macro_name, body, opposition } )=> {
+            TokenTree::Token(spanned) => return Some(vec![spanned]),
+            tt @ (TokenTree::IfDef {
+                macro_name,
+                body,
+                opposition,
+            }
+            | TokenTree::IfNDef {
+                macro_name,
+                body,
+                opposition,
+            }) => {
                 let invert = matches!(tt, TokenTree::IfNDef { .. });
 
                 let key = macro_name.hashed(self.source);
@@ -37,48 +46,68 @@ impl<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> Iterator for Expan
                         source: self.source,
                         state: self.state,
                         token_trees: body.iter(),
-                    }.flatten().collect::<Vec<_>>();
+                    }
+                    .flatten()
+                    .collect::<Vec<_>>();
                     return Some(toks);
                 } else {
                     let toks = ExpandTokens {
                         source: self.source,
                         state: self.state,
                         token_trees: std::iter::once(opposition.deref()),
-                    }.flatten().collect();
+                    }
+                    .flatten()
+                    .collect();
                     return Some(toks);
                 }
-
-            },
-            TokenTree::If { condition, body, opposition } => todo!(),
-            TokenTree::Elif { condition, body, opposition } => todo!(),
+            }
+            TokenTree::If {
+                condition,
+                body,
+                opposition,
+            } => todo!(),
+            TokenTree::Elif {
+                condition,
+                body,
+                opposition,
+            } => todo!(),
             TokenTree::Else { body, opposition } => {
                 let toks = ExpandTokens {
                     source: self.source,
                     state: self.state,
                     token_trees: body.iter(),
-                }.flatten().collect();
+                }
+                .flatten()
+                .collect();
                 if !matches!(opposition.deref(), TokenTree::Endif) {
                     // TODO: Add an error
                 }
                 return Some(toks);
-            },
+            }
             TokenTree::Endif => Some(vec![]),
             TokenTree::Directive(control_line) => {
                 match control_line {
-                    ControlLine::DefineFunction { macro_name, parameters, replacement_list } => todo!(),
-                    ControlLine::DefineObject { macro_name, replacement_list } => {
+                    ControlLine::DefineFunction {
+                        macro_name,
+                        parameters,
+                        replacement_list,
+                    } => todo!(),
+                    ControlLine::DefineObject {
+                        macro_name,
+                        replacement_list,
+                    } => {
                         let key = macro_name.hashed(self.source);
                         // TODO error handleing here
                         self.state.insert(key, replacement_list);
 
                         Some(vec![])
-                    },
+                    }
                     ControlLine::Undefine(sparse_chars) => todo!(),
                     ControlLine::Error(spanned) => todo!(),
                     ControlLine::Warning(spanned) => todo!(),
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 }
-            },
+            }
         }
         // self.token_trees.next()
     }
