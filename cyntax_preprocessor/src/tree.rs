@@ -286,7 +286,7 @@ pub enum ControlLine<'a> {
     Empty,
 }
 impl<'a> IntoTokenTree<'a> {
-    pub fn is_equal_within_source(source: &'a str, left: &[CharLocation], right: &str) -> bool {
+    pub fn is_equal_within_source(source: &'a str, left: &SparseChars, right: &str) -> bool {
         let left = left
             .iter()
             .flat_map(|range| source[range.start..range.end].chars());

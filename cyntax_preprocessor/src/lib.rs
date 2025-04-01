@@ -1,4 +1,4 @@
-use std::iter::Peekable;
+use std::{collections::HashMap, iter::Peekable};
 
 use cyntax_errors::{
     Diagnostic,
@@ -7,7 +7,9 @@ use cyntax_errors::{
 use cyntax_lexer::{
     Punctuator, SparseChars, Token, Whitespace, lexer::CharLocation, span, spanned::Spanned,
 };
+use expand::ExpandTokens;
 use tree::{IntoTokenTree, TokenTree};
+mod expand;
 mod tree;
 pub struct Preprocessor<'a> {
     // macros and whatever
@@ -34,6 +36,7 @@ impl<'a> Preprocessor<'a> {
             tokens: self.tokens.iter().peekable(),
         }
         .collect();
+        let expanded = ExpandTokens { state: &mut HashMap::new(), token_trees: itt.iter() };
         dbg!(&itt);
     }
 }

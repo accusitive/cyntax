@@ -6,7 +6,7 @@ fn print_tokens(source: &str, tokens: &[Spanned<Token>]) {
     for spanned_token in tokens {
         match &spanned_token.value {
             Token::Identifier(ranges) => {
-                for range in ranges {
+                for range in ranges.iter() {
                     print!("{}", &source[range.clone()]);
                 }
             }
@@ -18,7 +18,7 @@ fn print_tokens(source: &str, tokens: &[Spanned<Token>]) {
                 print!("\"");
             }
             Token::PPNumber(ranges) => {
-                for range in ranges {
+                for range in ranges.iter() {
                     print!("{}", &source[range.clone()]);
                 }
             }

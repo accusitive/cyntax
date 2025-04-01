@@ -2,6 +2,7 @@ use peekmore::PeekMore;
 use peekmore::PeekMoreIterator;
 
 use crate::Punctuator;
+use crate::SparseChars;
 use crate::Token;
 use crate::Whitespace;
 use crate::prelexer::PrelexerIter;
@@ -161,7 +162,7 @@ impl<'a> Lexer<'a> {
             at_start_of_line: true,
         }
     }
-    pub fn lex_identifier(&mut self, first_character: &CharLocation) -> Spanned<Vec<CharLocation>> {
+    pub fn lex_identifier(&mut self, first_character: &CharLocation) -> Spanned<SparseChars> {
         let mut ranges = vec![first_character.start..first_character.end];
         let mut previous_end = first_character.end;
 
@@ -170,7 +171,7 @@ impl<'a> Lexer<'a> {
             previous_end = next.range.end;
             ranges.push(next.range);
         }
-        Spanned::new(first_character.start..previous_end, ranges)
+        Spanned::new(first_character.start..previous_end, SparseChars::new(ranges))
     }
     pub fn lex_string_literal(&mut self, range: CharLocation) -> Spanned<Vec<CharLocation>> {
         let mut ranges = vec![];
@@ -195,7 +196,7 @@ impl<'a> Lexer<'a> {
 
         Spanned::new(range.start..end, ranges)
     }
-    pub fn lex_number(&mut self, first_character: CharLocation) -> Spanned<Vec<CharLocation>> {
+    pub fn lex_number(&mut self, first_character: CharLocation) -> Spanned<SparseChars> {
         let start = first_character.start;
         let mut end = first_character.end;
         let mut number = vec![first_character];
@@ -227,7 +228,8 @@ impl<'a> Lexer<'a> {
                     let identifier = self.lex_identifier(&nondigit.range);
                     match identifier
                         .value
-                        .last()
+                        .last
+                        .as_ref()
                         .map(|c| &self.source[c.start..c.end])
                     {
                         Some("e" | "E" | "p" | "P") => {
@@ -236,13 +238,13 @@ impl<'a> Lexer<'a> {
                         _ => {}
                     }
 
-                    number.extend(identifier.value);
+                    number.extend(identifier.value.iter());
                 }
                 _ => break,
             }
         }
 
-        Spanned::new(start..end, number)
+        Spanned::new(start..end, SparseChars::new(number ))
     }
     pub fn lex_delimited(
         &mut self,
