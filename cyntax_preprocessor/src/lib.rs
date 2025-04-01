@@ -53,9 +53,14 @@ impl<'a> Iterator for IntoTokenTree<'a> {
                 match control_line {
                     ControlLine::Empty => self.next(),
                     ControlLine::EndIf => self.next(),
+                    ControlLine::DefineObject { .. } | ControlLine::DefineFunction {..} => {
+                        return Some(TokenTree::Token(token));
+                    }
                     ControlLine::If { condition } => {
                         let body = self.unwrap_diagnostic(|this| this.until_closer(token));
-                        let opposition = self.maybe_opposition().map(|tt| Box::new(tt));
+
+                        let opposition = Box::new(self.maybe_opposition());
+
                         return Some(TokenTree::If {
                             condition,
                             body,
@@ -65,7 +70,7 @@ impl<'a> Iterator for IntoTokenTree<'a> {
 
                     ControlLine::IfDef { macro_name } => {
                         let body = self.unwrap_diagnostic(|this| this.until_closer(token));
-                        let opposition = self.maybe_opposition().map(|tt| Box::new(tt));
+                        let opposition = Box::new(self.maybe_opposition());
                         return Some(TokenTree::IfDef {
                             macro_name,
                             body,
@@ -74,7 +79,7 @@ impl<'a> Iterator for IntoTokenTree<'a> {
                     }
                     ControlLine::IfNDef { macro_name } => {
                         let body = self.unwrap_diagnostic(|this| this.until_closer(token));
-                        let opposition = self.maybe_opposition().map(|tt| Box::new(tt));
+                        let opposition = Box::new(self.maybe_opposition());
                         return Some(TokenTree::IfNDef {
                             macro_name,
                             body,
@@ -84,7 +89,7 @@ impl<'a> Iterator for IntoTokenTree<'a> {
 
                     ControlLine::Elif { condition } => {
                         let body = self.unwrap_diagnostic(|this| this.until_closer(token));
-                        let opposition = self.maybe_opposition().map(|tt| Box::new(tt));
+                        let opposition = Box::new(self.maybe_opposition());
                         return Some(TokenTree::Elif {
                             condition,
                             body,
@@ -93,7 +98,9 @@ impl<'a> Iterator for IntoTokenTree<'a> {
                     }
                     ControlLine::Else => {
                         let body = self.unwrap_diagnostic(|this| this.until_closer(token));
-                        return Some(TokenTree::Else { body });
+                        let opposition = Box::new(self.maybe_opposition());
+
+                        return Some(TokenTree::Else { body, opposition });
                     }
                 }
             }
@@ -118,11 +125,12 @@ impl<'a> IntoTokenTree<'a> {
                             return Ok(body);
                         }
                         ControlLine::Empty => {
-                            // this calls IntoTokenTree::next() which explicitly skips ControlLine::empty. Maybe this could be `self.tokens.next()`, which would be more efficient?
-                            self.next().unwrap();
+                            self.tokens.next().unwrap();
                             continue;
                         }
-                        _ => {}
+                        _ => {
+                            body.push(self.next().unwrap());
+                        }
                     }
                 }
                 _ => body.push(self.next().unwrap()),
@@ -133,7 +141,7 @@ impl<'a> IntoTokenTree<'a> {
         };
         Err(error)
     }
-    pub fn maybe_opposition(&mut self) -> Option<TokenTree<'a>> {
+    pub fn maybe_opposition(&mut self) -> TokenTree<'a> {
         match self.tokens.peek() {
             Some(span!(Token::ControlLine(control_line))) => {
                 dbg!("&c");
@@ -141,17 +149,20 @@ impl<'a> IntoTokenTree<'a> {
                 match control_line {
                     ControlLine::Elif { .. } | ControlLine::Else => {
                         let tree = self.next().unwrap();
-                        return Some(tree);
+                        return tree;
                     }
                     ControlLine::Empty => {
                         dbg!(&"AA");
                         self.maybe_opposition()
                     }
-                    ControlLine::EndIf => return None,
+                    ControlLine::EndIf => {
+                        self.tokens.next().unwrap();
+                        return TokenTree::Endif;
+                    }
                     _ => unreachable!(),
                 }
             }
-            _ => None,
+            _ => unreachable!(),
         }
     }
     // Parse the inside of control line into a usable value
@@ -189,6 +200,15 @@ impl<'a> IntoTokenTree<'a> {
 
                 return ControlLine::IfDef { macro_name };
             }
+            _ if Self::is_equal_within_source(self.source, &directive_name, "ifndef") => {
+                skip_whitespace(&mut tokens_iter);
+
+                let macro_name = self
+                    .expect_identifier(&mut tokens_iter)
+                    .expect("expected macro_name in ifndef directive");
+
+                return ControlLine::IfNDef { macro_name };
+            }
             _ if Self::is_equal_within_source(self.source, &directive_name, "else") => {
                 return ControlLine::Else;
             }
@@ -200,7 +220,28 @@ impl<'a> IntoTokenTree<'a> {
             _ if Self::is_equal_within_source(self.source, &directive_name, "endif") => {
                 return ControlLine::EndIf;
             }
+            _ if Self::is_equal_within_source(self.source, &directive_name, "define") => {
+                skip_whitespace(&mut tokens_iter);
 
+                let macro_name = self
+                    .expect_identifier(&mut tokens_iter)
+                    .expect("expected macro_name in ifdef directive");
+                if matches!(
+                    tokens_iter.peek(),
+                    Some(span!(Token::Delimited('(', close, inner)))
+                ) {
+                    let parameters = tokens_iter.next().unwrap();
+                    let replacement_list = tokens_iter.collect();
+                    return ControlLine::DefineFunction {
+                        macro_name,
+                        parameters,
+                        replacement_list,
+                    };
+                } else {
+                    let replacement_list = tokens_iter.collect();
+                    return ControlLine::DefineObject { macro_name, replacement_list };
+                }
+            }
             _ => {
                 let directive_range =
                     directive_name.first().unwrap().start..directive_name.last().unwrap().end;
@@ -222,12 +263,29 @@ impl<'a> IntoTokenTree<'a> {
 
 #[derive(Debug)]
 pub enum ControlLine<'a> {
-    IfDef { macro_name: &'a SparseChars },
-    IfNDef { macro_name: &'a SparseChars },
+    IfDef {
+        macro_name: &'a SparseChars,
+    },
+    IfNDef {
+        macro_name: &'a SparseChars,
+    },
 
-    If { condition: Vec<&'a Spanned<Token>> },
-    Elif { condition: Vec<&'a Spanned<Token>> },
+    If {
+        condition: Vec<&'a Spanned<Token>>,
+    },
+    Elif {
+        condition: Vec<&'a Spanned<Token>>,
+    },
 
+    DefineFunction {
+        macro_name: &'a SparseChars,
+        parameters: &'a Spanned<Token>,
+        replacement_list: Vec<&'a Spanned<Token>>,
+    },
+    DefineObject {
+        macro_name: &'a SparseChars,
+        replacement_list: Vec<&'a Spanned<Token>>,
+    },
     Else,
     EndIf,
     Empty,
@@ -270,31 +328,39 @@ pub enum TokenTree<'a> {
     IfDef {
         macro_name: &'a SparseChars,
         body: Vec<TokenTree<'a>>,
-        opposition: Option<Box<TokenTree<'a>>>,
+        opposition: Box<TokenTree<'a>>,
     },
     IfNDef {
         macro_name: &'a SparseChars,
         body: Vec<TokenTree<'a>>,
-        opposition: Option<Box<TokenTree<'a>>>,
+        opposition: Box<TokenTree<'a>>,
     },
     If {
         condition: Vec<&'a Spanned<Token>>,
         body: Vec<TokenTree<'a>>,
-        opposition: Option<Box<TokenTree<'a>>>,
+        opposition: Box<TokenTree<'a>>,
     },
     ElseIf {
         condition: Vec<Spanned<Token>>,
         body: Vec<TokenTree<'a>>,
-        opposition: Option<Box<TokenTree<'a>>>,
+        opposition: Box<TokenTree<'a>>,
     },
     Elif {
         condition: Vec<&'a Spanned<Token>>,
         body: Vec<TokenTree<'a>>,
-        opposition: Option<Box<TokenTree<'a>>>,
+        opposition: Box<TokenTree<'a>>,
     },
     Else {
         body: Vec<TokenTree<'a>>,
+        /// Must be endif?
+        opposition: Box<TokenTree<'a>>,
     },
+    // Maybe this shouldn't be a part of the token tree? The only difference would be changing all the opposition fields to an enum like
+    // enum Opposition {
+    // TokenTree(TokenTree),
+    // Endif
+    // }
+    // Which doesnt seem beneficial in any way
     Endif,
     Token(&'a Spanned<Token>),
 }
