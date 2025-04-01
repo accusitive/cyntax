@@ -1,9 +1,6 @@
 use std::ops::Range;
 
-use codespan_reporting::{
-    files::SimpleFiles,
-    term::termcolor::Ansi,
-};
+use codespan_reporting::{files::SimpleFiles, term::termcolor::Ansi};
 
 pub enum DiagnosticSeverity {
     Error,
@@ -84,6 +81,5 @@ pub fn write_codespan_report(
 
     String::from_utf8(output_buffer).unwrap()
 }
-
 
 pub mod errors;

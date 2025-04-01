@@ -50,3 +50,21 @@ impl Diagnostic for UnterminatedTreeNode {
         }]
     }
 }
+
+pub struct UnknownDirective(pub Range<usize>);
+impl Diagnostic for UnknownDirective {
+    fn title<'a>(&self) -> &'a str {
+        "Unknown directive"
+    }
+
+    fn severity(&self) -> DiagnosticSeverity {
+        DiagnosticSeverity::Error
+    }
+    fn labels(&self) -> Vec<Label> {
+        vec![Label {
+            kind: crate::LabelKind::Primary,
+            range: self.0.start..self.0.end,
+            message: "".to_string(),
+        }]
+    }
+}

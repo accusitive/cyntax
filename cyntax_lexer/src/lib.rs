@@ -120,10 +120,10 @@ pub enum Punctuator {
     OrAssign,  // |=
 
     // Miscellaneous
-    Comma,    // ,
+    Comma,     // ,
     Directive, // #, but only if its the first non-whitespace character of the line
-    Hash,     // #
-    HashHash, // ##
+    Hash,      // #
+    HashHash,  // ##
 
     // Digraphs (Alternative Tokens)
     LessColon,                // <:

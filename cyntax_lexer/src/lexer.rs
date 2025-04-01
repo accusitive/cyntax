@@ -8,7 +8,6 @@ use crate::prelexer::PrelexerIter;
 use crate::spanned::Spanned;
 use std::ops::Range;
 
-
 // Identifier safe characters
 #[macro_export]
 macro_rules! identifier {
@@ -47,9 +46,9 @@ macro_rules! span {
         Spanned { value: $p, .. }
     };
 }
+pub use digit;
 pub use identifier;
 pub use nondigit;
-pub use digit;
 pub use opening_delimiter;
 pub use span;
 /// Characters can span multiple characters, so a simple `usize` index is not enough.
@@ -121,9 +120,11 @@ impl<'a> Iterator for Lexer<'a> {
                         end = n.range.end;
                         tokens.push(n);
                     }
-
                 }
-                Some(Spanned { value: Token::ControlLine(tokens), range: range.start..end })
+                Some(Spanned {
+                    value: Token::ControlLine(tokens),
+                    range: range.start..end,
+                })
             }
             span!(range, punctuator) if Punctuator::is_punctuation(punctuator) => {
                 Some(Spanned::new(
@@ -303,5 +304,4 @@ impl<'a> Lexer<'a> {
         }
         f(self)
     }
-    
 }
