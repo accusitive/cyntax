@@ -1,7 +1,3 @@
-#
 #ifdef a
-
-int main() {
-
-}
+int a =5;   
 #endif

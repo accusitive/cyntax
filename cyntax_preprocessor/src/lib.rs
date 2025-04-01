@@ -1,7 +1,12 @@
 use std::iter::Peekable;
 
-use cyntax_errors::errors::UnmatchedDelimiter;
-use cyntax_lexer::{Punctuator, Token, Whitespace, lexer::CharLocation, span, spanned::Spanned};
+use cyntax_errors::{
+    Diagnostic,
+    errors::{UnmatchedDelimiter, UnterminatedTreeNode},
+};
+use cyntax_lexer::{
+    Punctuator, SparseChars, Token, Whitespace, lexer::CharLocation, span, spanned::Spanned,
+};
 
 pub struct Preprocessor<'a> {
     // macros and whatever
@@ -28,7 +33,7 @@ impl<'a> Preprocessor<'a> {
             tokens: self.tokens.iter().peekable(),
         }
         .collect();
-        // dbg!(&itt);
+        dbg!(&itt);
     }
 }
 pub struct IntoTokenTree<'a> {
@@ -41,108 +46,126 @@ impl<'a> Iterator for IntoTokenTree<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         let token = self.tokens.next()?;
 
-
         match token {
             span!(Token::ControlLine(inner)) => {
                 let control_line = self.parse_control_line(inner);
                 dbg!(&control_line);
-                match control_line  {
+                match control_line {
                     ControlLine::Empty => self.next(),
-                    _ => todo!()
+                    // This is just used as a marker, so when we actually encounter it in the token stream its just passed over.
+                    ControlLine::EndIf => self.next(),
+                    ControlLine::IfDef(macro_name) => {
+                        let body = self.unwrap_diagnostic(|this| this.until_closer(token));
+                        return Some(TokenTree::IfDef {
+                            macro_name: macro_name,
+                            body,
+                            opposition: None,
+                        });
+                    }
+                    n => unimplemented!("{:#?}", n),
                 }
             }
-            _ => Some(TokenTree::Token(token))
+            _ => Some(TokenTree::Token(token)),
         }
-        // match token {
-
-        //     span!(Token::Punctuator(Punctuator::Directive)) => {
-        //         // Skip empty directive, they're harmless
-        //         if matches!(
-        //             self.tokens.peek(),
-        //             Some(span!(Token::Whitespace(Whitespace::Newline)))
-        //         ) {
-        //             self.tokens.next().unwrap();
-
-        //             return self.next();
-        //         }
-
-        //         match self.tokens.peek() {
-        //             Some(span!(Token::Identifier(inner)))
-        //                 if Self::is_equal_within_source(self.source, inner, "define") =>
-        //             {
-        //                 todo!();
-        //             }
-        //             Some(span!(Token::Identifier(inner)))
-        //                 if Self::is_equal_within_source(self.source, inner, "ifdef") =>
-        //             {
-        //                 let _ifdef = self.tokens.next().unwrap();
-        //                 let macro_identifier = self
-        //                     .ignore_preceeding_whitespace(|this| this.tokens.next())
-        //                     .expect("Expected macro_identifier after ifdef");
-        //                 // todo: handle extra tokens
-        //                 let body = self.until_closer();
-        //                 let opposition = self.maybe_opposition();
-        //                 dbg!(&self.tokens.peek());
-        //                 return Some(TokenTree::IfDef {
-        //                     macro_name: macro_identifier,
-        //                     body,
-        //                     opposition: None,
-        //                 });
-        //             }
-        //             Some(span!(Token::Identifier(inner)))
-        //                 if Self::is_equal_within_source(self.source, inner, "endif") =>
-        //             {
-        //                 return Some(TokenTree::Endif);
-        //             }
-        //             _ => {}
-        //         }
-        //     }
-        //     _ => {}
-        // }
-        
     }
 }
 impl<'a> IntoTokenTree<'a> {
-    pub fn until_closer(&mut self) -> Vec<TokenTree<'a>> {
+    pub fn until_closer(
+        &mut self,
+        opener: &Spanned<Token>,
+    ) -> Result<Vec<TokenTree<'a>>, UnterminatedTreeNode> {
         let mut body = vec![];
 
         while let Some(token) = self.tokens.peek() {
-            // if the next token is a directive
-            if matches!(token, span!(Token::Punctuator(Punctuator::Directive))) {
-                let directive = self.next().unwrap();
-                if matches!(directive, TokenTree::Endif | TokenTree::Else { .. }) {
-                    break;
-                } else {
-                    body.push(directive)
+            match token {
+                span!(Token::ControlLine(control_line)) => {
+                    let inner = self.parse_control_line(&control_line);
+                    if matches!(inner, ControlLine::EndIf) {
+                        return Ok(body);
+                    }
+                    dbg!(&inner);
                 }
-            } else {
-                body.push(TokenTree::Token(self.tokens.next().unwrap()));
+                _ => body.push(self.next().unwrap()),
             }
         }
-        body
-    }
-    pub fn maybe_opposition(&mut self) -> Option<TokenTree<'a>> {
-        // match self.tokens.peek() {
-        //     Some(span!(Token::))
+        // while let Some(token) = self.tokens.peek() {
+        //     // if the next token is a directive
+        //     if matches!(token, span!(Token::ControlLine(_))) {
+        //         let directive = self.next().unwrap();
+        //         if matches!(directive, TokenTree::Endif | TokenTree::Else { .. }) {
+        //             return Ok(body);
+        //         } else {
+        //             body.push(directive)
+        //         }
+        //     } else {
+        //         body.push(TokenTree::Token(self.tokens.next().unwrap()));
+        //     }
         // }
 
+        let error = cyntax_errors::errors::UnterminatedTreeNode {
+            opening_token: opener.range.start..opener.range.end,
+        };
+        Err(error)
+    }
+    pub fn maybe_opposition(&mut self) -> Option<TokenTree<'a>> {
         None
     }
-    pub fn parse_control_line(&mut self, tokens: &[Spanned<Token>]) -> ControlLine {
+    // Parse the inside of control line into a usable value
+    pub fn parse_control_line(&mut self, tokens: &'a [Spanned<Token>]) -> ControlLine<'a> {
+        // Handle empty directive
         if tokens.len() == 0 {
             return ControlLine::Empty;
         }
-        let tokens_iter = tokens.iter();
-        // dbg!(&tokens);
-        // let directive_type = self.ignore_preceeding_whitespace(|this| this.next()).expect("WHAT");
+        let mut tokens_iter = tokens.iter().peekable();
+        let skip_whitespace = |tokens_iter: &mut Peekable<core::slice::Iter<Spanned<Token>>>| {
+            while let Some(token) = tokens_iter.peek() {
+                if matches!(token, span!(Token::Whitespace(_))) {
+                    tokens_iter.next().unwrap();
+                } else {
+                    break;
+                }
+            }
+        };
 
-        unreachable!()
+        skip_whitespace(&mut tokens_iter);
+
+        let directive_name = self
+            .expect_identifier(&mut tokens_iter)
+            .expect("expected identifier after directive character");
+
+        // return
+        match () {
+            _ if Self::is_equal_within_source(self.source, &directive_name, "ifdef") => {
+           
+                skip_whitespace(&mut tokens_iter);
+           
+                let macro_name = self
+                    .expect_identifier(&mut tokens_iter)
+                    .expect("expected macro_name in ifdef directive");
+           
+                return ControlLine::IfDef(macro_name);
+            }
+            _ if Self::is_equal_within_source(self.source, &directive_name, "endif") => {
+                return ControlLine::EndIf;
+            }
+            _ => unimplemented!(),
+        };
+    }
+    pub fn expect_identifier<'b, I: Iterator<Item = &'b Spanned<Token>>>(
+        &mut self,
+        iter: &mut I,
+    ) -> Option<&'b SparseChars> {
+        match iter.next()? {
+            span!(Token::Identifier(i)) => Some(i),
+            _ => None,
+        }
     }
 }
 #[derive(Debug)]
-pub enum ControlLine {
+pub enum ControlLine<'a> {
     Empty,
-
+    IfDef(&'a SparseChars),
+    EndIf,
 }
 impl<'a> IntoTokenTree<'a> {
     pub fn is_equal_within_source(source: &'a str, left: &[CharLocation], right: &str) -> bool {
@@ -164,11 +187,23 @@ impl<'a> IntoTokenTree<'a> {
         }
         f(self)
     }
+    pub fn unwrap_diagnostic<T, E: Diagnostic, F: FnOnce(&mut Self) -> Result<T, E>>(
+        &mut self,
+        value: F,
+    ) -> T {
+        match value(self) {
+            Ok(value) => value,
+            Err(e) => {
+                let why = e.into_why_report();
+                panic!("{}", why.with("", self.source));
+            }
+        }
+    }
 }
 #[derive(Debug)]
 pub enum TokenTree<'a> {
     IfDef {
-        macro_name: &'a Spanned<Token>,
+        macro_name: &'a SparseChars,
         body: Vec<TokenTree<'a>>,
         opposition: Option<Box<TokenTree<'a>>>,
     },

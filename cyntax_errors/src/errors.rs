@@ -1,6 +1,7 @@
 use std::ops::Range;
 
 use crate::{Diagnostic, DiagnosticSeverity, Label};
+#[derive(Debug)]
 
 pub struct UnmatchedDelimiter {
     pub opening_delimiter_location: Range<usize>,
@@ -30,7 +31,7 @@ impl Diagnostic for UnmatchedDelimiter {
         ]
     }
 }
-
+#[derive(Debug)]
 pub struct UnterminatedTreeNode {
     pub opening_token: Range<usize>,
 }
