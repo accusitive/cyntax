@@ -51,9 +51,11 @@ impl<'a> Iterator for IntoTokenTree<'a> {
                 dbg!("&a");
                 let control_line = self.parse_control_line(inner);
                 match control_line {
-                    ControlLine::Empty => self.next(),
-                    ControlLine::EndIf => self.next(),
-                    ControlLine::DefineObject { .. } | ControlLine::DefineFunction {..} => {
+                    ControlLine::DefineObject { .. }
+                    | ControlLine::DefineFunction { .. }
+                    | ControlLine::Error(_)
+                    | ControlLine::Warning(_)
+                    | ControlLine::Undefine(_) => {
                         return Some(TokenTree::Token(token));
                     }
                     ControlLine::If { condition } => {
@@ -102,6 +104,9 @@ impl<'a> Iterator for IntoTokenTree<'a> {
 
                         return Some(TokenTree::Else { body, opposition });
                     }
+                    // Skip these two, they're inert
+                    ControlLine::Empty => self.next(),
+                    ControlLine::EndIf => self.next(),
                 }
             }
             _ => Some(TokenTree::Token(token)),
@@ -118,7 +123,6 @@ impl<'a> IntoTokenTree<'a> {
         while let Some(token) = self.tokens.peek() {
             match token {
                 span!(Token::ControlLine(control_line)) => {
-                    dbg!("&b");
                     let inner = self.parse_control_line(&control_line);
                     match inner {
                         ControlLine::EndIf | ControlLine::Elif { .. } | ControlLine::Else => {
@@ -144,17 +148,14 @@ impl<'a> IntoTokenTree<'a> {
     pub fn maybe_opposition(&mut self) -> TokenTree<'a> {
         match self.tokens.peek() {
             Some(span!(Token::ControlLine(control_line))) => {
-                dbg!("&c");
                 let control_line = self.parse_control_line(&control_line);
                 match control_line {
                     ControlLine::Elif { .. } | ControlLine::Else => {
                         let tree = self.next().unwrap();
                         return tree;
                     }
-                    ControlLine::Empty => {
-                        dbg!(&"AA");
-                        self.maybe_opposition()
-                    }
+                    // skip
+                    ControlLine::Empty => self.maybe_opposition(),
                     ControlLine::EndIf => {
                         self.tokens.next().unwrap();
                         return TokenTree::Endif;
@@ -239,8 +240,28 @@ impl<'a> IntoTokenTree<'a> {
                     };
                 } else {
                     let replacement_list = tokens_iter.collect();
-                    return ControlLine::DefineObject { macro_name, replacement_list };
+                    return ControlLine::DefineObject {
+                        macro_name,
+                        replacement_list,
+                    };
                 }
+            }
+            _ if Self::is_equal_within_source(self.source, &directive_name, "undef") => {
+                skip_whitespace(&mut tokens_iter);
+
+                let macro_name = self
+                    .expect_identifier(&mut tokens_iter)
+                    .expect("expected macro_name in ifdef directive");
+                return ControlLine::Undefine(macro_name);
+            }
+            _ if Self::is_equal_within_source(self.source, &directive_name, "error") => {
+                skip_whitespace(&mut tokens_iter);
+                let reason = tokens_iter.next();
+                return ControlLine::Error(reason);
+            }
+            _ if Self::is_equal_within_source(self.source, &directive_name, "warning") => {
+                let reason = tokens_iter.next();
+                return ControlLine::Error(reason);
             }
             _ => {
                 let directive_range =
@@ -276,7 +297,8 @@ pub enum ControlLine<'a> {
     Elif {
         condition: Vec<&'a Spanned<Token>>,
     },
-
+    Else,
+    EndIf,
     DefineFunction {
         macro_name: &'a SparseChars,
         parameters: &'a Spanned<Token>,
@@ -286,8 +308,10 @@ pub enum ControlLine<'a> {
         macro_name: &'a SparseChars,
         replacement_list: Vec<&'a Spanned<Token>>,
     },
-    Else,
-    EndIf,
+    Undefine(&'a SparseChars),
+    Error(Option<&'a Spanned<Token>>),
+    Warning(Option<&'a Spanned<Token>>),
+
     Empty,
 }
 impl<'a> IntoTokenTree<'a> {
