@@ -111,14 +111,22 @@ impl<'a> Iterator for Lexer<'a> {
             span!(range, '#') if self.at_start_of_line => {
                 let mut tokens = vec![];
                 let mut end = range.end;
+                let mut add = true;
                 while let Some(span!(token)) = self.chars.peek() {
                     if matches!(token, '\n') {
                         break;
+                    } else if matches!(token, '/')
+                        && matches!(self.chars.peek_nth(1), Some(span!('/')))
+                    {
+                        add = false;
+                        self.chars.next().unwrap();
+                        self.chars.next().unwrap();
                     } else {
                         let n = self.next().unwrap();
-
-                        end = n.range.end;
-                        tokens.push(n);
+                        if add {
+                            end = n.range.end;
+                            tokens.push(n);
+                        }
                     }
                 }
                 Some(Spanned {

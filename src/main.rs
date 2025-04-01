@@ -39,13 +39,14 @@ fn print_tokens(source: &str, tokens: &[Spanned<Token>]) {
             Token::Punctuator(punctuator) => print!("{}", punctuator.to_string()),
         }
     }
+    println!();
 }
 
 fn main() {
     let source = include_str!("../test.c");
     let lexer = cyntax_lexer::lexer::Lexer::new("test.c", source);
     let tokens: Vec<_> = lexer.collect();
-    dbg!(&tokens);
+    // dbg!(&tokens);
     print_tokens(source, &tokens);
 
     let mut pp = cyntax_preprocessor::Preprocessor::new("test.c", source, &tokens);
