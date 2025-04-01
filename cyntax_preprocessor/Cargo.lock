@@ -40,15 +40,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e991226a70654b49d34de5ed064885f0bef0348a8e70018b8ff1ac80aa984a2"
 
 [[package]]
-name = "cyntax"
-version = "0.1.0"
-dependencies = [
- "cyntax_lexer",
- "cyntax_preprocessor",
- "smallvec 1.14.0",
-]
-
-[[package]]
 name = "cyntax_errors"
 version = "0.1.0"
 dependencies = [
@@ -62,7 +53,6 @@ version = "0.1.0"
 dependencies = [
  "cyntax_errors",
  "peekmore",
- "radix_trie",
  "smallvec 1.14.0",
  "strum",
  "strum_macros",
@@ -174,9 +164,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "1.0.3"
+version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e56a18552996ac8d29ecc3b190b4fdbb2d91ca4ec396de7bbffaf43f3d637e96"
+checksum = "d97817398dd4bb2e6da002002db259209759911da105da92bec29ccb12cf58bf"
 dependencies = [
  "bitflags",
  "errno",

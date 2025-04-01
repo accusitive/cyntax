@@ -1,10 +1,5 @@
 #ifdef a
-int a =5
 
-
-#
-#
-#
-#
-#
+#else
+int a = 5;
 #endif

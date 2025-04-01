@@ -7,3 +7,4 @@ edition = "2024"
 cyntax_lexer = {path = "../cyntax_lexer"}
 peekmore = "1.3.0"
 cyntax_errors = {path = "../cyntax_errors"}
+radix_trie = "0.2.1"

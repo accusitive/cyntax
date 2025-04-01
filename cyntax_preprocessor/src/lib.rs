@@ -8,6 +8,7 @@ use cyntax_lexer::{
     Punctuator, SparseChars, Token, Whitespace, lexer::CharLocation, span, spanned::Spanned,
 };
 use expand::ExpandTokens;
+use radix_trie::Trie;
 use tree::{IntoTokenTree, TokenTree};
 mod expand;
 mod tree;
@@ -30,13 +31,23 @@ impl<'a> Preprocessor<'a> {
             tokens,
         }
     }
-    pub fn create_token_tree(&mut self) {
+    pub fn expand(&mut self) -> Vec<&'a Spanned<Token>> {
         let itt: Vec<TokenTree> = IntoTokenTree {
             source: self.file_source,
             tokens: self.tokens.iter().peekable(),
         }
         .collect();
-        let expanded = ExpandTokens { state: &mut HashMap::new(), token_trees: itt.iter() };
         dbg!(&itt);
+
+        let mut state = HashMap::new();
+        let expanded: Vec<_> = ExpandTokens {
+            source: self.file_source,
+            state: &mut state,
+            token_trees: itt.iter(),
+        }
+        .flatten().collect();
+
+        dbg!(&expanded);
+        expanded
     }
 }
