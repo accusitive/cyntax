@@ -1,4 +1,1 @@
-#ifdef a
-int a_defined = true;
-#else
-#endif
+#define MY_MACRO(x,y,z) x * x

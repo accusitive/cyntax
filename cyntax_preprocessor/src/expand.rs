@@ -1,13 +1,14 @@
 use std::{collections::HashMap, iter::once, marker::PhantomData, ops::Deref};
 
-use cyntax_common::{ast::Token, spanned::Spanned, sparsechars::HashedSparseChars};
+use cyntax_common::{ast::{Punctuator, Token}, spanned::Spanned, sparsechars::{HashedSparseChars, SparseChars}};
+use cyntax_lexer::span;
 
 use crate::tree::{ControlLine, TokenTree};
 
 pub struct ExpandTokens<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> {
     pub source: &'src str,
     pub state: &'state mut HashMap<HashedSparseChars, &'src Vec<&'src Spanned<Token>>>,
-    pub token_trees: I, 
+    pub token_trees: I,
 }
 impl<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> Iterator
     for ExpandTokens<'src, 'state, I>
@@ -16,12 +17,13 @@ impl<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> Iterator
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.token_trees.next()? {
-            // TokenTree::Token(span!(Token::Identifier(identifier))) => {
-            //     // if self.state.get(&identifier.hashed(self.source)).is_some() {
-
-            //     // }
-            //     todo!()
-            // }
+            TokenTree::Token(s @ span!(Token::Identifier(identifier))) => {
+                if let Some(replacement_list) = self.state.get(&identifier.hash(self.source)) {
+                    return Some(replacement_list.to_vec());
+                } else {
+                    return Some(vec![s]);
+                }
+            }
             TokenTree::Token(spanned) => return Some(vec![spanned]),
             tt @ (TokenTree::IfDef {
                 macro_name,
@@ -90,7 +92,11 @@ impl<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> Iterator
                         macro_name,
                         parameters,
                         replacement_list,
-                    } => todo!(),
+                    } => {
+                        let parameters = self.parse_parameters(parameters);
+                        dbg!(&parameters);
+                        todo!()
+                    }
                     ControlLine::DefineObject {
                         macro_name,
                         replacement_list,
@@ -109,5 +115,42 @@ impl<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> Iterator
             }
         }
         // self.token_trees.next()
+    }
+}
+impl<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> ExpandTokens<'src, 'state, I> {
+    pub fn parse_parameters(&self, delimited: &'src Spanned<Token>) -> Vec<&'src SparseChars>{
+        match delimited {
+            span!(Token::Delimited('(', ')', inner)) => {
+                let mut inner_iter = inner.value.iter();
+                let mut parameters = vec![];
+                while let Some(token) = inner_iter.next(){
+                    if parameters.len() > 0 {
+                        self.expect_comma(&mut inner_iter).expect("expected comma");
+                    }
+
+                    let identifier = self.enforce_identifier(inner_iter.next().unwrap());
+                   
+                    parameters.push(identifier);
+
+                }   
+                parameters
+            }
+            _ => unreachable!()
+        }
+    }
+    pub fn enforce_identifier(&self, token: &'src Spanned<Token>) -> &'src SparseChars{
+        match token {
+            span!(Token::Identifier(inner)) => return inner,
+            _ => {
+                // TODO: Error
+                panic!()
+            }
+        }
+    }
+    pub fn expect_comma<J: Iterator<Item = &'src Spanned<Token>>>(&self, iter: &mut J) -> Option<()>{
+        match iter.next() {
+            Some(span!(Token::Punctuator(Punctuator::Comma))) => Some(()),
+            _ => None
+        }
     }
 }

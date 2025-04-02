@@ -1,6 +1,10 @@
 use std::iter::Peekable;
 
-use cyntax_common::{ast::Token, spanned::Spanned, sparsechars::SparseChars};
+use cyntax_common::{
+    ast::{Token, Whitespace},
+    spanned::Spanned,
+    sparsechars::SparseChars,
+};
 use cyntax_errors::{Diagnostic, errors::UnterminatedTreeNode};
 use cyntax_lexer::span;
 pub struct IntoTokenTree<'a> {
@@ -56,9 +60,7 @@ impl<'a> Iterator for IntoTokenTree<'a> {
                         });
                     }
 
-                    ControlLine::Elif { .. } | ControlLine::Else
-                        if !self.expecting_opposition =>
-                    {
+                    ControlLine::Elif { .. } | ControlLine::Else if !self.expecting_opposition => {
                         self.unwrap_diagnostic(|_| {
                             Err(cyntax_errors::errors::DanglingEndif(
                                 token.range.start..token.range.end,
@@ -212,6 +214,12 @@ impl<'a> IntoTokenTree<'a> {
                     .expect("expected macro_name in ifdef directive");
                 if matches!(tokens_iter.peek(), Some(span!(Token::Delimited('(', _, _)))) {
                     let parameters = tokens_iter.next().unwrap();
+                    if matches!(
+                        tokens_iter.peek(),
+                        Some(span!(Token::Whitespace(Whitespace::Space)))
+                    ) {
+                        tokens_iter.next().unwrap();
+                    }
                     let replacement_list = tokens_iter.collect();
                     return ControlLine::DefineFunction {
                         macro_name,
@@ -219,6 +227,12 @@ impl<'a> IntoTokenTree<'a> {
                         replacement_list,
                     };
                 } else {
+                    if matches!(
+                        tokens_iter.peek(),
+                        Some(span!(Token::Whitespace(Whitespace::Space)))
+                    ) {
+                        tokens_iter.next().unwrap();
+                    }
                     let replacement_list = tokens_iter.collect();
                     return ControlLine::DefineObject {
                         macro_name,
