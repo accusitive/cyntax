@@ -6,6 +6,7 @@ use cyntax_lexer::span;
 pub struct IntoTokenTree<'a> {
     pub(crate) source: &'a str,
     pub(crate) tokens: Peekable<core::slice::Iter<'a, Spanned<Token>>>,
+    pub(crate) expecting_opposition: bool,
 }
 impl<'a> Iterator for IntoTokenTree<'a> {
     type Item = TokenTree<'a>;
@@ -55,6 +56,15 @@ impl<'a> Iterator for IntoTokenTree<'a> {
                         });
                     }
 
+                    ControlLine::Elif { .. } | ControlLine::Else
+                        if !self.expecting_opposition =>
+                    {
+                        self.unwrap_diagnostic(|_| {
+                            Err(cyntax_errors::errors::DanglingEndif(
+                                token.range.start..token.range.end,
+                            ))
+                        })
+                    }
                     ControlLine::Elif { condition } => {
                         let body = self.unwrap_diagnostic(|this| this.until_closer(token));
                         let opposition = Box::new(self.maybe_opposition());
@@ -72,10 +82,11 @@ impl<'a> Iterator for IntoTokenTree<'a> {
                     }
                     // Skip these two, they're inert
                     ControlLine::Empty => self.next(),
-                    ControlLine::EndIf => {
-                        todo!()
-                        // cyntax_errors::errors::DanglingEndif{token}
-                    },
+                    ControlLine::EndIf => self.unwrap_diagnostic(|_| {
+                        Err(cyntax_errors::errors::DanglingEndif(
+                            token.range.start..token.range.end,
+                        ))
+                    }),
                 }
             }
             _ => Some(TokenTree::Token(token)),
@@ -120,12 +131,16 @@ impl<'a> IntoTokenTree<'a> {
                 let control_line = self.parse_control_line(&control_line);
                 match control_line {
                     ControlLine::Elif { .. } | ControlLine::Else => {
+                        self.expecting_opposition = true;
+
                         let tree = self.next().unwrap();
+                        self.expecting_opposition = false;
                         return tree;
                     }
                     // skip
                     ControlLine::Empty => self.maybe_opposition(),
                     ControlLine::EndIf => {
+                        self.tokens.next().unwrap();
                         return TokenTree::Endif;
                     }
                     _ => unreachable!(),

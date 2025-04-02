@@ -1,10 +1,6 @@
-use std::{collections::HashMap, iter::Peekable};
+use std::collections::HashMap;
 
 use cyntax_common::{ast::Token, spanned::Spanned};
-use cyntax_errors::{
-    Diagnostic,
-    errors::{UnmatchedDelimiter, UnterminatedTreeNode},
-};
 use expand::ExpandTokens;
 use tree::{IntoTokenTree, TokenTree};
 mod expand;
@@ -25,6 +21,7 @@ impl<'src> Preprocessor<'src> {
         let itt = IntoTokenTree {
             source: file_source,
             tokens: tokens.iter().peekable(),
+            expecting_opposition: false
         }
         .collect::<Vec<_>>();
 

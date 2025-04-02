@@ -71,4 +71,20 @@ impl Diagnostic for UnknownDirective {
     }
 }
 
-pub struct DanglingEndif(Spanned<Token>);
+pub struct DanglingEndif(pub Range<usize>);
+impl Diagnostic for DanglingEndif {
+    fn title<'a>(&self) -> &'a str {
+        "Dangling end if"
+    }
+
+    fn severity(&self) -> DiagnosticSeverity {
+        DiagnosticSeverity::Error
+    }
+    fn labels(&self) -> Vec<Label> {
+        vec![Label {
+            kind: crate::LabelKind::Primary,
+            range: self.0.start..self.0.end,
+            message: "This endif directive has no matching opening directive".to_string(),
+        }]
+    }
+}

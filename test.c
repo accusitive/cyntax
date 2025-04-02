@@ -1,5 +1,4 @@
 #ifdef a
-int a_defined = 1;
-#else 
-int a_defined = 0;
+int a_defined = true;
+#else
 #endif
