@@ -7,13 +7,13 @@ use cyntax_common::{
 };
 use cyntax_errors::{Diagnostic, errors::UnterminatedTreeNode};
 use cyntax_lexer::span;
-pub struct IntoTokenTree<'a> {
-    pub(crate) source: &'a str,
-    pub(crate) tokens: Peekable<core::slice::Iter<'a, Spanned<Token>>>,
+pub struct IntoTokenTree<'src> {
+    pub(crate) source: &'src str,
+    pub(crate) tokens: Peekable<core::slice::Iter<'src, Spanned<Token>>>,
     pub(crate) expecting_opposition: bool,
 }
-impl<'a> Iterator for IntoTokenTree<'a> {
-    type Item = TokenTree<'a>;
+impl<'src> Iterator for IntoTokenTree<'src> {
+    type Item = TokenTree<'src>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let token = self.tokens.next()?;
@@ -95,11 +95,11 @@ impl<'a> Iterator for IntoTokenTree<'a> {
         }
     }
 }
-impl<'a> IntoTokenTree<'a> {
+impl<'src> IntoTokenTree<'src> {
     pub fn until_closer(
         &mut self,
         opener: &Spanned<Token>,
-    ) -> Result<Vec<TokenTree<'a>>, UnterminatedTreeNode> {
+    ) -> Result<Vec<TokenTree<'src>>, UnterminatedTreeNode> {
         let mut body = vec![];
 
         while let Some(token) = self.tokens.peek() {
@@ -127,7 +127,7 @@ impl<'a> IntoTokenTree<'a> {
         };
         Err(error)
     }
-    pub fn maybe_opposition(&mut self) -> TokenTree<'a> {
+    pub fn maybe_opposition(&mut self) -> TokenTree<'src> {
         match self.tokens.peek() {
             Some(span!(Token::ControlLine(control_line))) => {
                 let control_line = self.parse_control_line(&control_line);
@@ -152,7 +152,7 @@ impl<'a> IntoTokenTree<'a> {
         }
     }
     // Parse the inside of control line into a usable value
-    pub fn parse_control_line(&mut self, tokens: &'a [Spanned<Token>]) -> ControlLine<'a> {
+    pub fn parse_control_line(&mut self, tokens: &'src [Spanned<Token>]) -> ControlLine<'src> {
         // Handle empty directive
         if tokens.len() == 0 {
             return ControlLine::Empty;
@@ -277,39 +277,39 @@ impl<'a> IntoTokenTree<'a> {
 }
 
 #[derive(Debug)]
-pub enum ControlLine<'a> {
+pub enum ControlLine<'src> {
     IfDef {
-        macro_name: &'a SparseChars,
+        macro_name: &'src SparseChars,
     },
     IfNDef {
-        macro_name: &'a SparseChars,
+        macro_name: &'src SparseChars,
     },
 
     If {
-        condition: Vec<&'a Spanned<Token>>,
+        condition: Vec<&'src Spanned<Token>>,
     },
     Elif {
-        condition: Vec<&'a Spanned<Token>>,
+        condition: Vec<&'src Spanned<Token>>,
     },
     Else,
     EndIf,
     DefineFunction {
-        macro_name: &'a SparseChars,
-        parameters: &'a Spanned<Token>,
-        replacement_list: Vec<&'a Spanned<Token>>,
+        macro_name: &'src SparseChars,
+        parameters: &'src Spanned<Token>,
+        replacement_list: Vec<&'src Spanned<Token>>,
     },
     DefineObject {
-        macro_name: &'a SparseChars,
-        replacement_list: Vec<&'a Spanned<Token>>,
+        macro_name: &'src SparseChars,
+        replacement_list: Vec<&'src Spanned<Token>>,
     },
-    Undefine(&'a SparseChars),
-    Error(Option<&'a Spanned<Token>>),
-    Warning(Option<&'a Spanned<Token>>),
+    Undefine(&'src SparseChars),
+    Error(Option<&'src Spanned<Token>>),
+    Warning(Option<&'src Spanned<Token>>),
 
     Empty,
 }
-impl<'a> IntoTokenTree<'a> {
-    pub fn is_equal_within_source(source: &'a str, left: &SparseChars, right: &str) -> bool {
+impl<'src> IntoTokenTree<'src> {
+    pub fn is_equal_within_source(source: &'src str, left: &SparseChars, right: &str) -> bool {
         let left = left
             .iter()
             .flat_map(|range| source[range.start..range.end].chars());
@@ -331,31 +331,31 @@ impl<'a> IntoTokenTree<'a> {
     }
 }
 #[derive(Debug)]
-pub enum TokenTree<'a> {
+pub enum TokenTree<'src> {
     IfDef {
-        macro_name: &'a SparseChars,
-        body: Vec<TokenTree<'a>>,
-        opposition: Box<TokenTree<'a>>,
+        macro_name: &'src SparseChars,
+        body: Vec<TokenTree<'src>>,
+        opposition: Box<TokenTree<'src>>,
     },
     IfNDef {
-        macro_name: &'a SparseChars,
-        body: Vec<TokenTree<'a>>,
-        opposition: Box<TokenTree<'a>>,
+        macro_name: &'src SparseChars,
+        body: Vec<TokenTree<'src>>,
+        opposition: Box<TokenTree<'src>>,
     },
     If {
-        condition: Vec<&'a Spanned<Token>>,
-        body: Vec<TokenTree<'a>>,
-        opposition: Box<TokenTree<'a>>,
+        condition: Vec<&'src Spanned<Token>>,
+        body: Vec<TokenTree<'src>>,
+        opposition: Box<TokenTree<'src>>,
     },
     Elif {
-        condition: Vec<&'a Spanned<Token>>,
-        body: Vec<TokenTree<'a>>,
-        opposition: Box<TokenTree<'a>>,
+        condition: Vec<&'src Spanned<Token>>,
+        body: Vec<TokenTree<'src>>,
+        opposition: Box<TokenTree<'src>>,
     },
     Else {
-        body: Vec<TokenTree<'a>>,
+        body: Vec<TokenTree<'src>>,
         /// Must be endif?
-        opposition: Box<TokenTree<'a>>,
+        opposition: Box<TokenTree<'src>>,
     },
     // Maybe this shouldn't be a part of the token tree? The only difference would be changing all the opposition fields to an enum like
     // enum Opposition {
@@ -364,6 +364,6 @@ pub enum TokenTree<'a> {
     // }
     // Which doesnt seem beneficial in any way
     Endif,
-    Token(&'a Spanned<Token>),
-    Directive(ControlLine<'a>),
+    Token(&'src Spanned<Token>),
+    Directive(ControlLine<'src>),
 }

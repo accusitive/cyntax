@@ -4,20 +4,20 @@ use cyntax_common::spanned::Spanned;
 use peekmore::{PeekMore, PeekMoreIterator};
 
 #[derive(Debug)]
-pub struct PrelexerIter<'a> {
-    chars: PeekMoreIterator<Chars<'a>>,
+pub struct PrelexerIter<'src> {
+    chars: PeekMoreIterator<Chars<'src>>,
     /// The end of the previous character
     current_pos: usize,
 }
-impl<'a> PrelexerIter<'a> {
-    pub fn new(source: &'a str) -> PrelexerIter<'a> {
+impl<'src> PrelexerIter<'src> {
+    pub fn new(source: &'src str) -> PrelexerIter<'src> {
         PrelexerIter {
             chars: source.chars().peekmore(),
             current_pos: 0,
         }
     }
 }
-impl<'a> Iterator for PrelexerIter<'a> {
+impl<'src> Iterator for PrelexerIter<'src> {
     type Item = Spanned<char>;
 
     /// Get the next character, including a Range<usize> of bytes into the original string.

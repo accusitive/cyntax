@@ -2,7 +2,7 @@ use cyntax_common::{ast::{Token, Whitespace}, spanned::Spanned};
 
 #[cfg(test)]
 mod tests;
-fn print_tokens<'a, I: Iterator<Item = &'a Spanned<Token>>>(source: &str, tokens: I) {
+fn print_tokens<'src, I: Iterator<Item = &'src Spanned<Token>>>(source: &'src str, tokens: I) {
     for spanned_token in tokens {
         match &spanned_token.value {
             Token::Identifier(ranges) => {

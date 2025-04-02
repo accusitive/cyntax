@@ -57,14 +57,14 @@ pub use span;
 pub type CharLocation = Range<usize>;
 
 #[derive(Debug)]
-pub struct Lexer<'a> {
-    pub chars: PeekMoreIterator<PrelexerIter<'a>>,
-    pub file_name: &'a str,
-    pub source: &'a str,
+pub struct Lexer<'src> {
+    pub chars: PeekMoreIterator<PrelexerIter<'src>>,
+    pub file_name: &'src str,
+    pub source: &'src str,
     at_start_of_line: bool,
 }
 
-impl<'a> Iterator for Lexer<'a> {
+impl<'src> Iterator for Lexer<'src> {
     type Item = Spanned<Token>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -153,8 +153,8 @@ impl<'a> Iterator for Lexer<'a> {
         token
     }
 }
-impl<'a> Lexer<'a> {
-    pub fn new(file_name: &'a str, source: &'a str) -> Lexer<'a> {
+impl<'src> Lexer<'src> {
+    pub fn new(file_name: &'src str, source: &'src str) -> Lexer<'src> {
         Lexer {
             chars: PrelexerIter::new(source).peekmore(),
             file_name,
@@ -282,7 +282,7 @@ impl<'a> Lexer<'a> {
     }
 }
 // Util functions
-impl<'a> Lexer<'a> {
+impl<'src> Lexer<'src> {
     pub fn fatal_diagnostic<E: cyntax_errors::Diagnostic>(&mut self, diagnostic: E) {
         panic!(
             "{}",

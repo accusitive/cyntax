@@ -1,1 +1,1 @@
-#define MY_MACRO(x,y,z) x * x
+#define MY_MACRO(x,a,) x * x

@@ -4,10 +4,13 @@ use cyntax_common::{ast::{Punctuator, Token}, spanned::Spanned, sparsechars::{Ha
 use cyntax_lexer::span;
 
 use crate::tree::{ControlLine, TokenTree};
-
+pub enum Macro<'src> {
+    Object(&'src Vec<&'src Spanned<Token>>),
+    Function(Vec<&'src SparseChars>, &'src Vec<&'src Spanned<Token>>)
+}
 pub struct ExpandTokens<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> {
     pub source: &'src str,
-    pub state: &'state mut HashMap<HashedSparseChars, &'src Vec<&'src Spanned<Token>>>,
+    pub state: &'state mut HashMap<HashedSparseChars, Macro<'src>>,
     pub token_trees: I,
 }
 impl<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> Iterator
@@ -18,7 +21,7 @@ impl<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> Iterator
     fn next(&mut self) -> Option<Self::Item> {
         match self.token_trees.next()? {
             TokenTree::Token(s @ span!(Token::Identifier(identifier))) => {
-                if let Some(replacement_list) = self.state.get(&identifier.hash(self.source)) {
+                if let Some(Macro::Object(replacement_list)) = self.state.get(&identifier.hash(self.source)) {
                     return Some(replacement_list.to_vec());
                 } else {
                     return Some(vec![s]);
@@ -103,7 +106,7 @@ impl<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> Iterator
                     } => {
                         let key = macro_name.hash(self.source);
                         // TODO error handleing here
-                        self.state.insert(key, replacement_list);
+                        self.state.insert(key, Macro::Object(replacement_list));
 
                         Some(vec![])
                     }
@@ -121,17 +124,23 @@ impl<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> ExpandTokens<'src,
     pub fn parse_parameters(&self, delimited: &'src Spanned<Token>) -> Vec<&'src SparseChars>{
         match delimited {
             span!(Token::Delimited('(', ')', inner)) => {
-                let mut inner_iter = inner.value.iter();
+                let mut inner_iter = inner.value.iter().peekable();
                 let mut parameters = vec![];
-                while let Some(token) = inner_iter.next(){
+                while let Some(token) = inner_iter.peek(){
+                    dbg!(&parameters, &token);
+
                     if parameters.len() > 0 {
-                        self.expect_comma(&mut inner_iter).expect("expected comma");
+                        self.expect_comma(token).expect("expected comma");
+                        inner_iter.next().unwrap();
+                    }
+                    if inner_iter.len() == 0 {
+                        // TODO: error about trailing comma
+                        break;
                     }
 
                     let identifier = self.enforce_identifier(inner_iter.next().unwrap());
                    
                     parameters.push(identifier);
-
                 }   
                 parameters
             }
@@ -143,13 +152,13 @@ impl<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> ExpandTokens<'src,
             span!(Token::Identifier(inner)) => return inner,
             _ => {
                 // TODO: Error
-                panic!()
+                panic!("expected and identifier, found {:#?}", token);
             }
         }
     }
-    pub fn expect_comma<J: Iterator<Item = &'src Spanned<Token>>>(&self, iter: &mut J) -> Option<()>{
-        match iter.next() {
-            Some(span!(Token::Punctuator(Punctuator::Comma))) => Some(()),
+    pub fn expect_comma(&self, token: &'src Spanned<Token>) -> Option<()>{
+        match token {
+            span!(Token::Punctuator(Punctuator::Comma)) => Some(()),
             _ => None
         }
     }
