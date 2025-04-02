@@ -39,7 +39,6 @@ fn print_tokens<'src, I: Iterator<Item = &'src Spanned<Token>>>(source: &'src st
             Token::Punctuator(punctuator) => print!("{}", punctuator.to_string()),
         }
     }
-    println!();
 }
 
 fn main() {
@@ -48,11 +47,12 @@ fn main() {
     let tokens: Vec<_> = lexer.collect();
     // dbg!(&tokens);
     print_tokens(source, tokens.iter());
-
+    println!();
     let mut pp = cyntax_preprocessor::Preprocessor::new("test.c", source, &tokens);
     {
         let expanded = pp.expand();
         println!("========================================================");
         print_tokens(source, expanded.into_iter());
+        println!();
     }
 }

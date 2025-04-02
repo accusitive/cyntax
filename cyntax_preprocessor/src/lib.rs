@@ -36,7 +36,7 @@ impl<'src> Preprocessor<'src> {
         let tt = &mut self.token_trees;
         let expanded = ExpandTokens {
             source: self.file_source,
-            state: &mut state,
+            macros: &mut state,
             token_trees: tt.iter(),
         }
         .flatten()
