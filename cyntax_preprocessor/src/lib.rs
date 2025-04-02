@@ -21,7 +21,7 @@ impl<'src> Preprocessor<'src> {
         let itt = IntoTokenTree {
             source: file_source,
             tokens: tokens.iter().peekable(),
-            expecting_opposition: false
+            expecting_opposition: false,
         }
         .collect::<Vec<_>>();
 

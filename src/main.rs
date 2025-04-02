@@ -1,4 +1,7 @@
-use cyntax_common::{ast::{Token, Whitespace}, spanned::Spanned};
+use cyntax_common::{
+    ast::{Token, Whitespace},
+    spanned::Spanned,
+};
 
 #[cfg(test)]
 mod tests;

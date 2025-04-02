@@ -4,7 +4,6 @@ use strum_macros::EnumString;
 
 use crate::{spanned::Spanned, sparsechars::SparseChars};
 
-
 #[derive(Debug, Clone)]
 pub enum Token {
     Identifier(SparseChars),
@@ -38,7 +37,6 @@ pub enum Whitespace {
     /// \t
     Tab,
 }
-
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Punctuator {

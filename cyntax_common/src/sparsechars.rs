@@ -1,4 +1,7 @@
-use std::{hash::{DefaultHasher, Hash, Hasher}, ops::Range};
+use std::{
+    hash::{DefaultHasher, Hash, Hasher},
+    ops::Range,
+};
 
 #[derive(Debug, Clone)]
 pub struct SparseChars {
