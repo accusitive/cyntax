@@ -87,6 +87,8 @@ impl<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> ExpandTokens<'src,
                                 expecting_opposition: false,
                             }
                             .collect();
+                            // The reason this works: because we know that there will never be a directive within the replacement_list, propogating changes to self.macros doesn't matter
+                            // should be noted: directives technically can show up, but they aren't lexed into ControlLines so we process it into just a Hash followed by some tokens
                             let mut hm = self.macros.clone();
                             let v = ExpandTokens {
                                 source: self.source,
