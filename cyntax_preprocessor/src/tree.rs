@@ -7,12 +7,12 @@ use cyntax_common::{
 };
 use cyntax_errors::{Diagnostic, errors::UnterminatedTreeNode};
 use cyntax_lexer::span;
-pub struct IntoTokenTree<'src> {
+pub struct IntoTokenTree<'src, I: Iterator<Item = &'src Spanned<Token>>> {
     pub(crate) source: &'src str,
-    pub(crate) tokens: Peekable<core::slice::Iter<'src, Spanned<Token>>>,
+    pub(crate) tokens: Peekable<I>,
     pub(crate) expecting_opposition: bool,
 }
-impl<'src> Iterator for IntoTokenTree<'src> {
+impl<'src, I: Iterator<Item = &'src Spanned<Token>>> Iterator for IntoTokenTree<'src, I> {
     type Item = TokenTree<'src>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -95,7 +95,7 @@ impl<'src> Iterator for IntoTokenTree<'src> {
         }
     }
 }
-impl<'src> IntoTokenTree<'src> {
+impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
     pub fn until_closer(
         &mut self,
         opener: &Spanned<Token>,
@@ -265,9 +265,9 @@ impl<'src> IntoTokenTree<'src> {
             }
         };
     }
-    pub fn expect_identifier<'b, I: Iterator<Item = &'b Spanned<Token>>>(
+    pub fn expect_identifier<'b, I2: Iterator<Item = &'b Spanned<Token>>>(
         &mut self,
-        iter: &mut I,
+        iter: &mut I2,
     ) -> Option<&'b SparseChars> {
         match iter.next()? {
             span!(Token::Identifier(i)) => Some(i),
@@ -276,7 +276,7 @@ impl<'src> IntoTokenTree<'src> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ControlLine<'src> {
     IfDef {
         macro_name: &'src SparseChars,
@@ -308,7 +308,7 @@ pub enum ControlLine<'src> {
 
     Empty,
 }
-impl<'src> IntoTokenTree<'src> {
+impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
     pub fn is_equal_within_source(source: &'src str, left: &SparseChars, right: &str) -> bool {
         let left = left
             .iter()
@@ -330,7 +330,7 @@ impl<'src> IntoTokenTree<'src> {
         }
     }
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TokenTree<'src> {
     IfDef {
         macro_name: &'src SparseChars,

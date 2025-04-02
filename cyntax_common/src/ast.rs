@@ -5,7 +5,7 @@ use strum_macros::EnumString;
 use crate::{spanned::Spanned, sparsechars::SparseChars};
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Token {
     Identifier(SparseChars),
     StringLiteral(Vec<Range<usize>>),
@@ -29,7 +29,7 @@ pub enum Directive {
     ),
     Undefine(Spanned<SparseChars>),
 }
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Whitespace {
     /// ` `
     Space,
@@ -40,7 +40,7 @@ pub enum Whitespace {
 }
 
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Punctuator {
     // Brackets and Parentheses
     LeftBracket,  // [

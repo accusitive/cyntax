@@ -1,6 +1,6 @@
 use std::{hash::{DefaultHasher, Hash, Hasher}, ops::Range};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SparseChars {
     pub parts: Vec<Range<usize>>,
     // TODO: Evaluate whether these can be removed
