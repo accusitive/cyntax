@@ -31,7 +31,7 @@ impl<'src> Preprocessor<'src> {
             token_trees: itt,
         }
     }
-    pub fn expand(&mut self) -> Vec<&Spanned<Token>> {
+    pub fn expand(&mut self) -> Vec<Spanned<Token>> {
         let mut state = HashMap::new();
         let tt = &mut self.token_trees;
         let expanded = ExpandTokens {

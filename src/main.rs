@@ -52,7 +52,7 @@ fn main() {
     {
         let expanded = pp.expand();
         println!("========================================================");
-        print_tokens(source, expanded.into_iter());
+        print_tokens(source, expanded.iter());
         println!();
     }
 }
