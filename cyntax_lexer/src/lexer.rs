@@ -1,12 +1,12 @@
+use cyntax_common::ast::Punctuator;
+use cyntax_common::ast::Token;
+use cyntax_common::ast::Whitespace;
+use cyntax_common::spanned::Spanned;
+use cyntax_common::sparsechars::SparseChars;
 use peekmore::PeekMore;
 use peekmore::PeekMoreIterator;
 
-use crate::Punctuator;
-use crate::SparseChars;
-use crate::Token;
-use crate::Whitespace;
 use crate::prelexer::PrelexerIter;
-use crate::spanned::Spanned;
 use std::ops::Range;
 
 // Identifier safe characters

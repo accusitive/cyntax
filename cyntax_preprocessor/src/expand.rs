@@ -1,14 +1,13 @@
 use std::{collections::HashMap, iter::once, marker::PhantomData, ops::Deref};
 
-use cyntax_lexer::{HashedSparseChars, SparseChars, Token, span, spanned::Spanned};
-use radix_trie::Trie;
+use cyntax_common::{ast::Token, spanned::Spanned, sparsechars::HashedSparseChars};
 
 use crate::tree::{ControlLine, TokenTree};
 
 pub struct ExpandTokens<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> {
     pub source: &'src str,
     pub state: &'state mut HashMap<HashedSparseChars, &'src Vec<&'src Spanned<Token>>>,
-    pub token_trees: I,
+    pub token_trees: I, 
 }
 impl<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> Iterator
     for ExpandTokens<'src, 'state, I>
@@ -36,7 +35,7 @@ impl<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> Iterator
             }) => {
                 let invert = matches!(tt, TokenTree::IfNDef { .. });
 
-                let key = macro_name.hashed(self.source);
+                let key = macro_name.hash(self.source);
                 let mut flag = self.state.get(&key).is_some();
                 if invert {
                     flag = !flag;
@@ -96,7 +95,7 @@ impl<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> Iterator
                         macro_name,
                         replacement_list,
                     } => {
-                        let key = macro_name.hashed(self.source);
+                        let key = macro_name.hash(self.source);
                         // TODO error handleing here
                         self.state.insert(key, replacement_list);
 

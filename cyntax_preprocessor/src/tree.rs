@@ -1,7 +1,8 @@
 use std::iter::Peekable;
 
+use cyntax_common::{ast::Token, spanned::Spanned, sparsechars::SparseChars};
 use cyntax_errors::{Diagnostic, errors::UnterminatedTreeNode};
-use cyntax_lexer::{SparseChars, Token, Whitespace, lexer::CharLocation, span, spanned::Spanned};
+use cyntax_lexer::span;
 pub struct IntoTokenTree<'a> {
     pub(crate) source: &'a str,
     pub(crate) tokens: Peekable<core::slice::Iter<'a, Spanned<Token>>>,
@@ -71,7 +72,10 @@ impl<'a> Iterator for IntoTokenTree<'a> {
                     }
                     // Skip these two, they're inert
                     ControlLine::Empty => self.next(),
-                    ControlLine::EndIf => self.next(),
+                    ControlLine::EndIf => {
+                        todo!()
+                        // cyntax_errors::errors::DanglingEndif{token}
+                    },
                 }
             }
             _ => Some(TokenTree::Token(token)),
@@ -122,7 +126,6 @@ impl<'a> IntoTokenTree<'a> {
                     // skip
                     ControlLine::Empty => self.maybe_opposition(),
                     ControlLine::EndIf => {
-                        self.tokens.next().unwrap();
                         return TokenTree::Endif;
                     }
                     _ => unreachable!(),

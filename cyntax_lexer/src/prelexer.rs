@@ -1,8 +1,7 @@
 use std::str::Chars;
 
+use cyntax_common::spanned::Spanned;
 use peekmore::{PeekMore, PeekMoreIterator};
-
-use crate::spanned::Spanned;
 
 #[derive(Debug)]
 pub struct PrelexerIter<'a> {

@@ -1,14 +1,11 @@
 use std::{collections::HashMap, iter::Peekable};
 
+use cyntax_common::{ast::Token, spanned::Spanned};
 use cyntax_errors::{
     Diagnostic,
     errors::{UnmatchedDelimiter, UnterminatedTreeNode},
 };
-use cyntax_lexer::{
-    Punctuator, SparseChars, Token, Whitespace, lexer::CharLocation, span, spanned::Spanned,
-};
 use expand::ExpandTokens;
-use radix_trie::Trie;
 use tree::{IntoTokenTree, TokenTree};
 mod expand;
 mod tree;

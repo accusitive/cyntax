@@ -1,6 +1,5 @@
-#define a 5
 #ifdef a
-int n = 1;
-#else
-int n = 5;
+int a_defined = 1;
+#else 
+int a_defined = 0;
 #endif

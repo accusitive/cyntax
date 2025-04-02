@@ -1,5 +1,7 @@
 use std::ops::Range;
 
+use cyntax_common::{ast::Token, spanned::Spanned};
+
 use crate::{Diagnostic, DiagnosticSeverity, Label};
 #[derive(Debug)]
 
@@ -68,3 +70,5 @@ impl Diagnostic for UnknownDirective {
         }]
     }
 }
+
+pub struct DanglingEndif(Spanned<Token>);
