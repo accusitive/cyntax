@@ -1,10 +1,4 @@
-use std::{
-    collections::{HashMap, btree_map::Keys},
-    iter::once,
-    marker::PhantomData,
-    ops::Deref,
-};
-
+use std::{collections::HashMap, ops::Deref};
 use cyntax_common::{
     ast::{Punctuator, Token},
     spanned::Spanned,
@@ -103,7 +97,7 @@ impl<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> ExpandTokens<'src,
                         let argument_container = self.expect_delimited(token).unwrap();
                         let split_delimited = self.split_delimited(&argument_container.2);
                         // TODO infrastrucure to ignore whitespace, desperately needed
-                        // TODO error if delimited brackets are of the wrong kind (ie MACRO_NAME{2,4})
+                        // TODO error if delimited brackets are of the wrong kind (i.e MACRO_NAME{2,4})
                         let mut map: HashMap<u64, &Vec<&'src Spanned<Token>>> = HashMap::new();
                         for (&param, arg) in parameters.iter().zip(split_delimited.iter()) {
                             map.insert(param.hash(self.source), arg);
