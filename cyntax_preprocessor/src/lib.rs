@@ -38,6 +38,7 @@ impl<'src> Preprocessor<'src> {
             source: self.file_source,
             macros: &mut state,
             token_trees: tt.iter(),
+            current_function_params: None,
         }
         .flatten()
         .collect::<Vec<_>>();
