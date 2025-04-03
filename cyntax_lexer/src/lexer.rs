@@ -62,6 +62,7 @@ pub struct Lexer<'src> {
     pub file_name: &'src str,
     pub source: &'src str,
     at_start_of_line: bool,
+    ignore_delimiters: bool,
 }
 
 impl<'src> Iterator for Lexer<'src> {
@@ -92,13 +93,13 @@ impl<'src> Iterator for Lexer<'src> {
 
                 Some(number.map(|num| Token::PPNumber(num)))
             }
+            // span!(range, c@ ('(' | ')' | '{' | '}' | '[' | ']')) if self.ignore_delimiters => Some(
+            //     Spanned::new(range, Token::Punctuator(Punctuator::from_char(c).unwrap())),
+            // ),
+
             span!(range, opening_delimiter @ opening_delimiter!()) => {
-                let (closing_delimiter, inner_tokens) =
-                    self.lex_delimited(&range, opening_delimiter);
-                Some(Spanned::new(
-                    range,
-                    Token::Delimited(opening_delimiter, closing_delimiter, inner_tokens),
-                ))
+                let token = self.lex_delimited(&range, opening_delimiter);
+                Some(token)
             }
             // Entirely skip over line comments
             span!('/') if matches!(self.chars.peek(), Some(span!('/'))) => {
@@ -123,7 +124,9 @@ impl<'src> Iterator for Lexer<'src> {
                         self.chars.next().unwrap();
                         self.chars.next().unwrap();
                     } else {
+                        self.ignore_delimiters = true;
                         let n = self.next().unwrap();
+                        self.ignore_delimiters = false;
                         if add {
                             end = n.range.end;
                             tokens.push(n);
@@ -160,6 +163,7 @@ impl<'src> Lexer<'src> {
             file_name,
             source,
             at_start_of_line: true,
+            ignore_delimiters: false,
         }
     }
     pub fn lex_identifier(&mut self, first_character: &CharLocation) -> Spanned<SparseChars> {
@@ -253,7 +257,7 @@ impl<'src> Lexer<'src> {
         &mut self,
         range: &CharLocation,
         opening_delimiter: char,
-    ) -> (char, Spanned<Vec<Spanned<Token>>>) {
+    ) -> Spanned<Token> {
         let mut tokens = vec![];
         let closing_delimiter = Self::closing_delimiter_for(opening_delimiter);
         let mut closed = false;
@@ -270,7 +274,17 @@ impl<'src> Lexer<'src> {
             }
         }
 
-        if !closed {
+        if !closed && self.ignore_delimiters {
+            return Spanned::new(
+                range.start..end,
+                Token::Delimited {
+                    opener: opening_delimiter,
+                    closer: None,
+                    inner_tokens: Spanned::new(range.start..end, tokens),
+                },
+            );
+        }
+        if !closed && !self.ignore_delimiters {
             let err = cyntax_errors::errors::UnmatchedDelimiter {
                 opening_delimiter_location: range.start..range.end,
                 potential_closing_delimiter_location: end,
@@ -278,9 +292,20 @@ impl<'src> Lexer<'src> {
             };
             self.fatal_diagnostic(err);
         }
-        (closing_delimiter, Spanned::new(range.start..end, tokens))
+        return Spanned::new(
+            range.start..end,
+            Token::Delimited {
+                opener: opening_delimiter,
+                closer: Some(closing_delimiter),
+                inner_tokens: Spanned::new(range.start..end, tokens),
+            },
+        );
     }
 }
+// enum LexDelimitedResult {
+//     Delimited(char, Spanned<Vec<Spanned<Token>>>),
+//     UnmatchedButItsFine(Spanned<Vec<Spanned<Token>>>)
+// }
 // Util functions
 impl<'src> Lexer<'src> {
     pub fn fatal_diagnostic<E: cyntax_errors::Diagnostic>(&mut self, diagnostic: E) {

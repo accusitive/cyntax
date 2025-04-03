@@ -1,7 +1,6 @@
-#define test #define a
-
-test
-
-#ifdef a
-int x = 1;
-#endif
+#define f(x) x
+#define g(x) f(x) f(x
+#define i(x) g(x)) g(x
+#define h(x) i(x))) i(x
+#define k(x) i(x))) i(x))))
+f(x)

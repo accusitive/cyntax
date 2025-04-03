@@ -212,7 +212,9 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
                 let macro_name = self
                     .expect_identifier(&mut tokens_iter)
                     .expect("expected macro_name in ifdef directive");
-                if matches!(tokens_iter.peek(), Some(span!(Token::Delimited('(', _, _)))) {
+                // dbg!(&tokens_iter.peek());
+                // panic!();
+                if matches!(tokens_iter.peek(), Some(span!(Token::Delimited { opener: '(', closer: Some(_), inner_tokens: _ }))) {
                     let parameters = tokens_iter.next().unwrap();
                     if matches!(
                         tokens_iter.peek(),
