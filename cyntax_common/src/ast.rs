@@ -16,7 +16,11 @@ pub enum Token {
     Whitespace(Whitespace),
     Punctuator(Punctuator),
     /// closer being None is valid in control lines
-    Delimited{ opener: char, closer: Option<char>, inner_tokens: Spanned<Vec<Spanned<Token>>>},
+    Delimited {
+        opener: char,
+        closer: Option<char>,
+        inner_tokens: Spanned<Vec<Spanned<Token>>>,
+    },
 }
 #[derive(Debug)]
 pub enum Directive {

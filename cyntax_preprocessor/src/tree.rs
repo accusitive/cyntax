@@ -134,7 +134,6 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
                 match control_line {
                     ControlLine::Elif { .. } | ControlLine::Else => {
                         self.expecting_opposition = true;
-
                         let tree = self.next().unwrap();
                         self.expecting_opposition = false;
                         return tree;
@@ -214,7 +213,14 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
                     .expect("expected macro_name in ifdef directive");
                 // dbg!(&tokens_iter.peek());
                 // panic!();
-                if matches!(tokens_iter.peek(), Some(span!(Token::Delimited { opener: '(', closer: Some(_), inner_tokens: _ }))) {
+                if matches!(
+                    tokens_iter.peek(),
+                    Some(span!(Token::Delimited {
+                        opener: '(',
+                        closer: Some(_),
+                        inner_tokens: _
+                    }))
+                ) {
                     let parameters = tokens_iter.next().unwrap();
                     if matches!(
                         tokens_iter.peek(),

@@ -96,7 +96,6 @@ impl<'src> Iterator for Lexer<'src> {
             // span!(range, c@ ('(' | ')' | '{' | '}' | '[' | ']')) if self.ignore_delimiters => Some(
             //     Spanned::new(range, Token::Punctuator(Punctuator::from_char(c).unwrap())),
             // ),
-
             span!(range, opening_delimiter @ opening_delimiter!()) => {
                 let token = self.lex_delimited(&range, opening_delimiter);
                 Some(token)
@@ -263,7 +262,7 @@ impl<'src> Lexer<'src> {
         let mut closed = false;
         let mut end = range.end;
         while let Some(span!(c)) = self.chars.peek() {
-            if self.inside_control_line && *c == '\n'{
+            if self.inside_control_line && *c == '\n' {
                 break;
             }
             if *c == closing_delimiter {

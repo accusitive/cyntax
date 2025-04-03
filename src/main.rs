@@ -25,12 +25,20 @@ fn print_tokens<'src, I: Iterator<Item = &'src Spanned<Token>>>(source: &'src st
                     print!("{}", &source[range.clone()]);
                 }
             }
-            Token::Delimited{opener: opening, closer: Some(closing), inner_tokens: tokens} => {
+            Token::Delimited {
+                opener: opening,
+                closer: Some(closing),
+                inner_tokens: tokens,
+            } => {
                 print!("{}", opening);
                 print_tokens(source, tokens.value.iter());
                 print!("{}", closing);
             }
-            Token::Delimited{opener: opening, closer: None, inner_tokens: tokens} => {
+            Token::Delimited {
+                opener: opening,
+                closer: None,
+                inner_tokens: tokens,
+            } => {
                 print!("{}", opening);
                 print_tokens(source, tokens.value.iter());
             }

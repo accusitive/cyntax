@@ -1,9 +1,4 @@
-use std::{
-    collections::{HashMap, btree_map::Keys},
-    iter::once,
-    marker::PhantomData,
-    ops::Deref,
-};
+use std::{collections::HashMap, ops::Deref};
 
 use cyntax_common::{
     ast::{Punctuator, Token},
@@ -22,7 +17,7 @@ pub enum Macro<'src> {
 pub struct ExpandTokens<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> {
     pub source: &'src str,
     pub macros: &'state mut HashMap<HashedSparseChars, Macro<'src>>,
-    pub current_function_params: Option<HashMap<u64, Vec<&'src Spanned<Token>>>>,
+    pub current_function_params: Option<HashMap<u64, Vec<Spanned<Token>>>>,
     // pub parameters:
     pub token_trees: I,
 }
@@ -39,39 +34,66 @@ impl<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> Iterator
     }
 }
 impl<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> ExpandTokens<'src, 'state, I> {
+    pub fn expand_tokens<T: Iterator<Item = &'src Spanned<Token>>>(
+        &self,
+        t: T,
+        params: Option<HashMap<u64, Vec<Spanned<Token>>>>,
+    ) -> Vec<Spanned<Token>> {
+        let treeified = IntoTokenTree {
+            source: self.source,
+            tokens: t.peekable(),
+            expecting_opposition: false,
+        }
+        .collect::<Vec<_>>();
+        let mut hm = self.macros.clone();
+        let expanded = ExpandTokens {
+            source: self.source,
+            macros: &mut hm,
+            token_trees: treeified.iter(),
+            current_function_params: params,
+        }
+        .flatten()
+        .collect::<Vec<_>>();
+
+        expanded
+    }
     pub fn expand_token(&mut self, token: &'src TokenTree<'src>) -> Option<Vec<Spanned<Token>>> {
         match token {
+            // Stringify operator
+            TokenTree::Token(span!(Token::Punctuator(Punctuator::Hash))) => {
+                let next_tree = self.token_trees.next().expect("expected token tree after `#`");
+                let next_token = self.expect_tt_token(next_tree).unwrap();
+
+                let next_expanded_token = self.expand_token(next_tree).unwrap();
+                let mut ranges = vec![];
+
+                for token in next_expanded_token {
+                    ranges.push(token.range.start..token.range.end);
+                }
+
+                return Some(vec![Spanned::new(next_token.range.start..next_token.range.end, Token::StringLiteral(ranges))]);
+            }
             TokenTree::Token(s @ span!(Token::Identifier(identifier))) => {
                 if let Some(current_function_params) = &self.current_function_params {
                     if let Some(arg) = current_function_params.get(&identifier.hash(self.source)) {
-                        return Some(arg.to_vec().into_iter().cloned().collect());
+                        return Some(arg.to_vec());
                     }
                 }
                 match self.macros.get(&identifier.hash(self.source)) {
                     Some(Macro::Object(replacement_list)) => {
-                        let tt = IntoTokenTree {
-                            source: self.source,
-                            tokens: replacement_list.to_vec().into_iter().peekable(),
-                            expecting_opposition: false,
-                        }
-                        .collect::<Vec<_>>();
-                        let mut hm = self.macros.clone();
-                        let expander = ExpandTokens {
-                            source: self.source,
-                            macros: &mut hm,
-                            token_trees: tt.iter(),
-                            current_function_params: self.current_function_params.clone(),
-                        }
-                        .flatten()
-                        .collect::<Vec<_>>();
-                        return Some(expander);
+                        let expanded = self.expand_tokens(
+                            replacement_list.to_vec().into_iter(),
+                            self.current_function_params.clone(),
+                        );
+
+                        return Some(expanded);
                     }
                     Some(Macro::Function(parameters, replacement_list)) => {
                         let replacement_list: &Vec<&'src Spanned<Token>> = replacement_list;
                         // dbg!(&self.token_trees);
                         let next = self.token_trees.next();
                         if next.is_none() {
-                            return Some(vec![(*s).clone()])
+                            return Some(vec![(*s).clone()]);
                         }
                         let next = next.unwrap();
                         let token = self.expect_tt_token(next).unwrap();
@@ -87,39 +109,12 @@ impl<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> ExpandTokens<'src,
                         let split_delimited = self.split_delimited(&argument_container.2);
                         // TODO infrastrucure to ignore whitespace, desperately needed
                         // TODO error if delimited brackets are of the wrong kind (ie MACRO_NAME{2,4})
-                        let mut map: HashMap<u64, Vec<&'src Spanned<Token>>> = HashMap::new();
+                        let mut map: HashMap<u64, Vec<Spanned<Token>>> = HashMap::new();
                         for (&param, arg) in parameters.iter().zip(split_delimited.iter()) {
-                            map.insert(param.hash(self.source), arg.to_vec());
+                            let expanded_arg = self.expand_tokens(arg.to_vec().into_iter(), None);
+                            map.insert(param.hash(self.source), expanded_arg);
                         }
-
-                        // let mut expanded_replacement_lsit = vec![];
-
-                        // for token in replacement_list {
-                        let itt: Vec<TokenTree<'src>> = IntoTokenTree {
-                            source: self.source,
-                            tokens: replacement_list.iter().map(|r| *r).peekable(),
-                            expecting_opposition: false,
-                        }
-                        .collect();
-                        // The reason this works: because we know that there will never be a directive within the replacement_list, propogating changes to self.macros doesn't matter
-                        // should be noted: directives technically can show up, but they aren't lexed into ControlLines so we process it into just a Hash followed by some tokens
-                        let mut hm = self.macros.clone();
-                        let v = ExpandTokens {
-                            source: self.source,
-                            macros: &mut hm,
-                            token_trees: itt.iter(),
-                            current_function_params: Some(map),
-                        }
-                        .flatten()
-                        .collect::<Vec<_>>();
-
-                        // expanded_replacement_lsit.extend(v);
-                        // }
-
-                        // let mut replaced_expanded_replacement_list = vec![];
-                        // for token in expanded_replacement_lsit {
-
-                        // }
+                        let v = self.expand_tokens(replacement_list.iter().map(|r|*r), Some(map));
                         return Some(v);
                     }
                     None => {
@@ -137,28 +132,14 @@ impl<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> ExpandTokens<'src,
                     }
                 ),
             ) => {
-                let itt: Vec<TokenTree<'src>> = IntoTokenTree {
-                    source: self.source,
-                    tokens: inner_tokens.value.iter().peekable(),
-                    expecting_opposition: false,
-                }
-                .collect();
-                let mut hm = self.macros.clone();
-                let v = ExpandTokens {
-                    source: self.source,
-                    macros: &mut hm,
-                    token_trees: itt.iter(),
-                    current_function_params: self.current_function_params.clone(),
-                }
-                .flatten()
-                .collect::<Vec<_>>();
+                let expanded = self.expand_tokens(inner_tokens.value.iter(), self.current_function_params.clone());
 
                 return Some(vec![Spanned::new(
                     range.start..range.end,
                     Token::Delimited {
                         opener: *opener,
                         closer: *closer,
-                        inner_tokens: Spanned::new(range.start..range.end, v),
+                        inner_tokens: Spanned::new(range.start..range.end, expanded),
                     },
                 )]);
             }
