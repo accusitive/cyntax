@@ -22,6 +22,7 @@ pub enum Macro<'src> {
 pub struct ExpandTokens<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> {
     pub source: &'src str,
     pub macros: &'state mut HashMap<HashedSparseChars, Macro<'src>>,
+    // pub current_function_params: HashMap<u64, &Vec<&'src Spanned<Token>>>,
     // pub parameters:
     pub token_trees: I,
 }
@@ -69,6 +70,7 @@ impl<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> ExpandTokens<'src,
                     }
                     Some(Macro::Function(parameters, replacement_list)) => {
                         let replacement_list: &Vec<&'src Spanned<Token>> = replacement_list;
+
                         let next = self.token_trees.next().unwrap();
                         let token = self.expect_tt_token(next).unwrap();
                         let argument_container = self.expect_delimited(token).unwrap();
@@ -79,28 +81,35 @@ impl<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> ExpandTokens<'src,
                         for (&param, arg) in parameters.iter().zip(split_delimited.iter()) {
                             map.insert(param.hash(self.source), arg);
                         }
-                        let mut expanded_replacement_lsit = vec![];
-                        for token in replacement_list {
-                            let itt: Vec<TokenTree<'src>> = IntoTokenTree {
-                                source: self.source,
-                                tokens: std::iter::once(*token).peekable(),
-                                expecting_opposition: false,
-                            }
-                            .collect();
-                            // The reason this works: because we know that there will never be a directive within the replacement_list, propogating changes to self.macros doesn't matter
-                            // should be noted: directives technically can show up, but they aren't lexed into ControlLines so we process it into just a Hash followed by some tokens
-                            let mut hm = self.macros.clone();
-                            let v = ExpandTokens {
-                                source: self.source,
-                                macros: &mut hm,
-                                token_trees: itt.iter(),
-                            }
-                            .flatten()
-                            .collect::<Vec<_>>();
 
-                            expanded_replacement_lsit.extend(v);
+                        // let mut expanded_replacement_lsit = vec![];
+
+                        // for token in replacement_list {
+                        let itt: Vec<TokenTree<'src>> = IntoTokenTree {
+                            source: self.source,
+                            tokens: replacement_list.iter().map(|r| *r).peekable(),
+                            expecting_opposition: false,
                         }
-                        return Some(expanded_replacement_lsit);
+                        .collect();
+                        // The reason this works: because we know that there will never be a directive within the replacement_list, propogating changes to self.macros doesn't matter
+                        // should be noted: directives technically can show up, but they aren't lexed into ControlLines so we process it into just a Hash followed by some tokens
+                        let mut hm = self.macros.clone();
+                        let v = ExpandTokens {
+                            source: self.source,
+                            macros: &mut hm,
+                            token_trees: itt.iter(),
+                        }
+                        .flatten()
+                        .collect::<Vec<_>>();
+
+                        // expanded_replacement_lsit.extend(v);
+                        // }
+
+                        // let mut replaced_expanded_replacement_list = vec![];
+                        // for token in expanded_replacement_lsit {
+
+                        // }
+                        return Some(v);
                     }
                     None => {
                         return Some(vec![(*s).clone()]);

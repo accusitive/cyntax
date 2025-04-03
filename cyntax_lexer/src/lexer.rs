@@ -62,7 +62,7 @@ pub struct Lexer<'src> {
     pub file_name: &'src str,
     pub source: &'src str,
     at_start_of_line: bool,
-    ignore_delimiters: bool,
+    inside_control_line: bool,
 }
 
 impl<'src> Iterator for Lexer<'src> {
@@ -124,9 +124,9 @@ impl<'src> Iterator for Lexer<'src> {
                         self.chars.next().unwrap();
                         self.chars.next().unwrap();
                     } else {
-                        self.ignore_delimiters = true;
+                        self.inside_control_line = true;
                         let n = self.next().unwrap();
-                        self.ignore_delimiters = false;
+                        self.inside_control_line = false;
                         if add {
                             end = n.range.end;
                             tokens.push(n);
@@ -163,7 +163,7 @@ impl<'src> Lexer<'src> {
             file_name,
             source,
             at_start_of_line: true,
-            ignore_delimiters: false,
+            inside_control_line: false,
         }
     }
     pub fn lex_identifier(&mut self, first_character: &CharLocation) -> Spanned<SparseChars> {
@@ -263,6 +263,9 @@ impl<'src> Lexer<'src> {
         let mut closed = false;
         let mut end = range.end;
         while let Some(span!(c)) = self.chars.peek() {
+            if self.inside_control_line && *c == '\n'{
+                break;
+            }
             if *c == closing_delimiter {
                 closed = true;
                 self.next().unwrap();
@@ -274,7 +277,8 @@ impl<'src> Lexer<'src> {
             }
         }
 
-        if !closed && self.ignore_delimiters {
+        dbg!(&closed, self.inside_control_line);
+        if !closed && self.inside_control_line {
             return Spanned::new(
                 range.start..end,
                 Token::Delimited {
@@ -284,7 +288,7 @@ impl<'src> Lexer<'src> {
                 },
             );
         }
-        if !closed && !self.ignore_delimiters {
+        if !closed && !self.inside_control_line {
             let err = cyntax_errors::errors::UnmatchedDelimiter {
                 opening_delimiter_location: range.start..range.end,
                 potential_closing_delimiter_location: end,
