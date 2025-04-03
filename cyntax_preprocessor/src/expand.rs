@@ -73,7 +73,15 @@ impl<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> ExpandTokens<'src,
 
                         let next = self.token_trees.next().unwrap();
                         let token = self.expect_tt_token(next).unwrap();
-                        let argument_container = self.expect_delimited(token).unwrap();
+                        let argument_container = self.expect_delimited(token);
+
+                        if argument_container.is_none() {
+                            let mut ret = vec![];
+                            ret.extend(replacement_list.to_vec().iter().map(|d| (*d).clone()));
+                            return Some(ret);
+                        }
+
+                        let argument_container = argument_container.unwrap();
                         let split_delimited = self.split_delimited(&argument_container.2);
                         // TODO infrastrucure to ignore whitespace, desperately needed
                         // TODO error if delimited brackets are of the wrong kind (ie MACRO_NAME{2,4})
