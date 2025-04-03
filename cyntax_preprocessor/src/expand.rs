@@ -70,7 +70,7 @@ impl<'src, 'state, I: Iterator<Item = &'src TokenTree<'src>>> ExpandTokens<'src,
                     }
                     Some(Macro::Function(parameters, replacement_list)) => {
                         let replacement_list: &Vec<&'src Spanned<Token>> = replacement_list;
-
+                        dbg!(&self.token_trees);
                         let next = self.token_trees.next().unwrap();
                         let token = self.expect_tt_token(next).unwrap();
                         let argument_container = self.expect_delimited(token);
