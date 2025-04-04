@@ -95,12 +95,29 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                             let argument_container = self.expect_delimited(argument_list).unwrap();
                             let split_delimited = self.split_delimited(&argument_container.2);
 
-
                             let mut map: HashMap<String, Vec<Spanned<Token>>> = HashMap::new();
                             for (&param, arg) in parameters.iter().zip(split_delimited.iter()) {
                                 map.insert(param.to_string(), Self::i_hate_this(arg));
                             }
 
+                            let replacement_list = self
+                                .apply(
+                                    &|token| match &token {
+                                        span!(Token::Identifier(i)) => {
+                                            if let Some(e) = map.get(i) {
+                                                e.to_vec()
+                                            } else {
+                                                vec![token]
+                                            }
+                                        }
+                                        _ => vec![token],
+                                    },
+                                    Self::i_hate_this(replacment_list).into_iter(),
+                                )
+                                .into_iter()
+                                .map(|token| TokenTree::OwnedToken(token));
+
+                            self.token_trees.prepend_extend(replacement_list);
                             // TODO: make this work recursively, im pretty sure it can be extracted into a function
                             // like self.replace_params_with_args(ts: TokenStream) -> TokenStream
                             // then it replaces all identifiers with params,
@@ -112,7 +129,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                             //     .iter()
                             //     .map(|token| match token {
                             //         span!(Token::Delimited { opener, closer, inner_tokens }) => {
-                            //             // 
+                            //             //
                             //         }
                             //         span!(Token::Identifier(i)) => {
                             //             if let Some(e) = map.get(i) {
@@ -126,7 +143,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                             //     .flatten()
                             //     .map(|token| TokenTree::OwnedToken(token));
 
-                            self.token_trees.prepend_extend(replacement_list);
+                            // self.token_trees.prepend_extend(replacement_list);
 
                             dbg!(&argument_list);
                         }
@@ -285,5 +302,38 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                 return Some(token);
             }
         }
+    }
+    pub fn apply<
+        TokenStream: Iterator<Item = Spanned<Token>>,
+        F: Fn(Spanned<Token>) -> Vec<Spanned<Token>>,
+    >(
+        &mut self,
+        f: &F,
+        tokens: TokenStream,
+    ) -> Vec<Spanned<Token>> {
+        tokens
+            .into_iter()
+            .map(|token| match token {
+                span!(Token::Delimited {
+                    opener,
+                    closer,
+                    inner_tokens
+                }) => {
+                    vec![Spanned::new(
+                        token.range,
+                        Token::Delimited {
+                            opener: opener,
+                            closer: closer,
+                            inner_tokens: Spanned::new(
+                                inner_tokens.range,
+                                self.apply(f, inner_tokens.value.into_iter()),
+                            ),
+                        },
+                    )]
+                }
+                _ => f(token),
+            })
+            .flatten()
+            .collect()
     }
 }

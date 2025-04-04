@@ -1,2 +1,4 @@
-#define add(x,y) x+y
-int sum = add(2,4);
+#define test(x) x
+#define tested(x) test(2)
+
+tested(4);
