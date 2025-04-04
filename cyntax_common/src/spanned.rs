@@ -8,10 +8,7 @@ pub struct Spanned<T: Clone> {
 
 impl<T: Clone> Spanned<T> {
     pub fn new(range: Range<usize>, value: T) -> Spanned<T> {
-        Spanned {
-            value: value,
-            range,
-        }
+        Spanned { value: value, range }
     }
     pub fn map<U: Clone, F: Fn(T) -> U>(self, f: F) -> Spanned<U> {
         Spanned {

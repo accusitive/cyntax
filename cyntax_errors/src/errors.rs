@@ -26,8 +26,7 @@ impl Diagnostic for UnmatchedDelimiter {
             },
             Label {
                 kind: crate::LabelKind::Secondary,
-                range: self.potential_closing_delimiter_location
-                    ..self.potential_closing_delimiter_location,
+                range: self.potential_closing_delimiter_location..self.potential_closing_delimiter_location,
                 message: "Potential location for a closing delimiter".to_string(),
             },
         ]
@@ -91,7 +90,7 @@ impl Diagnostic for DanglingEndif {
 pub struct ExpectedButFound {
     pub location: Range<usize>,
     pub expected: String,
-    pub found: String
+    pub found: String,
 }
 impl Diagnostic for ExpectedButFound {
     fn title<'a>(&self) -> &'a str {
@@ -102,15 +101,17 @@ impl Diagnostic for ExpectedButFound {
         DiagnosticSeverity::Error
     }
     fn labels(&self) -> Vec<Label> {
-        vec![Label{
-            kind: crate::LabelKind::Primary,
-            range: self.location.start..self.location.end,
-            message: self.expected.clone(),
-        },
-        Label{
-            kind: crate::LabelKind::Secondary,
-            range: self.location.start..self.location.end,
-            message: self.found.clone(),
-        }]
+        vec![
+            Label {
+                kind: crate::LabelKind::Primary,
+                range: self.location.start..self.location.end,
+                message: self.expected.clone(),
+            },
+            Label {
+                kind: crate::LabelKind::Secondary,
+                range: self.location.start..self.location.end,
+                message: self.found.clone(),
+            },
+        ]
     }
 }

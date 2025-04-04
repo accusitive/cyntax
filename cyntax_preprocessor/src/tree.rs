@@ -21,11 +21,7 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> Iterator for IntoTokenTree<
             span!(Token::ControlLine(inner)) => {
                 let control_line = self.parse_control_line(inner);
                 match control_line {
-                    ControlLine::DefineObject { .. }
-                    | ControlLine::DefineFunction { .. }
-                    | ControlLine::Error(_)
-                    | ControlLine::Warning(_)
-                    | ControlLine::Undefine(_) => {
+                    ControlLine::DefineObject { .. } | ControlLine::DefineFunction { .. } | ControlLine::Error(_) | ControlLine::Warning(_) | ControlLine::Undefine(_) => {
                         return Some(TokenTree::Directive(control_line));
                     }
                     ControlLine::If { condition } => {
@@ -33,47 +29,25 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> Iterator for IntoTokenTree<
 
                         let opposition = Box::new(self.maybe_opposition());
 
-                        return Some(TokenTree::If {
-                            condition,
-                            body,
-                            opposition,
-                        });
+                        return Some(TokenTree::If { condition, body, opposition });
                     }
 
                     ControlLine::IfDef { macro_name } => {
                         let body = self.unwrap_diagnostic(|this| this.until_closer(token));
                         let opposition = Box::new(self.maybe_opposition());
-                        return Some(TokenTree::IfDef {
-                            macro_name,
-                            body,
-                            opposition,
-                        });
+                        return Some(TokenTree::IfDef { macro_name, body, opposition });
                     }
                     ControlLine::IfNDef { macro_name } => {
                         let body = self.unwrap_diagnostic(|this| this.until_closer(token));
                         let opposition = Box::new(self.maybe_opposition());
-                        return Some(TokenTree::IfNDef {
-                            macro_name,
-                            body,
-                            opposition,
-                        });
+                        return Some(TokenTree::IfNDef { macro_name, body, opposition });
                     }
 
-                    ControlLine::Elif { .. } | ControlLine::Else if !self.expecting_opposition => {
-                        self.unwrap_diagnostic(|_| {
-                            Err(cyntax_errors::errors::DanglingEndif(
-                                token.range.start..token.range.end,
-                            ))
-                        })
-                    }
+                    ControlLine::Elif { .. } | ControlLine::Else if !self.expecting_opposition => self.unwrap_diagnostic(|_| Err(cyntax_errors::errors::DanglingEndif(token.range.start..token.range.end))),
                     ControlLine::Elif { condition } => {
                         let body = self.unwrap_diagnostic(|this| this.until_closer(token));
                         let opposition = Box::new(self.maybe_opposition());
-                        return Some(TokenTree::Elif {
-                            condition,
-                            body,
-                            opposition,
-                        });
+                        return Some(TokenTree::Elif { condition, body, opposition });
                     }
                     ControlLine::Else => {
                         let body = self.unwrap_diagnostic(|this| this.until_closer(token));
@@ -83,11 +57,7 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> Iterator for IntoTokenTree<
                     }
                     // Skip these two, they're inert
                     ControlLine::Empty => self.next(),
-                    ControlLine::EndIf => self.unwrap_diagnostic(|_| {
-                        Err(cyntax_errors::errors::DanglingEndif(
-                            token.range.start..token.range.end,
-                        ))
-                    }),
+                    ControlLine::EndIf => self.unwrap_diagnostic(|_| Err(cyntax_errors::errors::DanglingEndif(token.range.start..token.range.end))),
                 }
             }
             _ => Some(TokenTree::Token(token)),
@@ -95,10 +65,7 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> Iterator for IntoTokenTree<
     }
 }
 impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
-    pub fn until_closer(
-        &mut self,
-        opener: &Spanned<Token>,
-    ) -> Result<Vec<TokenTree<'src>>, UnterminatedTreeNode> {
+    pub fn until_closer(&mut self, opener: &Spanned<Token>) -> Result<Vec<TokenTree<'src>>, UnterminatedTreeNode> {
         let mut body = vec![];
 
         while let Some(token) = self.tokens.peek() {
@@ -170,26 +137,20 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
 
         skip_whitespace(&mut tokens_iter);
 
-        let directive_name = self
-            .expect_identifier(&mut tokens_iter)
-            .expect("expected identifier after directive character");
+        let directive_name = self.expect_identifier(&mut tokens_iter).expect("expected identifier after directive character");
 
         match () {
             _ if directive_name == "ifdef" => {
                 skip_whitespace(&mut tokens_iter);
 
-                let macro_name = self
-                    .expect_identifier(&mut tokens_iter)
-                    .expect("expected macro_name in ifdef directive");
+                let macro_name = self.expect_identifier(&mut tokens_iter).expect("expected macro_name in ifdef directive");
 
                 return ControlLine::IfDef { macro_name };
             }
             _ if directive_name == "ifndef" => {
                 skip_whitespace(&mut tokens_iter);
 
-                let macro_name = self
-                    .expect_identifier(&mut tokens_iter)
-                    .expect("expected macro_name in ifndef directive");
+                let macro_name = self.expect_identifier(&mut tokens_iter).expect("expected macro_name in ifndef directive");
 
                 return ControlLine::IfNDef { macro_name };
             }
@@ -209,53 +170,29 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
                 // _ if Self::is_equal_within_source(self.source, &directive_name, "define") => {
                 skip_whitespace(&mut tokens_iter);
 
-                let macro_name = self
-                    .expect_identifier(&mut tokens_iter)
-                    .expect("expected macro_name in ifdef directive");
+                let macro_name = self.expect_identifier(&mut tokens_iter).expect("expected macro_name in ifdef directive");
                 // dbg!(&tokens_iter.peek());
                 // panic!();
-                if matches!(
-                    tokens_iter.peek(),
-                    Some(span!(Token::Delimited {
-                        opener: '(',
-                        closer: Some(_),
-                        inner_tokens: _
-                    }))
-                ) {
+                if matches!(tokens_iter.peek(), Some(span!(Token::Delimited { opener: '(', closer: Some(_), inner_tokens: _ }))) {
                     let parameters = tokens_iter.next().unwrap();
-                    if matches!(
-                        tokens_iter.peek(),
-                        Some(span!(Token::Whitespace(Whitespace::Space)))
-                    ) {
+                    if matches!(tokens_iter.peek(), Some(span!(Token::Whitespace(Whitespace::Space)))) {
                         tokens_iter.next().unwrap();
                     }
                     let replacement_list = tokens_iter.collect();
-                    return ControlLine::DefineFunction {
-                        macro_name,
-                        parameters,
-                        replacement_list,
-                    };
+                    return ControlLine::DefineFunction { macro_name, parameters, replacement_list };
                 } else {
-                    if matches!(
-                        tokens_iter.peek(),
-                        Some(span!(Token::Whitespace(Whitespace::Space)))
-                    ) {
+                    if matches!(tokens_iter.peek(), Some(span!(Token::Whitespace(Whitespace::Space)))) {
                         tokens_iter.next().unwrap();
                     }
                     let replacement_list = tokens_iter.collect();
-                    return ControlLine::DefineObject {
-                        macro_name,
-                        replacement_list,
-                    };
+                    return ControlLine::DefineObject { macro_name, replacement_list };
                 }
             }
             _ if directive_name == "undef" => {
                 // _ if Self::is_equal_within_source(self.source, &directive_name, "undef") => {
                 skip_whitespace(&mut tokens_iter);
 
-                let macro_name = self
-                    .expect_identifier(&mut tokens_iter)
-                    .expect("expected macro_name in ifdef directive");
+                let macro_name = self.expect_identifier(&mut tokens_iter).expect("expected macro_name in ifdef directive");
                 return ControlLine::Undefine(macro_name);
             }
             _ if directive_name == "error" => {
@@ -270,17 +207,13 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
                 return ControlLine::Warning(reason);
             }
             _ => {
-                let directive_range =
-                    tokens.first().unwrap().range.start..tokens.last().unwrap().range.end;
+                let directive_range = tokens.first().unwrap().range.start..tokens.last().unwrap().range.end;
                 let err = cyntax_errors::errors::UnknownDirective(directive_range);
                 panic!("{}", err.into_why_report().with("", self.source));
             }
         };
     }
-    pub fn expect_identifier<'b, I2: Iterator<Item = &'b Spanned<Token>>>(
-        &mut self,
-        iter: &mut I2,
-    ) -> Option<&'b String> {
+    pub fn expect_identifier<'b, I2: Iterator<Item = &'b Spanned<Token>>>(&mut self, iter: &mut I2) -> Option<&'b String> {
         match iter.next()? {
             span!(Token::Identifier(i)) => Some(i),
             _ => None,
@@ -321,10 +254,7 @@ pub enum ControlLine<'src> {
     Empty,
 }
 impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
-    pub fn unwrap_diagnostic<T, E: Diagnostic, F: FnOnce(&mut Self) -> Result<T, E>>(
-        &mut self,
-        value: F,
-    ) -> T {
+    pub fn unwrap_diagnostic<T, E: Diagnostic, F: FnOnce(&mut Self) -> Result<T, E>>(&mut self, value: F) -> T {
         match value(self) {
             Ok(value) => value,
             Err(e) => {

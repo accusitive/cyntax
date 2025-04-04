@@ -3,10 +3,11 @@ use std::{collections::VecDeque, fmt::Debug, iter::Peekable};
 #[derive(Debug)]
 pub struct PrependingPeekableIterator<I: Iterator + Debug> {
     pub queue: VecDeque<I::Item>,
-    inner:     Peekable<I>,
+    inner: Peekable<I>,
 }
 impl<I: Iterator + Debug> Iterator for PrependingPeekableIterator<I>
-where I::Item: Debug
+where
+    I::Item: Debug,
 {
     type Item = I::Item;
 
@@ -30,7 +31,9 @@ impl<I: Iterator + Debug> PrependingPeekableIterator<I> {
         }
     }
     pub fn prepend_extend<J: Iterator<Item = I::Item>>(&mut self, mut iter: J)
-    where J::Item: Debug {
+    where
+        J::Item: Debug,
+    {
         let mut index = 0;
         while let Some(item) = iter.next() {
             self.queue.insert(index, item);

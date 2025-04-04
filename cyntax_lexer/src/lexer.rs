@@ -37,10 +37,7 @@ macro_rules! opening_delimiter {
 #[macro_export]
 macro_rules! span {
     ($r: pat, $p: pat) => {
-        Spanned {
-            value: $p,
-            range: $r,
-        }
+        Spanned { value: $p, range: $r }
     };
     ($p: pat) => {
         Spanned { value: $p, .. }
@@ -115,9 +112,7 @@ impl<'src> Iterator for Lexer<'src> {
                 while let Some(span!(token)) = self.chars.peek() {
                     if matches!(token, '\n') {
                         break;
-                    } else if matches!(token, '/')
-                        && matches!(self.chars.peek_nth(1), Some(span!('/')))
-                    {
+                    } else if matches!(token, '/') && matches!(self.chars.peek_nth(1), Some(span!('/'))) {
                         add = false;
                         self.chars.next().unwrap();
                         self.chars.next().unwrap();
@@ -136,12 +131,7 @@ impl<'src> Iterator for Lexer<'src> {
                     range: range.start..end,
                 })
             }
-            span!(range, punctuator) if Punctuator::is_punctuation(punctuator) => {
-                Some(Spanned::new(
-                    range,
-                    Token::Punctuator(Punctuator::from_char(punctuator).unwrap()),
-                ))
-            }
+            span!(range, punctuator) if Punctuator::is_punctuation(punctuator) => Some(Spanned::new(range, Token::Punctuator(Punctuator::from_char(punctuator).unwrap()))),
             span!(range, ' ') => Some(Spanned::new(range, Token::Whitespace(Whitespace::Space))),
             span!(range, '\t') => Some(Spanned::new(range, Token::Whitespace(Whitespace::Tab))),
             span!(range, '\n') => Some(Spanned::new(range, Token::Whitespace(Whitespace::Newline))),
@@ -244,11 +234,7 @@ impl<'src> Lexer<'src> {
 
         Spanned::new(start..end, number)
     }
-    pub fn lex_delimited(
-        &mut self,
-        range: &CharLocation,
-        opening_delimiter: char,
-    ) -> Spanned<Token> {
+    pub fn lex_delimited(&mut self, range: &CharLocation, opening_delimiter: char) -> Spanned<Token> {
         let mut tokens = vec![];
         let closing_delimiter = Self::closing_delimiter_for(opening_delimiter);
         let mut closed = false;
@@ -304,12 +290,7 @@ impl<'src> Lexer<'src> {
 // Util functions
 impl<'src> Lexer<'src> {
     pub fn fatal_diagnostic<E: cyntax_errors::Diagnostic>(&mut self, diagnostic: E) {
-        panic!(
-            "{}",
-            diagnostic
-                .into_why_report()
-                .with(self.file_name, self.source)
-        );
+        panic!("{}", diagnostic.into_why_report().with(self.file_name, self.source));
         // println!(
         //     "{}",
         //     cyntax_errors::write_codespan_report(

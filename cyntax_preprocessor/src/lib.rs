@@ -7,9 +7,9 @@ use expand::Expander;
 use prepend::PrependingPeekableIterator;
 use tree::{IntoTokenTree, TokenTree};
 
-mod tree;
-mod prepend;
 mod expand;
+mod prepend;
+mod tree;
 pub struct Preprocessor<'src> {
     // macros and whatever
     file_source: &'src str,
@@ -18,11 +18,7 @@ pub struct Preprocessor<'src> {
 }
 
 impl<'src> Preprocessor<'src> {
-    pub fn new(
-        file_name: &'src str,
-        file_source: &'src str,
-        tokens: &'src [Spanned<Token>],
-    ) -> Preprocessor<'src> {
+    pub fn new(file_name: &'src str, file_source: &'src str, tokens: &'src [Spanned<Token>]) -> Preprocessor<'src> {
         let itt = IntoTokenTree {
             source: file_source,
             tokens: tokens.iter().peekable(),
@@ -30,11 +26,7 @@ impl<'src> Preprocessor<'src> {
         }
         .collect::<Vec<_>>();
 
-        Self {
-            file_source,
-            file_name,
-            token_trees: itt,
-        }
+        Self { file_source, file_name, token_trees: itt }
     }
     pub fn expand(self) -> Vec<Spanned<Token>> {
         // let mut state = HashMap::new();
@@ -45,7 +37,7 @@ impl<'src> Preprocessor<'src> {
             token_trees: PrependingPeekableIterator::new(tt.into_iter()),
             output: vec![],
             macros: HashMap::new(),
-            eof: false
+            eof: false,
         };
         expander.expand();
 

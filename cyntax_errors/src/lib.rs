@@ -1,8 +1,8 @@
 use std::ops::Range;
 
+pub use cab_why as why;
 use cab_why::Report;
 use codespan_reporting::{files::SimpleFiles, term::termcolor::Ansi};
-pub use cab_why as why;
 pub enum DiagnosticSeverity {
     Error,
     Warning,
@@ -57,21 +57,14 @@ pub trait Diagnostic: Sized {
                 LabelKind::Secondary => codespan_reporting::diagnostic::LabelStyle::Secondary,
                 LabelKind::Help => unimplemented!(),
             };
-            diag.labels.push(
-                codespan_reporting::diagnostic::Label::new(style, 0, label.range)
-                    .with_message(label.message),
-            );
+            diag.labels.push(codespan_reporting::diagnostic::Label::new(style, 0, label.range).with_message(label.message));
         }
 
         diag
     }
 }
 
-pub fn write_codespan_report(
-    diag: codespan_reporting::diagnostic::Diagnostic<usize>,
-    file_name: &str,
-    file_source: &str,
-) -> String {
+pub fn write_codespan_report(diag: codespan_reporting::diagnostic::Diagnostic<usize>, file_name: &str, file_source: &str) -> String {
     let config = codespan_reporting::term::Config::default();
     let mut output_buffer = Vec::new();
     let mut ansi_writer = Ansi::new(&mut output_buffer);

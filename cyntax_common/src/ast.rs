@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use strum_macros::EnumString;
 
-use crate::{spanned::Spanned};
+use crate::spanned::Spanned;
 
 #[derive(Debug, Clone)]
 pub enum Token {
@@ -25,11 +25,7 @@ pub enum Token {
 #[derive(Debug)]
 pub enum Directive {
     DefineObject(Spanned<String>, Vec<Spanned<Token>>),
-    DefineFunction(
-        Spanned<String>,
-        Spanned<Vec<Spanned<Token>>>,
-        Vec<Spanned<Token>>,
-    ),
+    DefineFunction(Spanned<String>, Spanned<Vec<Spanned<Token>>>, Vec<Spanned<Token>>),
     Undefine(Spanned<String>),
 }
 #[derive(Debug, PartialEq, Clone)]
