@@ -88,3 +88,29 @@ impl Diagnostic for DanglingEndif {
         }]
     }
 }
+pub struct ExpectedButFound {
+    pub location: Range<usize>,
+    pub expected: String,
+    pub found: String
+}
+impl Diagnostic for ExpectedButFound {
+    fn title<'a>(&self) -> &'a str {
+        "Encountered wrong token"
+    }
+
+    fn severity(&self) -> DiagnosticSeverity {
+        DiagnosticSeverity::Error
+    }
+    fn labels(&self) -> Vec<Label> {
+        vec![Label{
+            kind: crate::LabelKind::Primary,
+            range: self.location.start..self.location.end,
+            message: self.expected.clone(),
+        },
+        Label{
+            kind: crate::LabelKind::Secondary,
+            range: self.location.start..self.location.end,
+            message: self.found.clone(),
+        }]
+    }
+}

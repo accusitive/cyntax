@@ -1,7 +1,8 @@
 use std::ops::Range;
 
+use cab_why::Report;
 use codespan_reporting::{files::SimpleFiles, term::termcolor::Ansi};
-
+pub use cab_why as why;
 pub enum DiagnosticSeverity {
     Error,
     Warning,
@@ -83,3 +84,14 @@ pub fn write_codespan_report(
 }
 
 pub mod errors;
+pub trait UnwrapDiagnostic<T> {
+    fn unwrap_diagnostic(self, file_name: &str, file_source: &str) -> T;
+}
+impl<T> UnwrapDiagnostic<T> for Result<T, Report> {
+    fn unwrap_diagnostic(self, file_name: &str, file_source: &str) -> T {
+        match self {
+            Ok(value) => value,
+            Err(e) => panic!("{}", e.with(file_name, file_source)),
+        }
+    }
+}

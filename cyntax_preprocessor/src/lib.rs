@@ -1,10 +1,15 @@
+#![feature(iter_chain)]
+
 use std::collections::HashMap;
 
 use cyntax_common::{ast::Token, spanned::Spanned};
-use expand::{Expander, PrependingPeekableIterator};
+use expand::Expander;
+use prepend::PrependingPeekableIterator;
 use tree::{IntoTokenTree, TokenTree};
-mod expand;
+
 mod tree;
+mod prepend;
+mod expand;
 pub struct Preprocessor<'src> {
     // macros and whatever
     file_source: &'src str,
