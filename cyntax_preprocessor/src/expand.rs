@@ -4,10 +4,7 @@ use std::{
     iter::Peekable,
 };
 
-use cyntax_common::{
-    ast::Token,
-    spanned::Spanned,
-};
+use cyntax_common::{ast::Token, spanned::Spanned};
 use cyntax_lexer::span;
 
 use crate::tree::{ControlLine, TokenTree};
@@ -39,23 +36,22 @@ impl<I: Iterator + Debug> PrependingPeekableIterator<I> {
             inner: i.peekable(),
         }
     }
-    pub fn peek(&mut self) -> Option<&I::Item> {
-        if let Some(front) = self.queue.front() {
-            return Some(front);
-        } else {
-            self.inner.peek()
-        }
-    }
-    pub fn prepend_extend<J: Iterator<Item = I::Item>>(&mut self, iter: J)
+    // pub fn peek(&mut self) -> Option<&I::Item> {
+    //     if let Some(front) = self.queue.back() {
+    //         return Some(front);
+    //     } else {
+    //         self.inner.peek()
+    //     }
+    // }
+    pub fn prepend_extend<J: Iterator<Item = I::Item>>(&mut self, mut iter: J)
     where
         J::Item: Debug,
     {
-        iter.for_each(|item| {
-            self.queue.push_back(item);
-        });
-    }
-    pub fn prepend(&mut self, item: I::Item) {
-        self.queue.push_front(item);
+        let mut index = 0;
+        while let Some(item) = iter.next() {
+            self.queue.insert(index, item);
+            index += 1;
+        }
     }
 }
 #[derive(Debug)]
@@ -102,7 +98,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
 
                 _ => {}
             }
-            dbg!(&self.token_trees);
+            dbg!(&self.token_trees.queue);
         }
     }
     pub fn handle_control_line(&mut self, control_line: ControlLine<'src>) {
@@ -146,11 +142,4 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
     pub fn i_hate_this<T: Clone>(vec: &Vec<&T>) -> Vec<T> {
         vec.to_vec().iter().map(|tok| (*tok).clone()).collect()
     }
-    // pub fn next_token(&mut self) -> Option<TokenTree<'src>> {
-    //     if let Some(tt) = self.rescan_queue.pop() {
-    //         Some(tt)
-    //     } else {
-    //         self.token_trees.next()
-    //     }
-    // }
 }
