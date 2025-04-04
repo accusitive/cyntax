@@ -1,4 +1,8 @@
-use std::collections::{HashMap, VecDeque};
+use std::{
+    collections::{HashMap, VecDeque},
+    fmt::Debug,
+    iter::Peekable,
+};
 
 use cyntax_common::{
     ast::Token,
@@ -10,17 +14,59 @@ use cyntax_lexer::span;
 use crate::tree::{ControlLine, TokenTree};
 pub type ReplacementList<'src> = Vec<&'src Spanned<Token>>;
 
-pub struct PrependingIterator<I: Iterator> {
-    queue: VecDeque<I::Item>,
-    inner: I
+#[derive(Debug)]
+pub struct PrependingPeekableIterator<I: Iterator + Debug> {
+    pub queue: VecDeque<I::Item>,
+    inner: Peekable<I>,
 }
-pub struct Expander<'src, I: Iterator<Item = TokenTree<'src>>> {
+impl<I: Iterator + Debug> Iterator for PrependingPeekableIterator<I>
+where
+    I::Item: Debug,
+{
+    type Item = I::Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(item) = self.queue.pop_front() {
+            return Some(item);
+        } else {
+            self.inner.next()
+        }
+    }
+}
+impl<I: Iterator + Debug> PrependingPeekableIterator<I> {
+    pub fn new(i: I) -> Self {
+        Self {
+            queue: VecDeque::new(),
+            inner: i.peekable(),
+        }
+    }
+    pub fn peek(&mut self) -> Option<&I::Item> {
+        if let Some(front) = self.queue.front() {
+            return Some(front);
+        } else {
+            self.inner.peek()
+        }
+    }
+    pub fn prepend_extend<J: Iterator<Item = I::Item>>(&mut self, iter: J)
+    where
+        J::Item: Debug,
+    {
+        iter.for_each(|item| {
+            self.queue.push_back(item);
+        });
+    }
+    pub fn prepend(&mut self, item: I::Item) {
+        self.queue.push_front(item);
+    }
+}
+#[derive(Debug)]
+pub struct Expander<'src, I: Debug + Iterator<Item = TokenTree<'src>>> {
     pub source: &'src str,
-    pub token_trees: I,
-    pub rescan_queue: Vec<TokenTree<'src>>,
+    pub token_trees: PrependingPeekableIterator<I>,
     pub output: Vec<Spanned<Token>>,
     pub macros: HashMap<HashedSparseChars, MacroDefinition<'src>>,
 }
+#[derive(Debug)]
 pub enum MacroDefinition<'src> {
     Object(ReplacementList<'src>),
     Function {
@@ -29,17 +75,18 @@ pub enum MacroDefinition<'src> {
     },
 }
 
-impl<'src, I: Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
+impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
     pub fn expand(&mut self) {
-        while let Some(token) = self.next_token() {
+        while let Some(token) = self.token_trees.next() {
             match token {
                 TokenTree::Token(span!(Token::Identifier(identifier)))
                     if self.macros.get(&identifier.hash(self.source)).is_some() =>
                 {
                     match self.macros.get(&identifier.hash(self.source)).unwrap() {
                         MacroDefinition::Object(spanneds) => {
-                            self.rescan_queue
-                                .extend(spanneds.iter().map(|token| TokenTree::Token(token)));
+                            self.token_trees.prepend_extend(
+                                spanneds.iter().map(|token| TokenTree::Token(token)),
+                            );
                         }
                         MacroDefinition::Function {
                             parameters,
@@ -56,6 +103,7 @@ impl<'src, I: Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
 
                 _ => {}
             }
+            dbg!(&self.token_trees);
         }
     }
     pub fn handle_control_line(&mut self, control_line: ControlLine<'src>) {
@@ -99,11 +147,11 @@ impl<'src, I: Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
     pub fn i_hate_this<T: Clone>(vec: &Vec<&T>) -> Vec<T> {
         vec.to_vec().iter().map(|tok| (*tok).clone()).collect()
     }
-    pub fn next_token(&mut self) -> Option<TokenTree<'src>> {
-        if let Some(tt) = self.rescan_queue.pop() {
-            Some(tt)
-        } else {
-            self.token_trees.next()
-        }
-    }
+    // pub fn next_token(&mut self) -> Option<TokenTree<'src>> {
+    //     if let Some(tt) = self.rescan_queue.pop() {
+    //         Some(tt)
+    //     } else {
+    //         self.token_trees.next()
+    //     }
+    // }
 }

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use cyntax_common::{ast::Token, spanned::Spanned};
-use expand::Expander;
+use expand::{Expander, PrependingPeekableIterator};
 use tree::{IntoTokenTree, TokenTree};
 mod expand;
 mod tree;
@@ -37,8 +37,7 @@ impl<'src> Preprocessor<'src> {
 
         let mut expander = Expander {
             source: self.file_source,
-            token_trees: tt.into_iter(),
-            rescan_queue: vec![],
+            token_trees: PrependingPeekableIterator::new(tt.into_iter()),
             output: vec![],
             macros: HashMap::new(),
         };
