@@ -369,5 +369,6 @@ pub enum TokenTree<'src> {
     // Which doesnt seem beneficial in any way
     Endif,
     Token(&'src Spanned<Token>),
+    OwnedToken(Spanned<Token>),
     Directive(ControlLine<'src>),
 }
