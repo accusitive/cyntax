@@ -24,8 +24,9 @@ pub struct Expander<'src, I: Debug + Iterator<Item = TokenTree<'src>>> {
     pub token_trees: PrependingPeekableIterator<I>,
     pub output: Vec<Spanned<Token>>,
     pub macros: HashMap<&'src String, MacroDefinition<'src>>,
+    pub eof: bool,
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum MacroDefinition<'src> {
     Object(ReplacementList<'src>),
     Function {
@@ -36,7 +37,17 @@ pub enum MacroDefinition<'src> {
 
 impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
     pub fn expand(&mut self) -> PResult<()> {
-        while let Some(token) = self.token_trees.next() {
+        loop {
+            self.expand_one()?;
+            if self.eof {
+                break;
+            }
+        }
+        Ok(())
+    }
+    pub fn expand_one(&mut self) -> PResult<()> {
+        if let Some(token) = self.token_trees.next() {
+            dbg!(&token);
             match token {
                 //Its ugly but we produce OwnedTokens when we reinject tokens back into the token stream
                 TokenTree::OwnedToken(span!(Token::Identifier(identifier)))
@@ -51,6 +62,32 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                     self.expand_identifier(identifier)?;
                 }
 
+                TokenTree::OwnedToken(
+                    span!(Token::Delimited {
+                        opener,
+                        closer: None,
+                        inner_tokens
+                    }),
+                ) => {
+                    let mut body = vec![];
+                    loop {
+                        let token = self.get_expanded_next_token();
+                        if matches!(token, span!(Token::Punctuator(Punctuator::RightParen))) {
+                            break;
+                        } else {
+                            body.push(token);
+                        }
+                    }
+                    self.output.push(Spanned::new(
+                        0..0,
+                        Token::Delimited {
+                            opener: opener,
+                            closer: Some(')'),
+                            inner_tokens: Spanned::new(0..0, vec![inner_tokens.value, body].into_iter().flatten().collect()),
+                        },
+                    ));
+                }
+
                 TokenTree::Token(spanned) => {
                     self.output.push(spanned.clone());
                 }
@@ -63,14 +100,42 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
 
                 _ => {}
             }
+        } else {
+            self.eof = true;
         }
         Ok(())
     }
-    fn next_token(&mut self) -> Option<TokenTree<'src>>{
+    // this is how i handle macros creating partial delimiters
+    // maybe this is a bad solution?
+    pub fn get_expanded_next_token(&mut self) -> Spanned<Token> {
+        dbg!(&self.token_trees.peek());
+
+        // assert!(matches!(
+        //     self.token_trees.peek(),
+        //     Some(
+        //         TokenTree::OwnedToken(span!(Token::Delimited {
+        //             opener,
+        //             closer,
+        //             inner_tokens
+        //         })) | TokenTree::Token(span!(Token::Delimited {
+        //             opener,
+        //             closer,
+        //             inner_tokens
+        //         }))
+        //     )
+        // ));
+        self.expand_one().unwrap();
+        let output = self.output.pop().unwrap();
+
+        dbg!(&output);
+        output
+    }
+
+    fn next_token(&mut self) -> Option<TokenTree<'src>> {
         self.token_trees.next()
     }
     pub fn expand_identifier(&mut self, identifier: &String) -> PResult<()> {
-        match self.macros.get(identifier).unwrap() {
+        match { self.macros.get(identifier).unwrap().clone() } {
             MacroDefinition::Object(replacement_list) => {
                 self.token_trees
                     .prepend_extend(replacement_list.iter().map(|token| TokenTree::Token(token)));
@@ -79,102 +144,107 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                 parameter_list: parameters,
                 replacment_list,
             } => {
-                let argument_list = self.token_trees.next().unwrap();
-                // let argument_list =self.next_token().unwrap();
-                let argument_list = self.maybe_fix_delimiter(argument_list).unwrap();
-                let argument_list = self.expect_tt_token(argument_list).unwrap();
-                let argument_container = self
-                    .expect_delimited(&argument_list)
-                    .unwrap_diagnostic("test.c", self.source);
-                let split_delimited = self.split_delimited(&argument_container.2);
-
-                // cyntax_errors::errors::IncorrectArgumentsForMacroInvocation {
-
-                // };
-                let mut map: HashMap<String, Vec<Spanned<Token>>> = HashMap::new();
-                for (&param, arg) in parameters.iter().zip(split_delimited.iter()) {
-                    map.insert(param.to_string(), Self::i_hate_this(arg));
-                }
-
-                let replacement_list = self
-                    .apply(
-                        &|token| match &token {
-                            span!(Token::Identifier(i)) => {
-                                if let Some(e) = map.get(i) {
-                                    e.to_vec()
-                                } else {
-                                    vec![token]
-                                }
-                            }
-                            _ => vec![token],
-                        },
-                        Self::i_hate_this(replacment_list).into_iter(),
-                    )
-                    .into_iter()
-                    .map(|token| TokenTree::OwnedToken(token));
-
-                self.token_trees.prepend_extend(replacement_list);
+                self.expand_function_style_macro(&parameters, &replacment_list);
             }
         }
         Ok(())
     }
-    pub fn maybe_fix_delimiter(&self, tree: TokenTree<'src>) -> Option<TokenTree<'src>>{
-        match tree {
-            TokenTree::OwnedToken(
-                span!(Token::Delimited {
-                    opener: opener @ '(',
-                    closer: None,
-                    inner_tokens
-                }),
-            ) => {
-                // panic!();
-                Some(self.fix_unclosed_delimiter(opener))
-            }
-            TokenTree::Token(
-                span!(Token::Delimited {
-                    opener: opener @ '(',
-                    closer: None,
-                    inner_tokens
-                }),
-            ) => {
-                // panic!();
-                Some(self.fix_unclosed_delimiter(*opener))
-            }
-            _ => panic!(),
+    pub fn expand_function_style_macro(
+        &mut self,
+        parameters: &Vec<&'src String>,
+        replacment_list: &Vec<&'src Spanned<Token>>,
+    ) {
+        let argument_list = self.get_expanded_next_token();
+        dbg!(&argument_list);
+        // let argument_list = self.next_token().unwrap();
+        // let argument_list = self.maybe_fix_delimiter(argument_list).unwrap();
+        // let argument_list = self.expect_tt_token(argument_list).unwrap();
+        let argument_container = self
+            .expect_delimited(&argument_list)
+            .unwrap_diagnostic("test.c", self.source);
+        let split_delimited = self.split_delimited(&argument_container.2);
+        let mut map: HashMap<String, Vec<Spanned<Token>>> = HashMap::new();
+        for (&param, arg) in parameters.iter().zip(split_delimited.iter()) {
+            map.insert(param.to_string(), Self::i_hate_this(arg));
         }
-    }
-    pub fn fix_unclosed_delimiter(&self, opener: char) -> TokenTree<'src> {
-        let mut extra_inner = vec![];
-        let mut closer = None;
-        // while let Some(token) = self.token_trees.next() {
-        //     let tt = self.expect_tt_token(token).unwrap();
-        //     if matches!(tt, span!(Token::Punctuator(Punctuator::RightParen))) {
-        //         // closer = Some(tt.value);
-        //         closer = Some(')');
-        //         break;
-        //     } else {
-        //         extra_inner.push(tt);
-        //     }
-        // }
-        TokenTree::OwnedToken(Spanned::new(
-                    0..0,
-                    Token::Delimited {
-                        opener: opener,
-                        closer: closer,
-                        inner_tokens: Spanned::new(0..0, vec![]),
-                    },
-        ))
 
-        // self.token_trees
-        //     .prepend_extend(std::iter::once(TokenTree::OwnedToken(Spanned::new(
-        //         0..0,
-        //         Token::Delimited {
-        //             opener: opener,
-        //             closer: closer,
-        //             inner_tokens: Spanned::new(0..0, vec![]),
-        //         },
-        //     ))));
+        let replacement_list = self
+            .apply(
+                &|token| match &token {
+                    span!(Token::Identifier(i)) => {
+                        if let Some(e) = map.get(i) {
+                            e.to_vec()
+                        } else {
+                            vec![token]
+                        }
+                    }
+                    _ => vec![token],
+                },
+                Self::i_hate_this(replacment_list).into_iter(),
+            )
+            .into_iter()
+            .map(|token| TokenTree::OwnedToken(token));
+
+        self.token_trees.prepend_extend(replacement_list);
     }
+
+    // pub fn maybe_fix_delimiter(&self, tree: TokenTree<'src>) -> Option<TokenTree<'src>> {
+    //     match tree {
+    //         TokenTree::OwnedToken(
+    //             span!(Token::Delimited {
+    //                 opener: opener @ '(',
+    //                 closer: None,
+    //                 inner_tokens
+    //             }),
+    //         ) => {
+    //             // panic!();
+    //             Some(self.fix_unclosed_delimiter(opener))
+    //         }
+    //         TokenTree::Token(
+    //             span!(Token::Delimited {
+    //                 opener: opener @ '(',
+    //                 closer: None,
+    //                 inner_tokens
+    //             }),
+    //         ) => {
+    //             // panic!();
+    //             Some(self.fix_unclosed_delimiter(*opener))
+    //         }
+    //         _ => panic!(),
+    //     }
+    // }
+    // pub fn fix_unclosed_delimiter(&self, opener: char) -> TokenTree<'src> {
+    //     let mut extra_inner = vec![];
+    //     let mut closer = None;
+    //     // while let Some(token) = self.token_trees.next() {
+    //     //     let tt = self.expect_tt_token(token).unwrap();
+    //     //     if matches!(tt, span!(Token::Punctuator(Punctuator::RightParen))) {
+    //     //         // closer = Some(tt.value);
+    //     //         closer = Some(')');
+    //     //         break;
+    //     //     } else {
+    //     //         extra_inner.push(tt);
+    //     //     }
+    //     // }
+    //     TokenTree::OwnedToken(Spanned::new(
+    //         0..0,
+    //         Token::Delimited {
+    //             opener: opener,
+    //             closer: closer,
+    //             inner_tokens: Spanned::new(0..0, vec![]),
+    //         },
+    //     ))
+
+    //     // self.token_trees
+    //     //     .prepend_extend(std::iter::once(TokenTree::OwnedToken(Spanned::new(
+    //     //         0..0,
+    //     //         Token::Delimited {
+    //     //             opener: opener,
+    //     //             closer: closer,
+    //     //             inner_tokens: Spanned::new(0..0, vec![]),
+    //     //         },
+    //     //     ))));
+    // }
     pub fn handle_control_line(&mut self, control_line: ControlLine<'src>) {
         match control_line {
             ControlLine::DefineFunction {
@@ -305,8 +375,8 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
             }) => Ok((open, close, inner_tokens)),
             span!(range, token2) => Err(cyntax_errors::errors::ExpectedButFound {
                 location: range.start..range.end,
-                expected: format!("{:?}", token.value),
-                found: format!("{:?}", token2),
+                expected: format!("expected: Delimiter with closer"),
+                found: format!("found: {:?}", token2),
             }
             .into_why_report()),
         }
