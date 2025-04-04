@@ -8,22 +8,16 @@ mod tests;
 fn print_tokens<'src, I: Iterator<Item = &'src Spanned<Token>>>(source: &'src str, tokens: I) {
     for spanned_token in tokens {
         match &spanned_token.value {
-            Token::Identifier(ranges) => {
-                for range in ranges.iter() {
-                    print!("{}", &source[range.clone()]);
-                }
+            Token::Identifier(identifier) => {
+                print!("{}", identifier);
             }
-            Token::StringLiteral(ranges) => {
+            Token::StringLiteral(string) => {
                 print!("\"");
-                for range in ranges {
-                    print!("{}", &source[range.clone()]);
-                }
+                print!("{}", string);
                 print!("\"");
             }
-            Token::PPNumber(ranges) => {
-                for range in ranges.iter() {
-                    print!("{}", &source[range.clone()]);
-                }
+            Token::PPNumber(number) => {
+                print!("{}", number);
             }
             Token::Delimited {
                 opener: opening,

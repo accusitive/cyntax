@@ -7,7 +7,6 @@ use std::{
 use cyntax_common::{
     ast::Token,
     spanned::Spanned,
-    sparsechars::{HashedSparseChars, SparseChars},
 };
 use cyntax_lexer::span;
 
@@ -64,7 +63,7 @@ pub struct Expander<'src, I: Debug + Iterator<Item = TokenTree<'src>>> {
     pub source: &'src str,
     pub token_trees: PrependingPeekableIterator<I>,
     pub output: Vec<Spanned<Token>>,
-    pub macros: HashMap<HashedSparseChars, MacroDefinition<'src>>,
+    pub macros: HashMap<&'src String, MacroDefinition<'src>>,
 }
 #[derive(Debug)]
 pub enum MacroDefinition<'src> {
@@ -80,9 +79,9 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         while let Some(token) = self.token_trees.next() {
             match token {
                 TokenTree::Token(span!(Token::Identifier(identifier)))
-                    if self.macros.get(&identifier.hash(self.source)).is_some() =>
+                    if self.macros.get(identifier).is_some() =>
                 {
-                    match self.macros.get(&identifier.hash(self.source)).unwrap() {
+                    match self.macros.get(identifier).unwrap() {
                         MacroDefinition::Object(spanneds) => {
                             self.token_trees.prepend_extend(
                                 spanneds.iter().map(|token| TokenTree::Token(token)),
@@ -122,12 +121,12 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
     }
     pub fn handle_define_function(
         &mut self,
-        macro_name: &SparseChars,
+        macro_name: &'src String,
         parameters: &Spanned<Token>,
         replacment_list: &Vec<&Spanned<Token>>,
     ) {
         self.macros.insert(
-            macro_name.hash(self.source),
+            macro_name,
             MacroDefinition::Function {
                 parameters: parameters.clone(),
                 replacment_list: Self::i_hate_this(replacment_list),
@@ -136,11 +135,11 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
     }
     pub fn handle_define_object<'a>(
         &mut self,
-        macro_name: &SparseChars,
+        macro_name: &'src String,
         replacment_list: &'a Vec<&'src Spanned<Token>>,
     ) {
         self.macros.insert(
-            macro_name.hash(self.source),
+            macro_name,
             MacroDefinition::Object(replacment_list.to_vec()),
         );
     }

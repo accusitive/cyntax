@@ -3,7 +3,6 @@ use std::iter::Peekable;
 use cyntax_common::{
     ast::{Token, Whitespace},
     spanned::Spanned,
-    sparsechars::SparseChars,
 };
 use cyntax_errors::{Diagnostic, errors::UnterminatedTreeNode};
 use cyntax_lexer::span;
@@ -176,7 +175,7 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
             .expect("expected identifier after directive character");
 
         match () {
-            _ if Self::is_equal_within_source(self.source, &directive_name, "ifdef") => {
+            _ if directive_name == "ifdef" => {
                 skip_whitespace(&mut tokens_iter);
 
                 let macro_name = self
@@ -185,7 +184,7 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
 
                 return ControlLine::IfDef { macro_name };
             }
-            _ if Self::is_equal_within_source(self.source, &directive_name, "ifndef") => {
+            _ if directive_name == "ifndef" => {
                 skip_whitespace(&mut tokens_iter);
 
                 let macro_name = self
@@ -194,18 +193,20 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
 
                 return ControlLine::IfNDef { macro_name };
             }
-            _ if Self::is_equal_within_source(self.source, &directive_name, "else") => {
+            _ if directive_name == "else" => {
                 return ControlLine::Else;
             }
-            _ if Self::is_equal_within_source(self.source, &directive_name, "elif") => {
+            _ if directive_name == "elif" => {
                 skip_whitespace(&mut tokens_iter);
                 let condition = tokens_iter.collect::<Vec<_>>();
                 return ControlLine::Elif { condition };
             }
-            _ if Self::is_equal_within_source(self.source, &directive_name, "endif") => {
+            _ if directive_name == "endif" => {
+                // _ if Self::is_equal_within_source(self.source, &directive_name, "endif") => {
                 return ControlLine::EndIf;
             }
-            _ if Self::is_equal_within_source(self.source, &directive_name, "define") => {
+            _ if directive_name == "define" => {
+                // _ if Self::is_equal_within_source(self.source, &directive_name, "define") => {
                 skip_whitespace(&mut tokens_iter);
 
                 let macro_name = self
@@ -248,7 +249,8 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
                     };
                 }
             }
-            _ if Self::is_equal_within_source(self.source, &directive_name, "undef") => {
+            _ if directive_name == "undef" => {
+                // _ if Self::is_equal_within_source(self.source, &directive_name, "undef") => {
                 skip_whitespace(&mut tokens_iter);
 
                 let macro_name = self
@@ -256,18 +258,20 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
                     .expect("expected macro_name in ifdef directive");
                 return ControlLine::Undefine(macro_name);
             }
-            _ if Self::is_equal_within_source(self.source, &directive_name, "error") => {
+            _ if directive_name == "error" => {
+                // _ if Self::is_equal_within_source(self.source, &directive_name, "error") => {
                 skip_whitespace(&mut tokens_iter);
                 let reason = tokens_iter.next();
                 return ControlLine::Error(reason);
             }
-            _ if Self::is_equal_within_source(self.source, &directive_name, "warning") => {
+            _ if directive_name == "warning" => {
+                // _ if Self::is_equal_within_source(self.source, &directive_name, "warning") => {
                 let reason = tokens_iter.next();
                 return ControlLine::Warning(reason);
             }
             _ => {
                 let directive_range =
-                    directive_name.first().unwrap().start..directive_name.last().unwrap().end;
+                    tokens.first().unwrap().range.start..tokens.last().unwrap().range.end;
                 let err = cyntax_errors::errors::UnknownDirective(directive_range);
                 panic!("{}", err.into_why_report().with("", self.source));
             }
@@ -276,7 +280,7 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
     pub fn expect_identifier<'b, I2: Iterator<Item = &'b Spanned<Token>>>(
         &mut self,
         iter: &mut I2,
-    ) -> Option<&'b SparseChars> {
+    ) -> Option<&'b String> {
         match iter.next()? {
             span!(Token::Identifier(i)) => Some(i),
             _ => None,
@@ -287,10 +291,10 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
 #[derive(Debug, Clone)]
 pub enum ControlLine<'src> {
     IfDef {
-        macro_name: &'src SparseChars,
+        macro_name: &'src String,
     },
     IfNDef {
-        macro_name: &'src SparseChars,
+        macro_name: &'src String,
     },
 
     If {
@@ -302,29 +306,21 @@ pub enum ControlLine<'src> {
     Else,
     EndIf,
     DefineFunction {
-        macro_name: &'src SparseChars,
+        macro_name: &'src String,
         parameters: &'src Spanned<Token>,
         replacement_list: Vec<&'src Spanned<Token>>,
     },
     DefineObject {
-        macro_name: &'src SparseChars,
+        macro_name: &'src String,
         replacement_list: Vec<&'src Spanned<Token>>,
     },
-    Undefine(&'src SparseChars),
+    Undefine(&'src String),
     Error(Option<&'src Spanned<Token>>),
     Warning(Option<&'src Spanned<Token>>),
 
     Empty,
 }
 impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
-    pub fn is_equal_within_source(source: &'src str, left: &SparseChars, right: &str) -> bool {
-        let left = left
-            .iter()
-            .flat_map(|range| source[range.start..range.end].chars());
-        let right = right.chars();
-
-        left.eq(right)
-    }
     pub fn unwrap_diagnostic<T, E: Diagnostic, F: FnOnce(&mut Self) -> Result<T, E>>(
         &mut self,
         value: F,
@@ -341,12 +337,12 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
 #[derive(Debug, Clone)]
 pub enum TokenTree<'src> {
     IfDef {
-        macro_name: &'src SparseChars,
+        macro_name: &'src String,
         body: Vec<TokenTree<'src>>,
         opposition: Box<TokenTree<'src>>,
     },
     IfNDef {
-        macro_name: &'src SparseChars,
+        macro_name: &'src String,
         body: Vec<TokenTree<'src>>,
         opposition: Box<TokenTree<'src>>,
     },
@@ -375,4 +371,3 @@ pub enum TokenTree<'src> {
     Token(&'src Spanned<Token>),
     Directive(ControlLine<'src>),
 }
-

@@ -2,13 +2,13 @@ use std::ops::Range;
 
 use strum_macros::EnumString;
 
-use crate::{spanned::Spanned, sparsechars::SparseChars};
+use crate::{spanned::Spanned};
 
 #[derive(Debug, Clone)]
 pub enum Token {
-    Identifier(SparseChars),
-    StringLiteral(Vec<Range<usize>>),
-    PPNumber(SparseChars),
+    Identifier(String),
+    StringLiteral(String),
+    PPNumber(String),
 
     // Directive(Directive),
     ControlLine(Vec<Spanned<Token>>),
@@ -24,13 +24,13 @@ pub enum Token {
 }
 #[derive(Debug)]
 pub enum Directive {
-    DefineObject(Spanned<SparseChars>, Vec<Spanned<Token>>),
+    DefineObject(Spanned<String>, Vec<Spanned<Token>>),
     DefineFunction(
-        Spanned<SparseChars>,
+        Spanned<String>,
         Spanned<Vec<Spanned<Token>>>,
         Vec<Spanned<Token>>,
     ),
-    Undefine(Spanned<SparseChars>),
+    Undefine(Spanned<String>),
 }
 #[derive(Debug, PartialEq, Clone)]
 pub enum Whitespace {

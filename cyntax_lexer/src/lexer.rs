@@ -2,7 +2,6 @@ use cyntax_common::ast::Punctuator;
 use cyntax_common::ast::Token;
 use cyntax_common::ast::Whitespace;
 use cyntax_common::spanned::Spanned;
-use cyntax_common::sparsechars::SparseChars;
 use peekmore::PeekMore;
 use peekmore::PeekMoreIterator;
 
@@ -73,8 +72,8 @@ impl<'src> Iterator for Lexer<'src> {
         let is_newline = matches!(next.value, '\n');
 
         let token = match next {
-            span!(range, nondigit!()) => {
-                let identifier = self.lex_identifier(&range);
+            first_character @ span!(nondigit!()) => {
+                let identifier = self.lex_identifier(&first_character);
                 Some(identifier.map(|identifier| Token::Identifier(identifier)))
             }
 
@@ -83,13 +82,13 @@ impl<'src> Iterator for Lexer<'src> {
                 let string = self.lex_string_literal(range);
                 Some(string.map(|string| Token::StringLiteral(string)))
             }
-            span!(range, digit!()) => {
-                let number = self.lex_number(range);
+            first_character @ span!(digit!()) => {
+                let number = self.lex_number(&first_character);
                 Some(number.map(|num| Token::PPNumber(num)))
             }
             // Digits can start with 0
-            span!(dot_range, '.') if matches!(self.chars.peek(), Some(span!(digit!()))) => {
-                let number = self.lex_number(dot_range);
+            first_character @ span!('.') if matches!(self.chars.peek(), Some(span!(digit!()))) => {
+                let number = self.lex_number(&first_character);
 
                 Some(number.map(|num| Token::PPNumber(num)))
             }
@@ -165,22 +164,20 @@ impl<'src> Lexer<'src> {
             inside_control_line: false,
         }
     }
-    pub fn lex_identifier(&mut self, first_character: &CharLocation) -> Spanned<SparseChars> {
-        let mut ranges = vec![first_character.start..first_character.end];
-        let mut previous_end = first_character.end;
+    pub fn lex_identifier(&mut self, first_character: &Spanned<char>) -> Spanned<String> {
+        // let mut ranges = vec![first_character.start..first_character.end];
+        let mut identifier = String::from(first_character.value);
+        let mut previous_end = first_character.range.end;
 
         while let Some(span!(identifier!())) = self.chars.peek() {
             let next = self.chars.next().unwrap();
             previous_end = next.range.end;
-            ranges.push(next.range);
+            identifier.push(next.value);
         }
-        Spanned::new(
-            first_character.start..previous_end,
-            SparseChars::new(ranges),
-        )
+        Spanned::new(first_character.range.start..previous_end, identifier)
     }
-    pub fn lex_string_literal(&mut self, range: CharLocation) -> Spanned<Vec<CharLocation>> {
-        let mut ranges = vec![];
+    pub fn lex_string_literal(&mut self, range: CharLocation) -> Spanned<String> {
+        let mut ranges = String::new();
         let mut end = range.end;
 
         while let Some(span!(c)) = self.chars.peek() {
@@ -197,15 +194,15 @@ impl<'src> Lexer<'src> {
 
             let next = self.chars.next().unwrap();
             end = next.range.end;
-            ranges.push(next.range);
+            ranges.push(next.value);
         }
 
         Spanned::new(range.start..end, ranges)
     }
-    pub fn lex_number(&mut self, first_character: CharLocation) -> Spanned<SparseChars> {
-        let start = first_character.start;
-        let mut end = first_character.end;
-        let mut number = vec![first_character];
+    pub fn lex_number(&mut self, first_character: &Spanned<char>) -> Spanned<String> {
+        let start = first_character.range.start;
+        let mut end = first_character.range.end;
+        let mut number = String::from(first_character.value);
 
         let mut expecting_exponent = false;
         while let Some(span!(c)) = self.chars.peek() {
@@ -213,44 +210,39 @@ impl<'src> Lexer<'src> {
                 'e' | 'E' | 'p' | 'P' => {
                     expecting_exponent = true;
                     // e / E / p / P
-                    number.push(self.chars.next().unwrap().range);
+                    number.push(self.chars.next().unwrap().value);
                 }
                 '+' | '-' if expecting_exponent => {
                     expecting_exponent = false;
                     let sign = self.chars.next().unwrap();
                     end = sign.range.end;
-                    number.push(sign.range);
+                    number.push(sign.value);
                 }
                 '.' | digit!() => {
                     let dot_or_digit = self.chars.next().unwrap();
                     end = dot_or_digit.range.end;
-                    number.push(dot_or_digit.range);
+                    number.push(dot_or_digit.value);
                 }
 
                 // Identifier parts must start with a nondigit, otherwise it would just... be a part of the preceeding number
                 nondigit!() => {
                     let nondigit = self.chars.next().unwrap();
                     end = nondigit.range.end;
-                    let identifier = self.lex_identifier(&nondigit.range);
-                    match identifier
-                        .value
-                        .last
-                        .as_ref()
-                        .map(|c| &self.source[c.start..c.end])
-                    {
-                        Some("e" | "E" | "p" | "P") => {
+                    let identifier = self.lex_identifier(&nondigit);
+                    match identifier.value.chars().last().as_ref() {
+                        Some('e' | 'E' | 'p' | 'P') => {
                             expecting_exponent = true;
                         }
                         _ => {}
                     }
 
-                    number.extend(identifier.value.iter());
+                    number.push_str(&identifier.value);
                 }
                 _ => break,
             }
         }
 
-        Spanned::new(start..end, SparseChars::new(number))
+        Spanned::new(start..end, number)
     }
     pub fn lex_delimited(
         &mut self,
