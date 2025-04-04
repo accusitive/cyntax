@@ -46,20 +46,21 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         Ok(())
     }
     pub fn expand_one(&mut self) -> PResult<()> {
-        if let Some(token) = self.token_trees.next() {
-            dbg!(&token);
-            match token {
+        if let Some(token_tree) = self.token_trees.next() {
+            dbg!(&token_tree);
+            match token_tree {
                 //Its ugly but we produce OwnedTokens when we reinject tokens back into the token stream
                 TokenTree::OwnedToken(span!(Token::Identifier(identifier)))
                     if self.macros.get(&identifier).is_some() =>
                 {
-                    self.expand_identifier(&identifier)?;
+                    // let tt = self.expect_tt_token(token_tree).unwrap();
+                    self.expand_identifier(&tok, &identifier)?;
                 }
 
-                TokenTree::Token(span!(Token::Identifier(identifier)))
+                TokenTree::Token(tok @ span!(Token::Identifier(identifier)))
                     if self.macros.get(identifier).is_some() =>
                 {
-                    self.expand_identifier(identifier)?;
+                    self.expand_identifier(tok, identifier)?;
                 }
 
                 TokenTree::OwnedToken(
@@ -134,7 +135,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
     fn next_token(&mut self) -> Option<TokenTree<'src>> {
         self.token_trees.next()
     }
-    pub fn expand_identifier(&mut self, identifier: &String) -> PResult<()> {
+    pub fn expand_identifier(&mut self, token: &Spanned<Token>, identifier: &String) -> PResult<()> {
         match { self.macros.get(identifier).unwrap().clone() } {
             MacroDefinition::Object(replacement_list) => {
                 self.token_trees
@@ -144,13 +145,14 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                 parameter_list: parameters,
                 replacment_list,
             } => {
-                self.expand_function_style_macro(&parameters, &replacment_list);
+                self.expand_function_style_macro(&token, &parameters, &replacment_list);
             }
         }
         Ok(())
     }
     pub fn expand_function_style_macro(
         &mut self,
+        token: &Spanned<Token>,
         parameters: &Vec<&'src String>,
         replacment_list: &Vec<&'src Spanned<Token>>,
     ) {
@@ -160,8 +162,14 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         // let argument_list = self.maybe_fix_delimiter(argument_list).unwrap();
         // let argument_list = self.expect_tt_token(argument_list).unwrap();
         let argument_container = self
-            .expect_delimited(&argument_list)
-            .unwrap_diagnostic("test.c", self.source);
+            .expect_delimited(&argument_list);
+        if argument_container.is_err() {
+            self.token_trees.prepend_extend(std::iter::once());
+            return;
+        }
+        let argument_container = argument_container.unwrap();
+
+            // .unwrap_diagnostic("test.c", self.source);
         let split_delimited = self.split_delimited(&argument_container.2);
         let mut map: HashMap<String, Vec<Spanned<Token>>> = HashMap::new();
         for (&param, arg) in parameters.iter().zip(split_delimited.iter()) {
