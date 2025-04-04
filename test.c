@@ -1,8 +1,5 @@
-#define a 10
+#define a 14
 #define b a
 #define c b
-#define d c
 
-int x = d;
-#define c 42
-int y  = d;
+int x = c;

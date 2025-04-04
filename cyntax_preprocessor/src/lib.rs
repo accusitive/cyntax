@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use cyntax_common::{ast::Token, spanned::Spanned};
-use expand::ExpandTokens;
+use expand::Expander;
 use tree::{IntoTokenTree, TokenTree};
 mod expand;
 mod tree;
@@ -31,18 +31,19 @@ impl<'src> Preprocessor<'src> {
             token_trees: itt,
         }
     }
-    pub fn expand(&mut self) -> Vec<Spanned<Token>> {
-        let mut state = HashMap::new();
-        let tt = &mut self.token_trees;
-        let expanded = ExpandTokens {
-            source: self.file_source,
-            macros: &mut state,
-            token_trees: tt.iter(),
-            current_function_params: None,
-        }
-        .flatten()
-        .collect::<Vec<_>>();
+    pub fn expand(self) -> Vec<Spanned<Token>> {
+        // let mut state = HashMap::new();
+        let tt = self.token_trees;
 
-        expanded
+        let mut expander = Expander {
+            source: self.file_source,
+            token_trees: tt.into_iter(),
+            rescan_queue: vec![],
+            output: vec![],
+            macros: HashMap::new(),
+        };
+        expander.expand();
+
+        expander.output
     }
 }
