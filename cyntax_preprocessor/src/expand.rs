@@ -77,78 +77,19 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
     pub fn expand(&mut self) {
         while let Some(token) = self.token_trees.next() {
             match token {
+                //Its ugly but we produce OwnedTokens when we reinject tokens back into the token stream
+                TokenTree::OwnedToken(span!(Token::Identifier(identifier)))
+                    if self.macros.get(&identifier).is_some() =>
+                {
+                    self.expand_identifier(&identifier);
+                }
+
                 TokenTree::Token(span!(Token::Identifier(identifier)))
                     if self.macros.get(identifier).is_some() =>
                 {
-                    match self.macros.get(identifier).unwrap() {
-                        MacroDefinition::Object(replacement_list) => {
-                            self.token_trees.prepend_extend(
-                                replacement_list.iter().map(|token| TokenTree::Token(token)),
-                            );
-                        }
-                        MacroDefinition::Function {
-                            parameter_list: parameters,
-                            replacment_list,
-                        } => {
-                            let argument_list = self.token_trees.next().unwrap();
-                            let argument_list = self.expect_tt_token(argument_list).unwrap();
-                            let argument_container = self.expect_delimited(argument_list).unwrap();
-                            let split_delimited = self.split_delimited(&argument_container.2);
-
-                            let mut map: HashMap<String, Vec<Spanned<Token>>> = HashMap::new();
-                            for (&param, arg) in parameters.iter().zip(split_delimited.iter()) {
-                                map.insert(param.to_string(), Self::i_hate_this(arg));
-                            }
-
-                            let replacement_list = self
-                                .apply(
-                                    &|token| match &token {
-                                        span!(Token::Identifier(i)) => {
-                                            if let Some(e) = map.get(i) {
-                                                e.to_vec()
-                                            } else {
-                                                vec![token]
-                                            }
-                                        }
-                                        _ => vec![token],
-                                    },
-                                    Self::i_hate_this(replacment_list).into_iter(),
-                                )
-                                .into_iter()
-                                .map(|token| TokenTree::OwnedToken(token));
-
-                            self.token_trees.prepend_extend(replacement_list);
-                            // TODO: make this work recursively, im pretty sure it can be extracted into a function
-                            // like self.replace_params_with_args(ts: TokenStream) -> TokenStream
-                            // then it replaces all identifiers with params,
-                            // and delimiters it recursively calls itself
-
-                            // GL future me
-
-                            // let replacement_list = replacment_list
-                            //     .iter()
-                            //     .map(|token| match token {
-                            //         span!(Token::Delimited { opener, closer, inner_tokens }) => {
-                            //             //
-                            //         }
-                            //         span!(Token::Identifier(i)) => {
-                            //             if let Some(e) = map.get(i) {
-                            //                 e.to_vec()
-                            //             } else {
-                            //                 vec![(*token).clone()]
-                            //             }
-                            //         }
-                            //         _ => vec![(*token).clone()]
-                            //     })
-                            //     .flatten()
-                            //     .map(|token| TokenTree::OwnedToken(token));
-
-                            // self.token_trees.prepend_extend(replacement_list);
-
-                            dbg!(&argument_list);
-                        }
-                    }
+                    self.expand_identifier(identifier);
                 }
+
                 TokenTree::Token(spanned) => {
                     self.output.push(spanned.clone());
                 }
@@ -160,6 +101,75 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                 }
 
                 _ => {}
+            }
+        }
+    }
+    pub fn expand_identifier(&mut self, identifier: &String) {
+        match self.macros.get(identifier).unwrap() {
+            MacroDefinition::Object(replacement_list) => {
+                self.token_trees
+                    .prepend_extend(replacement_list.iter().map(|token| TokenTree::Token(token)));
+            }
+            MacroDefinition::Function {
+                parameter_list: parameters,
+                replacment_list,
+            } => {
+                let argument_list = self.token_trees.next().unwrap();
+                let argument_list = self.expect_tt_token(argument_list).unwrap();
+                let argument_container = self.expect_delimited(&argument_list).unwrap();
+                let split_delimited = self.split_delimited(&argument_container.2);
+
+                let mut map: HashMap<String, Vec<Spanned<Token>>> = HashMap::new();
+                for (&param, arg) in parameters.iter().zip(split_delimited.iter()) {
+                    map.insert(param.to_string(), Self::i_hate_this(arg));
+                }
+
+                let replacement_list = self
+                    .apply(
+                        &|token| match &token {
+                            span!(Token::Identifier(i)) => {
+                                if let Some(e) = map.get(i) {
+                                    e.to_vec()
+                                } else {
+                                    vec![token]
+                                }
+                            }
+                            _ => vec![token],
+                        },
+                        Self::i_hate_this(replacment_list).into_iter(),
+                    )
+                    .into_iter()
+                    .map(|token| TokenTree::OwnedToken(token));
+
+                self.token_trees.prepend_extend(replacement_list);
+                // TODO: make this work recursively, im pretty sure it can be extracted into a function
+                // like self.replace_params_with_args(ts: TokenStream) -> TokenStream
+                // then it replaces all identifiers with params,
+                // and delimiters it recursively calls itself
+
+                // GL future me
+
+                // let replacement_list = replacment_list
+                //     .iter()
+                //     .map(|token| match token {
+                //         span!(Token::Delimited { opener, closer, inner_tokens }) => {
+                //             //
+                //         }
+                //         span!(Token::Identifier(i)) => {
+                //             if let Some(e) = map.get(i) {
+                //                 e.to_vec()
+                //             } else {
+                //                 vec![(*token).clone()]
+                //             }
+                //         }
+                //         _ => vec![(*token).clone()]
+                //     })
+                //     .flatten()
+                //     .map(|token| TokenTree::OwnedToken(token));
+
+                // self.token_trees.prepend_extend(replacement_list);
+
+                dbg!(&argument_list);
             }
         }
     }
@@ -220,9 +230,11 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
             _ => None,
         }
     }
-    pub fn expect_tt_token(&self, token_tree: TokenTree<'src>) -> Option<&'src Spanned<Token>> {
+    pub fn expect_tt_token<'a>(&self, token_tree: TokenTree<'src>) -> Option<Spanned<Token>> {
         match token_tree {
-            TokenTree::Token(spanned) => Some(spanned),
+            TokenTree::Token(spanned) => Some(spanned.clone()),
+            TokenTree::OwnedToken(spanned) => Some(spanned),
+
             _ => None,
         }
     }
@@ -261,10 +273,10 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
     // [,,] -> [[], []]
     // [2+5] -> [[2+5]]
     // [2+5,] -> [[2+5], []]
-    pub fn split_delimited(
+    pub fn split_delimited<'a>(
         &self,
-        tokens: &'src Spanned<Vec<Spanned<Token>>>,
-    ) -> Vec<Vec<&'src Spanned<Token>>> {
+        tokens: &'a Spanned<Vec<Spanned<Token>>>,
+    ) -> Vec<Vec<&'a Spanned<Token>>> {
         let mut element = vec![];
         let mut elements = vec![];
 
@@ -280,10 +292,10 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         dbg!(&elements);
         elements
     }
-    pub fn expect_delimited(
-        &self,
-        token: &'src Spanned<Token>,
-    ) -> Option<(&char, &char, &'src Spanned<Vec<Spanned<Token>>>)> {
+    pub fn expect_delimited<'a>(
+        &'a self,
+        token: &'a Spanned<Token>,
+    ) -> Option<(&'a char, &'a char, &'a Spanned<Vec<Spanned<Token>>>)> {
         match token {
             span!(Token::Delimited {
                 opener: open,
