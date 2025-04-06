@@ -175,16 +175,16 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
     pub fn handle_define_object<'func>(&mut self, macro_name: &'src String, replacment_list: &'func Vec<&'src Spanned<Token>>) {
         self.macros.insert(macro_name, MacroDefinition::Object(replacment_list.to_vec()));
     }
-    pub fn parse_parameters<'func>(&mut self, parameters: Spanned<Token>) -> Vec<String> {
-        if let span!(Token::Delimited { opener, closer, inner_tokens }) = parameters {
+    pub fn parse_parameters<'func>(&mut self, parameter_token: Spanned<Token>) -> Vec<String> {
+        if let span!(Token::Delimited { opener, closer, inner_tokens }) = parameter_token {
             let no_whitespace = inner_tokens.iter().filter(|token| !matches!(token, span!(Token::Whitespace(_))));
-            let arguments = self.split_delimited(no_whitespace);
-            for argument in &arguments {
-                if argument.len() >= 1 {
-                    panic!("todo: error about having more than one token in argument");
+            let parameters = self.split_delimited(no_whitespace);
+            for parameter in &parameters {
+                if parameter.len() >= 1 {
+                    panic!("todo: error about having more than one token in parameter");
                 }
             }
-            let arguments_as_strings = arguments
+            let parameters_as_strings = parameters
                 .into_iter()
                 .map(|argument| match argument.first() {
                     Some(span!(Token::Identifier(identifier))) => Some(identifier),
@@ -195,7 +195,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                 .filter_map(|a| a)
                 .cloned()
                 .collect();
-            arguments_as_strings
+            parameters_as_strings
         } else {
             unreachable!()
         }

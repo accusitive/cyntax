@@ -1,3 +1,3 @@
-#define a() YES
-#define b() a
-b()
+#define add(x,y) x+y
+
+add(,);
