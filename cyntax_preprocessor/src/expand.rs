@@ -9,6 +9,7 @@ use std::{
     collections::{HashMap, VecDeque},
     fmt::Debug,
     iter::Peekable,
+    rc::Rc,
 };
 
 use crate::{
@@ -55,11 +56,11 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         match tt {
             // When encountering an opening delimiter, collect all tokens between that and a matching closing delimiter, then reinject it into the token stream to be further processe
             TokenTree::Token(opening_token @ span!(Token::Punctuator(Punctuator::LeftParen | Punctuator::LeftBrace | Punctuator::LeftBracket))) => {
-                let inner = self.collect_inside(opening_token)?;
+                let inner = self.collect_until_closing_delimiter(opening_token)?;
                 self.token_trees.prepend(inner);
             }
             TokenTree::OwnedToken(ref opening_token @ span!(Token::Punctuator(Punctuator::LeftParen | Punctuator::LeftBrace | Punctuator::LeftBracket))) => {
-                let inner = self.collect_inside(opening_token)?;
+                let inner = self.collect_until_closing_delimiter(opening_token)?;
                 self.token_trees.prepend(inner);
                 println!("prepended");
             }
@@ -80,9 +81,9 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                     },
                 ));
             }
-            TokenTree::Token(spanned @ span!(Token::Identifier(idenitfier))) => match self.macros.get(idenitfier) {
+            TokenTree::Token(spanned @ span!(Token::Identifier(idenitfier))) => match self.macros.get(idenitfier).cloned() {
                 Some(MacroDefinition::Function { parameter_list, replacment_list }) => {
-                    self.handle_function_style_macro_invocation(spanned, &mut output);
+                    self.handle_function_style_macro_invocation(spanned, &parameter_list, &replacment_list, &mut output);
                 }
                 Some(MacroDefinition::Object(replacement_list)) => {
                     self.token_trees.prepend_extend(replacement_list.iter().map(|token| TokenTree::OwnedToken((*token).clone())));
@@ -91,9 +92,9 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                     output.push(spanned.clone());
                 }
             },
-            TokenTree::OwnedToken(ref spanned @ span!(Token::Identifier(ref idenitfier))) => match self.macros.get(idenitfier) {
+            TokenTree::OwnedToken(ref spanned @ span!(Token::Identifier(ref idenitfier))) => match self.macros.get(idenitfier).cloned() {
                 Some(MacroDefinition::Function { parameter_list, replacment_list }) => {
-                    unimplemented!()
+                    self.handle_function_style_macro_invocation(spanned, &parameter_list, &replacment_list, &mut output);
                 }
                 Some(MacroDefinition::Object(replacement_list)) => {
                     self.token_trees.prepend_extend(replacement_list.iter().map(|token| TokenTree::OwnedToken((*token).clone())));
@@ -115,42 +116,42 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         }
         Ok(output)
     }
-    pub fn handle_function_style_macro_invocation(&mut self, spanned: &Spanned<Token>, output: &mut Vec<Spanned<Token>>) {
+    pub fn handle_function_style_macro_invocation(&mut self, macro_name: &Spanned<Token>, parameterlist: &Vec<String>, replacement_list: &Vec<&'src Spanned<Token>>, output: &mut Vec<Spanned<Token>>) {
         // if the token invocation is failed, ie, the identifier IS a valid function styler macro, but there is no argument list following it
-        let mut not_invoked = false;
-        
-        // if let Some(TokenTree::Token(span!(Token::Punctuator(Punctuator::LeftParen)))) = self.peek_non_whitespace() {
+        let next_non_whitespace = self.peek_non_whitespace();
+        if matches!(next_non_whitespace, Some(TokenTree::Token(span!(Token::Punctuator(Punctuator::LeftParen))))) {
+            let lparen = self.next_non_whitespace().unwrap().as_token();
+            let inside = self.collect_until_closing_delimiter(&lparen).unwrap();
+            let expanded = self.expand_token_tree(inside).unwrap();
+            let args = if let span!(Token::Delimited { opener: _, closer: _, inner_tokens }) = expanded.first().as_ref().unwrap() {
+                self.split_delimited(inner_tokens.iter())
+            } else {
+                panic!("this should never be reachable")
+            };
 
-        // } else {
-        //     not_invoked = true;
-        // }
-        // if let Some(tt) = self.peek_non_whitespace() {
-        //     let tok = tt.as_token().into_owned();
-        //     match tok {
-        //         span!(Token::Punctuator(Punctuator::LeftParen)) => {
-        //             dbg!(&tt, self.next_non_whitespace().unwrap());
-
-        //             let inside = self.collect_inside(&tok).unwrap();
-        //             let expanded = self.expand_token_tree(inside).unwrap();
-        //             assert_eq!(expanded.len(), 1);
-        //             let expanded = expanded.first().unwrap();
-        //             if let span!(Token::Delimited { opener: _, closer: _, inner_tokens }) = expanded {
-        //                 let args = self.split_delimited(inner_tokens.iter());
-        //                 dbg!(&args);
-        //             } else {
-        //                 unreachable!("how?????");
-        //             }
-        //         }
-        //         _ => {
-        //             not_invoked = true;
-        //         }
-        //     }
-        // } else {
-        //     not_invoked = true;
-        // }
-
-        if not_invoked {
-            output.push(spanned.clone());
+            assert_eq!(args.len(), parameterlist.len());
+            dbg!(&args);
+            let map: HashMap<_, _> = parameterlist.into_iter().zip(args).collect();
+            dbg!(&map);
+            let idk = replacement_list
+                .iter()
+                .map(|token| {
+                    if let span!(Token::Identifier(identifier)) = token {
+                        match map.get(identifier) {
+                            Some(replacement_list) => replacement_list.to_vec(),
+                            None => vec![*token],
+                        }
+                    } else {
+                        vec![*token]
+                    }
+                })
+                .flatten()
+                .map(|token| TokenTree::OwnedToken((*token).clone()))
+                .collect::<Vec<_>>();
+            self.token_trees.prepend_extend(idk.into_iter());
+        } else {
+            output.push(macro_name.clone());
+            return;
         }
     }
     pub fn handle_control_line(&mut self, control_line: ControlLine<'src>) {
@@ -217,7 +218,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         elements
     }
 
-    pub fn collect_inside(&mut self, opening_token: &Spanned<Token>) -> PResult<TokenTree<'src>> {
+    pub fn collect_until_closing_delimiter(&mut self, opening_token: &Spanned<Token>) -> PResult<TokenTree<'src>> {
         let opening_char = opening_token.map_ref(|tok| match tok {
             Token::Punctuator(Punctuator::LeftParen) => '(',
             Token::Punctuator(Punctuator::LeftBracket) => '[',
@@ -255,24 +256,24 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         }
         .into_why_report())
     }
-    // pub fn peek_non_whitespace(&mut self) -> Option<TokenTree<'src>> {
-    //     self.peek_non_whitespace_nth(0)
-    // }
-    // pub fn peek_non_whitespace_nth(&mut self, n: usize) -> Option<TokenTree<'src>> {
-    //     let tt = self.token_trees.peek_nth(n).cloned();
+    pub fn peek_non_whitespace(&mut self) -> Option<TokenTree<'src>> {
+        self.peek_non_whitespace_nth(0)
+    }
+    pub fn peek_non_whitespace_nth(&mut self, n: usize) -> Option<TokenTree<'src>> {
+        let tt = self.token_trees.peek_nth(n).cloned();
 
-    //     match tt {
-    //         Some(TokenTree::Token(span!(Token::Whitespace(_)))) => self.peek_non_whitespace_nth(n + 1),
-    //         Some(tt) => Some(tt),
-    //         None => None,
-    //     }
-    // }
-    // pub fn next_non_whitespace(&mut self) -> Option<TokenTree<'src>> {
-    //     let tt = self.nex
+        match tt {
+            Some(TokenTree::Token(span!(Token::Whitespace(_)))) => self.peek_non_whitespace_nth(n + 1),
+            Some(tt) => Some(tt),
+            None => None,
+        }
+    }
+    pub fn next_non_whitespace(&mut self) -> Option<TokenTree<'src>> {
+        let tt = self.token_trees.next()?;
 
-    //     match tt {
-    //         TokenTree::Token(span!(Token::Whitespace(_))) => self.peek_non_whitespace(),
-    //         tt => Some(tt),
-    //     }
-    // }
+        match tt {
+            TokenTree::Token(span!(Token::Whitespace(_))) => self.next_non_whitespace(),
+            tt => Some(tt),
+        }
+    }
 }
