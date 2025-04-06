@@ -26,11 +26,7 @@ impl<I: Iterator + Debug> PrependingPeekableIterator<I> {
         Self { queue: VecDeque::new(), inner: i.peekmore() }
     }
     pub fn peek(&mut self) -> Option<&I::Item> {
-        if let Some(front) = self.queue.front() {
-            return Some(front);
-        } else {
-            self.inner.peek()
-        }
+        self.peek_nth(0)
     }
     pub fn peek_nth(&mut self, n: usize) -> Option<&I::Item> {
         self.queue.get(n).or_else(|| self.inner.peek_nth(n - self.queue.len()))

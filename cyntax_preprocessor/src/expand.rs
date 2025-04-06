@@ -119,7 +119,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
     pub fn handle_function_style_macro_invocation(&mut self, macro_name: &Spanned<Token>, parameterlist: &Vec<String>, replacement_list: &Vec<&'src Spanned<Token>>, output: &mut Vec<Spanned<Token>>) {
         // if the token invocation is failed, ie, the identifier IS a valid function styler macro, but there is no argument list following it
         let next_non_whitespace = self.peek_non_whitespace();
-        if matches!(next_non_whitespace, Some(TokenTree::Token(span!(Token::Punctuator(Punctuator::LeftParen))))) {
+        if matches!(next_non_whitespace, Some(TokenTree::Token(span!(Token::Punctuator(Punctuator::LeftParen))))) || matches!(next_non_whitespace, Some(TokenTree::OwnedToken(span!(Token::Punctuator(Punctuator::LeftParen))))) {
             let lparen = self.next_non_whitespace().unwrap().as_token();
             let inside = self.collect_until_closing_delimiter(&lparen).unwrap();
             let expanded = self.expand_token_tree(inside).unwrap();
@@ -179,20 +179,19 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         if let span!(Token::Delimited { opener, closer, inner_tokens }) = parameter_token {
             let no_whitespace = inner_tokens.iter().filter(|token| !matches!(token, span!(Token::Whitespace(_))));
             let parameters = self.split_delimited(no_whitespace);
+            dbg!(&parameters);
             for parameter in &parameters {
-                if parameter.len() >= 1 {
-                    panic!("todo: error about having more than one token in parameter");
+                if parameter.len() != 1 {
+                    panic!("argument must be exactly one identifier");
                 }
             }
             let parameters_as_strings = parameters
                 .into_iter()
-                .map(|argument| match argument.first() {
-                    Some(span!(Token::Identifier(identifier))) => Some(identifier),
-                    None => None,
+                .map(|argument| match argument.first().unwrap() {
+                    span!(Token::Identifier(identifier)) => identifier,
                     // above is a check to make sure that each parameter is exactly one token, and its just an identifier
                     _ => unreachable!(),
                 })
-                .filter_map(|a| a)
                 .cloned()
                 .collect();
             parameters_as_strings
@@ -210,23 +209,18 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         let mut elements = vec![];
         let mut current_element = vec![];
 
-        macro_rules! flush {
-            () => {
-                if current_element.len() > 0 {
-                    elements.push(std::mem::replace(&mut current_element, Vec::new()));
-                }
-            };
-        }
-
         while let Some(token) = tokens.next() {
             if matches!(token, span!(Token::Punctuator(Punctuator::Comma))) {
-                flush!();
+                elements.push(std::mem::replace(&mut current_element, Vec::new()));
             } else {
                 current_element.push(token);
             }
         }
-        flush!();
-        elements
+        elements.push(std::mem::replace(&mut current_element, Vec::new()));
+
+        // manual override for `[]` -> `[]`
+        // this can probably be fixed algorithmically
+        if elements.len() == 1 && elements.first().unwrap().len() == 0 { vec![] } else { elements }
     }
 
     pub fn collect_until_closing_delimiter(&mut self, opening_token: &Spanned<Token>) -> PResult<TokenTree<'src>> {
