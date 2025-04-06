@@ -163,23 +163,35 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
                 return ControlLine::Elif { condition };
             }
             _ if directive_name == "endif" => {
-                // _ if Self::is_equal_within_source(self.source, &directive_name, "endif") => {
                 return ControlLine::EndIf;
             }
             _ if directive_name == "define" => {
-                // _ if Self::is_equal_within_source(self.source, &directive_name, "define") => {
                 skip_whitespace(&mut tokens_iter);
 
                 let macro_name = self.expect_identifier(&mut tokens_iter).expect("expected macro_name in ifdef directive");
-                // dbg!(&tokens_iter.peek());
-                // panic!();
-                if matches!(tokens_iter.peek(), Some(span!(Token::Delimited { opener: span!('('), closer: _, inner_tokens: _ }))) {
-                    let parameters = tokens_iter.next().unwrap();
-                    if matches!(tokens_iter.peek(), Some(span!(Token::Whitespace(Whitespace::Space)))) {
-                        tokens_iter.next().unwrap();
+                if matches!(tokens_iter.peek(), Some(span!(Token::Punctuator(Punctuator::LeftParen)))) {
+                    let opener = tokens_iter.next().unwrap();
+                    let mut parameters = vec![];
+
+                    while let Some(token) = tokens_iter.next() {
+                        if matches!(token, span!(Token::Punctuator(Punctuator::RightParen))) {
+                            let end = parameters.last().map(|param: &Spanned<_>| param.range.end).unwrap_or(opener.range.end);
+                            let parameters_token = Token::Delimited {
+                                opener: opener.map_ref(|_| '('),
+                                closer: token.map_ref(|_| ')'),
+                                inner_tokens: parameters,
+                            };
+                            let replacement_list = tokens_iter.collect();
+                            return ControlLine::DefineFunction {
+                                macro_name: macro_name,
+                                parameters: Spanned::new(opener.range.start..end, parameters_token),
+                                replacement_list: replacement_list,
+                            };
+                        } else {
+                            parameters.push(token.clone());
+                        }
                     }
-                    let replacement_list = tokens_iter.collect();
-                    return ControlLine::DefineFunction { macro_name, parameters, replacement_list };
+                    panic!("todo: error message for unmatched parenthesis in ");
                 } else {
                     if matches!(tokens_iter.peek(), Some(span!(Token::Whitespace(Whitespace::Space)))) {
                         tokens_iter.next().unwrap();
@@ -189,20 +201,17 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
                 }
             }
             _ if directive_name == "undef" => {
-                // _ if Self::is_equal_within_source(self.source, &directive_name, "undef") => {
                 skip_whitespace(&mut tokens_iter);
 
                 let macro_name = self.expect_identifier(&mut tokens_iter).expect("expected macro_name in ifdef directive");
                 return ControlLine::Undefine(macro_name);
             }
             _ if directive_name == "error" => {
-                // _ if Self::is_equal_within_source(self.source, &directive_name, "error") => {
                 skip_whitespace(&mut tokens_iter);
                 let reason = tokens_iter.next();
                 return ControlLine::Error(reason);
             }
             _ if directive_name == "warning" => {
-                // _ if Self::is_equal_within_source(self.source, &directive_name, "warning") => {
                 let reason = tokens_iter.next();
                 return ControlLine::Warning(reason);
             }
@@ -240,7 +249,7 @@ pub enum ControlLine<'src> {
     EndIf,
     DefineFunction {
         macro_name: &'src String,
-        parameters: &'src Spanned<Token>,
+        parameters: Spanned<Token>,
         replacement_list: Vec<&'src Spanned<Token>>,
     },
     DefineObject {

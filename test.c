@@ -1,4 +1,1 @@
-#define lp (
-#define rp 2)
-
-lp rp
+#define add(x, y) (x+y)

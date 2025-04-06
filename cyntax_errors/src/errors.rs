@@ -8,7 +8,7 @@ use crate::{Diagnostic, DiagnosticSeverity, Label};
 pub struct UnmatchedDelimiter {
     pub opening_delimiter_location: Range<usize>,
     pub potential_closing_delimiter_location: usize,
-    pub closing_delimiter: char,
+    pub closing_delimiter: String,
 }
 impl Diagnostic for UnmatchedDelimiter {
     fn title<'a>(&self) -> &'a str {
