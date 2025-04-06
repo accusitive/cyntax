@@ -202,6 +202,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
     }
     /// Splits a comma-delimited sequence of tokens into groups.
     ///
+    /// - `[]` -> `[]`
     /// - `[,,]` -> `[[], [], []]`
     /// - `[2+5]` -> `[[2+5]]`
     /// - `[2+5,]` -> `[[2+5], []]`
@@ -209,18 +210,22 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         let mut elements = vec![];
         let mut current_element = vec![];
 
-        while let Some(token) = tokens.next() {
-            if matches!(token, span!(Token::Punctuator(Punctuator::Comma))) {
+        macro_rules! flush {
+            () => {
                 if current_element.len() > 0 {
                     elements.push(std::mem::replace(&mut current_element, Vec::new()));
                 }
+            };
+        }
+
+        while let Some(token) = tokens.next() {
+            if matches!(token, span!(Token::Punctuator(Punctuator::Comma))) {
+                flush!();
             } else {
                 current_element.push(token);
             }
         }
-        if current_element.len() > 0 {
-            elements.push(std::mem::replace(&mut current_element, Vec::new()));
-        }
+        flush!();
         elements
     }
 
