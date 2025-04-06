@@ -118,29 +118,36 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
     pub fn handle_function_style_macro_invocation(&mut self, spanned: &Spanned<Token>, output: &mut Vec<Spanned<Token>>) {
         // if the token invocation is failed, ie, the identifier IS a valid function styler macro, but there is no argument list following it
         let mut not_invoked = false;
-        if let Some(tt) = self.peek_non_whitespace() {
-            let tok = tt.as_token().into_owned();
-            match tok {
-                span!(Token::Punctuator(Punctuator::LeftParen)) => {
-                    self.next_non_whitespace().unwrap();
-                    let inside = self.collect_inside(&tok).unwrap();
-                    let expanded = self.expand_token_tree(inside).unwrap();
-                    assert_eq!(expanded.len(), 1);
-                    let expanded = expanded.first().unwrap();
-                    if let span!(Token::Delimited { opener: _, closer: _, inner_tokens }) = expanded {
-                        let args = self.split_delimited(inner_tokens.iter());
-                        dbg!(&args);
-                    } else {
-                        unreachable!("how?????");
-                    }
-                }
-                _ => {
-                    not_invoked = true;
-                }
-            }
-        } else {
-            not_invoked = true;
-        }
+        
+        // if let Some(TokenTree::Token(span!(Token::Punctuator(Punctuator::LeftParen)))) = self.peek_non_whitespace() {
+
+        // } else {
+        //     not_invoked = true;
+        // }
+        // if let Some(tt) = self.peek_non_whitespace() {
+        //     let tok = tt.as_token().into_owned();
+        //     match tok {
+        //         span!(Token::Punctuator(Punctuator::LeftParen)) => {
+        //             dbg!(&tt, self.next_non_whitespace().unwrap());
+
+        //             let inside = self.collect_inside(&tok).unwrap();
+        //             let expanded = self.expand_token_tree(inside).unwrap();
+        //             assert_eq!(expanded.len(), 1);
+        //             let expanded = expanded.first().unwrap();
+        //             if let span!(Token::Delimited { opener: _, closer: _, inner_tokens }) = expanded {
+        //                 let args = self.split_delimited(inner_tokens.iter());
+        //                 dbg!(&args);
+        //             } else {
+        //                 unreachable!("how?????");
+        //             }
+        //         }
+        //         _ => {
+        //             not_invoked = true;
+        //         }
+        //     }
+        // } else {
+        //     not_invoked = true;
+        // }
 
         if not_invoked {
             output.push(spanned.clone());
@@ -248,30 +255,24 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         }
         .into_why_report())
     }
-    pub fn peek_non_whitespace(&mut self) -> Option<TokenTree<'src>>{
-        self.peek_non_whitespace_nth(0)
-    }
-    pub fn peek_non_whitespace_nth(&mut self, n: usize) -> Option<TokenTree<'src>>{
-        let tt = self.token_trees.peek_nth(n).cloned();
+    // pub fn peek_non_whitespace(&mut self) -> Option<TokenTree<'src>> {
+    //     self.peek_non_whitespace_nth(0)
+    // }
+    // pub fn peek_non_whitespace_nth(&mut self, n: usize) -> Option<TokenTree<'src>> {
+    //     let tt = self.token_trees.peek_nth(n).cloned();
 
-        match tt {
-            Some(TokenTree::Token(span!(Token::Whitespace(_)))) => {
-                self.peek_non_whitespace_nth(n+1)
-            }
-            Some(tt) => Some(tt),
-            None => None,
-        }
-    }
-    pub fn next_non_whitespace(&mut self) -> Option<TokenTree<'src>>{
+    //     match tt {
+    //         Some(TokenTree::Token(span!(Token::Whitespace(_)))) => self.peek_non_whitespace_nth(n + 1),
+    //         Some(tt) => Some(tt),
+    //         None => None,
+    //     }
+    // }
+    // pub fn next_non_whitespace(&mut self) -> Option<TokenTree<'src>> {
+    //     let tt = self.nex
 
-        let tt = self.token_trees.next();
-
-        match tt {
-            Some(TokenTree::Token(span!(Token::Whitespace(_)))) => {
-                self.peek_non_whitespace()
-            }
-            Some(tt) => Some(tt),
-            None => None,
-        }
-    }
+    //     match tt {
+    //         TokenTree::Token(span!(Token::Whitespace(_))) => self.peek_non_whitespace(),
+    //         tt => Some(tt),
+    //     }
+    // }
 }
