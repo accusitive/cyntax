@@ -82,7 +82,22 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
             }
             TokenTree::Token(spanned @ span!(Token::Identifier(idenitfier))) => match self.macros.get(idenitfier) {
                 Some(MacroDefinition::Function { parameter_list, replacment_list }) => {
-                    unimplemented!()
+                    // if the token invocation is failed, ie, the identifier IS a valid function styler macro, but there is no argument list following it
+                    let mut not_invoked = false;
+                    if let Some(tt) = self.token_trees.peek() {
+                        match tt.as_token().into_owned() {
+                            span!(Token::Delimited { opener, closer, inner_tokens }) => {}
+                            _ => {
+                                not_invoked = true;
+                            }
+                        }
+                    } else {
+                        not_invoked = true;
+                    }
+
+                    if not_invoked {
+                        output.push(spanned.clone());
+                    }
                 }
                 Some(MacroDefinition::Object(replacement_list)) => {
                     self.token_trees.prepend_extend(replacement_list.iter().map(|token| TokenTree::OwnedToken((*token).clone())));
