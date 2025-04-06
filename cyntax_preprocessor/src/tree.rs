@@ -319,7 +319,7 @@ impl<'src> TokenTree<'src> {
         match self {
             TokenTree::Token(spanned) => Cow::Borrowed(*spanned),
             TokenTree::OwnedToken(spanned) => Cow::Owned(spanned.clone()),
-            _ => panic!(),
+            this => panic!("tried to assume {:?} was a token!", this),
         }
     }
 }

@@ -22,6 +22,7 @@ pub enum Token {
         inner_tokens: Vec<Spanned<Token>>,
     },
 }
+
 #[derive(Debug)]
 pub enum Directive {
     DefineObject(Spanned<String>, Vec<Spanned<Token>>),
