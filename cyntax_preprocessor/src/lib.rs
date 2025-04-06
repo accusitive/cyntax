@@ -4,14 +4,12 @@ use std::collections::HashMap;
 
 use cyntax_common::{ast::Token, spanned::Spanned};
 use expand::Expander;
-use matcher::Matcher;
 use prepend::PrependingPeekableIterator;
 use tree::{IntoTokenTree, TokenTree};
 
-mod tree;
-mod matcher;
-mod prepend;
 mod expand;
+mod prepend;
+mod tree;
 pub struct Preprocessor<'src> {
     // macros and whatever
     file_source: &'src str,
@@ -36,7 +34,7 @@ impl<'src> Preprocessor<'src> {
 
         let mut expander = Expander {
             source: self.file_source,
-            token_trees: Matcher{ inner: PrependingPeekableIterator::new(tt.into_iter())},
+            token_trees: PrependingPeekableIterator::new(tt.into_iter()),
             output: vec![],
             macros: HashMap::new(),
             eof: false,

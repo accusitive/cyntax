@@ -12,7 +12,6 @@ use std::{
 };
 
 use crate::{
-    matcher::Matcher,
     prepend::PrependingPeekableIterator,
     tree::{ControlLine, TokenTree},
 };
@@ -22,7 +21,7 @@ pub type PResult<T> = Result<T, Report>;
 #[derive(Debug)]
 pub struct Expander<'src, I: Debug + Iterator<Item = TokenTree<'src>>> {
     pub source: &'src str,
-    pub token_trees: Matcher<'src, PrependingPeekableIterator<I>>,
+    pub token_trees: PrependingPeekableIterator<I>,
     pub output: Vec<Spanned<Token>>,
     pub macros: HashMap<&'src String, MacroDefinition<'src>>,
     pub eof: bool,
@@ -48,12 +47,12 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
             // When encountering a `(`, colelct all tokens between that and a matching `)`, then reinject it into the token stream to be further processe
             TokenTree::Token(opening_token @ span!(Token::Punctuator(Punctuator::RightParen | Punctuator::RightBracket | Punctuator::RightBrace))) => {
                 let inner = self.collect_inside(opening_token).unwrap();
-                self.token_trees.inner.prepend(inner);
+                self.token_trees.prepend(inner);
                 println!("prepended");
             }
             TokenTree::OwnedToken(ref opening_token @ span!(Token::Punctuator(Punctuator::LeftParen))) => {
                 let inner = self.collect_inside(opening_token).unwrap();
-                self.token_trees.inner.prepend(inner);
+                self.token_trees.prepend(inner);
                 println!("prepended");
             }
             // When encountering a previously reinjected delimited token stream, expand the body and return a Delimited Token
@@ -77,7 +76,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
             TokenTree::Token(spanned @ span!(Token::Identifier(idenitfier))) => match self.macros.get(idenitfier) {
                 Some(MacroDefinition::Function { parameter_list, replacment_list }) => {}
                 Some(MacroDefinition::Object(replacement_list)) => {
-                    self.token_trees.inner.prepend_extend(replacement_list.iter().map(|token| TokenTree::OwnedToken((*token).clone())));
+                    self.token_trees.prepend_extend(replacement_list.iter().map(|token| TokenTree::OwnedToken((*token).clone())));
                 }
                 _ => {
                     output.push(spanned.clone());
@@ -86,7 +85,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
             TokenTree::OwnedToken(ref spanned @ span!(Token::Identifier(ref idenitfier))) => match self.macros.get(idenitfier) {
                 Some(MacroDefinition::Function { parameter_list, replacment_list }) => {}
                 Some(MacroDefinition::Object(replacement_list)) => {
-                    self.token_trees.inner.prepend_extend(replacement_list.iter().map(|token| TokenTree::OwnedToken((*token).clone())));
+                    self.token_trees.prepend_extend(replacement_list.iter().map(|token| TokenTree::OwnedToken((*token).clone())));
                 }
                 _ => {
                     output.push(spanned.clone());

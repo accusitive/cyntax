@@ -301,7 +301,7 @@ pub enum TokenTree<'src> {
 
     Token(&'src Spanned<Token>),
     OwnedToken(Spanned<Token>),
-    Delimited( Spanned<char>, Spanned<char>, Vec<TokenTree<'src>>),
+    Delimited(Spanned<char>, Spanned<char>, Vec<TokenTree<'src>>),
     Directive(ControlLine<'src>),
 }
 
@@ -310,7 +310,7 @@ impl<'src> TokenTree<'src> {
         match self {
             TokenTree::Token(spanned) => Cow::Borrowed(*spanned),
             TokenTree::OwnedToken(spanned) => Cow::Owned(spanned.clone()),
-            _ => panic!()
+            _ => panic!(),
         }
     }
 }
