@@ -29,7 +29,7 @@ pub struct Expander<'src, I: Debug + Iterator<Item = TokenTree<'src>>> {
 #[derive(Debug, Clone)]
 pub enum MacroDefinition<'src> {
     Object(ReplacementList<'src>),
-    Function { parameter_list: Vec<&'src String>, replacment_list: ReplacementList<'src> },
+    Function { parameter_list: Vec<String>, replacment_list: ReplacementList<'src> },
 }
 
 impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
@@ -38,11 +38,9 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
             match tokens {
                 Ok(tokens) => {
                     self.output.extend(tokens);
-
                 }
                 Err(e) => {
                     panic!("{}", e.with("test.c", self.source));
-                    
                 }
             }
         }
@@ -81,7 +79,6 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                         inner_tokens: delimited_body,
                     },
                 ));
-                println!("processed");
             }
             TokenTree::Token(spanned @ span!(Token::Identifier(idenitfier))) => match self.macros.get(idenitfier) {
                 Some(MacroDefinition::Function { parameter_list, replacment_list }) => {
@@ -140,9 +137,49 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
     pub fn handle_define_object<'func>(&mut self, macro_name: &'src String, replacment_list: &'func Vec<&'src Spanned<Token>>) {
         self.macros.insert(macro_name, MacroDefinition::Object(replacment_list.to_vec()));
     }
-    pub fn parse_parameters<'func>(&mut self, parameters: Spanned<Token>) -> Vec<&'func String> {
-        todo!()
+    pub fn parse_parameters<'func>(&mut self, parameters: Spanned<Token>) -> Vec<String> {
+        if let span!(Token::Delimited { opener, closer, inner_tokens }) = parameters {
+            let no_whitespace = inner_tokens.iter().filter(|token| !matches!(token, span!(Token::Whitespace(_))));
+            let arguments = self.split_delimited(no_whitespace);
+            for argument in &arguments {
+                if argument.len() > 1 {
+                    panic!("todo: error about having more than one token in argument");
+                }
+            }
+            let arguments_as_strings = arguments
+                .into_iter()
+                .map(|argument| match argument.first().unwrap() {
+                    span!(Token::Identifier(identifier)) => identifier,
+                    // above is a check to make sure that each parameter is exactly one token, and its just an identifier
+                    _ => unreachable!(),
+                })
+                .cloned()
+                .collect();
+            arguments_as_strings
+        } else {
+            unreachable!()
+        }
     }
+    /// Splits a comma-delimited sequence of tokens into groups.
+    ///
+    /// - `[,,]` -> `[[], [], []]`
+    /// - `[2+5]` -> `[[2+5]]`
+    /// - `[2+5,]` -> `[[2+5], []]`
+    pub fn split_delimited<'a, L: Iterator<Item = &'a Spanned<Token>>>(&self, mut tokens: L) -> Vec<Vec<&'a Spanned<Token>>> {
+        let mut elements = vec![];
+        let mut current_element = vec![];
+
+        while let Some(token) = tokens.next() {
+            if matches!(token, span!(Token::Punctuator(Punctuator::Comma))) {
+                elements.push(std::mem::replace(&mut current_element, Vec::new()));
+            } else {
+                current_element.push(token);
+            }
+        }
+        elements.push(std::mem::replace(&mut current_element, Vec::new()));
+        elements
+    }
+
     pub fn collect_inside(&mut self, opening_token: &Spanned<Token>) -> PResult<TokenTree<'src>> {
         let opening_char = opening_token.map_ref(|tok| match tok {
             Token::Punctuator(Punctuator::LeftParen) => '(',
