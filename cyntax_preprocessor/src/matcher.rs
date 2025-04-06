@@ -14,8 +14,8 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Iterator for Matcher<'sr
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.inner.next()? {
-            TokenTree::Token(opening_token @ span!(Token::Punctuator(Punctuator::LeftParen | Punctuator::LeftBracket | Punctuator::LeftBrace))) => self.collect_inside(opening_token),
-            TokenTree::OwnedToken(opening_token @ span!(Token::Punctuator(Punctuator::LeftParen | Punctuator::LeftBracket | Punctuator::LeftBrace))) => self.collect_inside(&opening_token),
+            // TokenTree::Token(opening_token @ span!(Token::Punctuator(Punctuator::LeftParen | Punctuator::LeftBracket | Punctuator::LeftBrace))) => self.collect_inside(opening_token),
+            // TokenTree::OwnedToken(opening_token @ span!(Token::Punctuator(Punctuator::LeftParen | Punctuator::LeftBracket | Punctuator::LeftBrace))) => self.collect_inside(&opening_token),
             token => Some(token),
         }
     }

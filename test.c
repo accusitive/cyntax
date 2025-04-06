@@ -1,4 +1,4 @@
 #define lp (
-#define rp )
+#define rp ) 2
 
-rp 42 lp
+lp rp

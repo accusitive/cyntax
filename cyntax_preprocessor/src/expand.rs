@@ -35,14 +35,28 @@ pub enum MacroDefinition<'src> {
 
 impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
     pub fn expand(&mut self) {
-        while let Some(tt) = self.token_trees.next() {
-            let t = self.expand_token_tree(tt);
-            self.output.extend(t);
+        while let Some(tokens) = self.expand_next() {
+            self.output.extend(tokens);
         }
+    }
+    pub fn expand_next(&mut self) -> Option<Vec<Spanned<Token>>> {
+        self.token_trees.next().map(|tt| self.expand_token_tree(tt))
     }
     pub fn expand_token_tree(&mut self, tt: TokenTree<'src>) -> Vec<Spanned<Token>> {
         let mut output = vec![];
         match tt {
+            // When encountering a `(`, colelct all tokens between that and a matching `)`, then reinject it into the token stream to be further processe
+            TokenTree::Token(opening_token @ span!(Token::Punctuator(Punctuator::RightParen | Punctuator::RightBracket | Punctuator::RightBrace))) => {
+                let inner = self.collect_inside(opening_token).unwrap();
+                self.token_trees.inner.prepend(inner);
+                println!("prepended");
+            }
+            TokenTree::OwnedToken(ref opening_token @ span!(Token::Punctuator(Punctuator::LeftParen))) => {
+                let inner = self.collect_inside(opening_token).unwrap();
+                self.token_trees.inner.prepend(inner);
+                println!("prepended");
+            }
+            // When encountering a previously reinjected delimited token stream, expand the body and return a Delimited Token
             TokenTree::Delimited(opener, closer, body) => {
                 let mut delimited_body = vec![];
                 for token in body {
@@ -58,6 +72,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                         inner_tokens: delimited_body,
                     },
                 ));
+                println!("processed");
             }
             TokenTree::Token(spanned @ span!(Token::Identifier(idenitfier))) => match self.macros.get(idenitfier) {
                 Some(MacroDefinition::Function { parameter_list, replacment_list }) => {}
@@ -113,5 +128,35 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
     }
     pub fn parse_parameters<'func>(&mut self, parameters: &'src Spanned<Token>) -> Vec<&'func String> {
         todo!()
+    }
+    pub fn collect_inside(&mut self, opening_token: &Spanned<Token>) -> Option<TokenTree<'src>> {
+        let opening_char = opening_token.map_ref(|tok| match tok {
+            Token::Punctuator(Punctuator::LeftParen) => '(',
+            Token::Punctuator(Punctuator::LeftBracket) => '[',
+            Token::Punctuator(Punctuator::LeftBrace) => '{',
+            _ => unreachable!(),
+        });
+
+        let mut inner = vec![];
+        while let Some(token) = self.expand_next() {
+            let expected_closer = match opening_char.value {
+                '(' => ')',
+                '[' => ']',
+                '{' => '}',
+                _ => unreachable!(),
+            };
+            let valid_closer = Punctuator::from_char(expected_closer).unwrap();
+            for token in &token {
+                match token {
+                    span!(rp, Token::Punctuator(punc @ (Punctuator::RightParen | Punctuator::RightBracket | Punctuator::RightBrace))) if *punc == valid_closer => {
+                        return Some(TokenTree::Delimited(opening_char, Spanned::new(rp.clone(), expected_closer), inner));
+                    }
+                    token => {
+                        inner.push(TokenTree::OwnedToken(token.clone()));
+                    }
+                }
+            }
+        }
+        panic!("unmatched delimiter");
     }
 }
