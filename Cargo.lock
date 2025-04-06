@@ -9,6 +9,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5c8214115b7bf84099f1309324e63141d4c5d7cc26862f97a0a857dbefe165bd"
 
 [[package]]
+name = "bumpalo"
+version = "3.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1628fb46dfa0b37568d12e5edd512553eccf6a22a78e8bde00bb4aed84d5bdbf"
+
+[[package]]
 name = "cab-why"
 version = "0.0.1"
 source = "git+https://github.com/accusitive/carcass/?rev=87c3d2a806f20fa2e1c2d8633815e1f64579e703#87c3d2a806f20fa2e1c2d8633815e1f64579e703"
@@ -43,6 +49,7 @@ checksum = "9e991226a70654b49d34de5ed064885f0bef0348a8e70018b8ff1ac80aa984a2"
 name = "cyntax"
 version = "0.1.0"
 dependencies = [
+ "bumpalo",
  "cyntax_common",
  "cyntax_lexer",
  "cyntax_preprocessor",

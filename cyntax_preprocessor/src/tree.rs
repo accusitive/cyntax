@@ -1,7 +1,7 @@
-use std::iter::Peekable;
+use std::{borrow::Cow, iter::Peekable};
 
 use cyntax_common::{
-    ast::{Token, Whitespace},
+    ast::{Punctuator, Token, Whitespace},
     spanned::Spanned,
 };
 use cyntax_errors::{Diagnostic, errors::UnterminatedTreeNode};
@@ -173,7 +173,7 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
                 let macro_name = self.expect_identifier(&mut tokens_iter).expect("expected macro_name in ifdef directive");
                 // dbg!(&tokens_iter.peek());
                 // panic!();
-                if matches!(tokens_iter.peek(), Some(span!(Token::Delimited { opener: '(', closer: Some(_), inner_tokens: _ }))) {
+                if matches!(tokens_iter.peek(), Some(span!(Token::Delimited { opener: span!('('), closer: _, inner_tokens: _ }))) {
                     let parameters = tokens_iter.next().unwrap();
                     if matches!(tokens_iter.peek(), Some(span!(Token::Whitespace(Whitespace::Space)))) {
                         tokens_iter.next().unwrap();
@@ -298,7 +298,19 @@ pub enum TokenTree<'src> {
     // }
     // Which doesnt seem beneficial in any way
     Endif,
+
     Token(&'src Spanned<Token>),
     OwnedToken(Spanned<Token>),
+    Delimited( Spanned<char>, Spanned<char>, Vec<TokenTree<'src>>),
     Directive(ControlLine<'src>),
+}
+
+impl<'src> TokenTree<'src> {
+    pub fn as_token(&self) -> Cow<'src, Spanned<Token>> {
+        match self {
+            TokenTree::Token(spanned) => Cow::Borrowed(*spanned),
+            TokenTree::OwnedToken(spanned) => Cow::Owned(spanned.clone()),
+            _ => panic!()
+        }
+    }
 }

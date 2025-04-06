@@ -21,20 +21,12 @@ fn print_tokens<'src, I: Iterator<Item = &'src Spanned<Token>>>(source: &'src st
             }
             Token::Delimited {
                 opener: opening,
-                closer: Some(closing),
+                closer: closing,
                 inner_tokens: tokens,
             } => {
-                print!("{}", opening);
-                print_tokens(source, tokens.value.iter());
-                print!("{}", closing);
-            }
-            Token::Delimited {
-                opener: opening,
-                closer: None,
-                inner_tokens: tokens,
-            } => {
-                print!("{}", opening);
-                print_tokens(source, tokens.value.iter());
+                print!("{}", opening.value);
+                print_tokens(source, tokens.iter());
+                print!("{}", closing.value);
             }
             Token::ControlLine(inner) => {
                 print!("#");
@@ -61,7 +53,7 @@ fn main() {
     {
         let expanded = pp.expand();
         println!("========================================================");
-        // dbg!(&expanded);
+        dbg!(&expanded);
         print_tokens(source, expanded.iter());
         println!();
     }

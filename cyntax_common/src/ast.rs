@@ -17,9 +17,9 @@ pub enum Token {
     Punctuator(Punctuator),
     /// closer being None is valid in control lines
     Delimited {
-        opener: char,
-        closer: Option<char>,
-        inner_tokens: Spanned<Vec<Spanned<Token>>>,
+        opener: Spanned<char>,
+        closer: Spanned<char>,
+        inner_tokens: Vec<Spanned<Token>>,
     },
 }
 #[derive(Debug)]
@@ -159,7 +159,7 @@ impl Punctuator {
     pub fn to_string(&self) -> String {
         match self {
             Punctuator::LeftBracket => "[".to_string(),
-            Punctuator::RightBracket => "".to_string(),
+            Punctuator::RightBracket => "]".to_string(),
             Punctuator::LeftParen => "(".to_string(),
             Punctuator::RightParen => ")".to_string(),
             Punctuator::LeftBrace => "{".to_string(),

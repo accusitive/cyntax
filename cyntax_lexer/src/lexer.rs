@@ -92,10 +92,6 @@ impl<'src> Iterator for Lexer<'src> {
             // span!(range, c@ ('(' | ')' | '{' | '}' | '[' | ']')) if self.ignore_delimiters => Some(
             //     Spanned::new(range, Token::Punctuator(Punctuator::from_char(c).unwrap())),
             // ),
-            span!(range, opening_delimiter @ opening_delimiter!()) => {
-                let token = self.lex_delimited(&range, opening_delimiter);
-                Some(token)
-            }
             // Entirely skip over line comments
             span!('/') if matches!(self.chars.peek(), Some(span!('/'))) => {
                 while let Some(span!(char)) = self.chars.next() {
@@ -234,59 +230,7 @@ impl<'src> Lexer<'src> {
 
         Spanned::new(start..end, number)
     }
-    pub fn lex_delimited(&mut self, range: &CharLocation, opening_delimiter: char) -> Spanned<Token> {
-        let mut tokens = vec![];
-        let closing_delimiter = Self::closing_delimiter_for(opening_delimiter);
-        let mut closed = false;
-        let mut end = range.end;
-        while let Some(span!(c)) = self.chars.peek() {
-            if self.inside_control_line && *c == '\n' {
-                break;
-            }
-            if *c == closing_delimiter {
-                closed = true;
-                self.next().unwrap();
-                break;
-            } else {
-                let next = self.next().unwrap();
-                end = next.range.end;
-                tokens.push(next);
-            }
-        }
-
-        dbg!(&closed, self.inside_control_line);
-        if !closed && self.inside_control_line {
-            return Spanned::new(
-                range.start..end,
-                Token::Delimited {
-                    opener: opening_delimiter,
-                    closer: None,
-                    inner_tokens: Spanned::new(range.start..end, tokens),
-                },
-            );
-        }
-        if !closed && !self.inside_control_line {
-            let err = cyntax_errors::errors::UnmatchedDelimiter {
-                opening_delimiter_location: range.start..range.end,
-                potential_closing_delimiter_location: end,
-                closing_delimiter,
-            };
-            self.fatal_diagnostic(err);
-        }
-        return Spanned::new(
-            range.start..end,
-            Token::Delimited {
-                opener: opening_delimiter,
-                closer: Some(closing_delimiter),
-                inner_tokens: Spanned::new(range.start..end, tokens),
-            },
-        );
-    }
 }
-// enum LexDelimitedResult {
-//     Delimited(char, Spanned<Vec<Spanned<Token>>>),
-//     UnmatchedButItsFine(Spanned<Vec<Spanned<Token>>>)
-// }
 // Util functions
 impl<'src> Lexer<'src> {
     pub fn fatal_diagnostic<E: cyntax_errors::Diagnostic>(&mut self, diagnostic: E) {
