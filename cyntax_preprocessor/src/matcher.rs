@@ -14,20 +14,32 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Iterator for Matcher<'sr
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.inner.next()? {
-            TokenTree::Token(lp @ span!(Token::Punctuator(Punctuator::LeftParen))) => {
+            TokenTree::Token(lp @ span!(Token::Punctuator(Punctuator::LeftParen | Punctuator::LeftBracket | Punctuator::LeftBrace))) => {
                 let c = lp.map_ref(|tok| match tok {
                     Token::Punctuator(Punctuator::LeftParen) => '(',
                     Token::Punctuator(Punctuator::LeftBracket) => '[',
                     Token::Punctuator(Punctuator::LeftBrace) => '{',
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 });
 
                 let mut inner = vec![];
                 while let Some(token) = self.next() {
+                    let closer = match c.value {
+                        '(' => ')',
+                        '[' => ']',
+                        '{' => '}',
+                        _ => unreachable!(),
+                    };
+                    let valid_closer = Punctuator::from_char(closer).unwrap();
                     match token {
-                        TokenTree::Token(rp @ span!(Token::Punctuator(Punctuator::RightParen))) => return Some(TokenTree::Delimited(c, rp.clone().map(|_| ')'), inner)),
-                        TokenTree::OwnedToken(rp @ span!(Token::Punctuator(Punctuator::RightParen))) => return Some(TokenTree::Delimited(c, rp.map(|_| ')'), inner)),
-                        _ => (),
+                        TokenTree::Token(rp @ span!(Token::Punctuator(punc @ (Punctuator::RightParen | Punctuator::RightBracket | Punctuator::RightBrace)))) if *punc == valid_closer => {
+                            return Some(TokenTree::Delimited(c, rp.map_ref(|_| closer), inner));
+                        }
+                        TokenTree::OwnedToken(ref rp @ span!(Token::Punctuator(ref punc @ (Punctuator::RightParen | Punctuator::RightBracket | Punctuator::RightBrace)))) if *punc == valid_closer => {
+                            return Some(TokenTree::Delimited(c, rp.map_ref(|_| closer), inner));
+                        }
+                        _ => {
+                        },
                     }
                     inner.push(token);
                 }
