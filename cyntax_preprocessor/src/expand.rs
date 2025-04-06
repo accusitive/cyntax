@@ -180,17 +180,19 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
             let no_whitespace = inner_tokens.iter().filter(|token| !matches!(token, span!(Token::Whitespace(_))));
             let arguments = self.split_delimited(no_whitespace);
             for argument in &arguments {
-                if argument.len() > 1 {
+                if argument.len() >= 1 {
                     panic!("todo: error about having more than one token in argument");
                 }
             }
             let arguments_as_strings = arguments
                 .into_iter()
-                .map(|argument| match argument.first().unwrap() {
-                    span!(Token::Identifier(identifier)) => identifier,
+                .map(|argument| match argument.first() {
+                    Some(span!(Token::Identifier(identifier))) => Some(identifier),
+                    None => None,
                     // above is a check to make sure that each parameter is exactly one token, and its just an identifier
                     _ => unreachable!(),
                 })
+                .filter_map(|a| a)
                 .cloned()
                 .collect();
             arguments_as_strings
@@ -209,12 +211,16 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
 
         while let Some(token) = tokens.next() {
             if matches!(token, span!(Token::Punctuator(Punctuator::Comma))) {
-                elements.push(std::mem::replace(&mut current_element, Vec::new()));
+                if current_element.len() > 0 {
+                    elements.push(std::mem::replace(&mut current_element, Vec::new()));
+                }
             } else {
                 current_element.push(token);
             }
         }
-        elements.push(std::mem::replace(&mut current_element, Vec::new()));
+        if current_element.len() > 0 {
+            elements.push(std::mem::replace(&mut current_element, Vec::new()));
+        }
         elements
     }
 
