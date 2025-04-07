@@ -9,6 +9,7 @@ use tree::{IntoTokenTree, TokenTree};
 
 mod expand;
 mod prepend;
+mod substitute;
 mod tree;
 pub struct Preprocessor<'src> {
     // macros and whatever

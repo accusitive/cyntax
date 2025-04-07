@@ -116,7 +116,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         }
         Ok(output)
     }
-    pub fn handle_function_style_macro_invocation(&mut self, macro_name: &Spanned<Token>, parameterlist: &Vec<String>, replacement_list: &Vec<&'src Spanned<Token>>, output: &mut Vec<Spanned<Token>>) {
+    pub fn handle_function_style_macro_invocation(&mut self, macro_name: &Spanned<Token>, parameter_list: &Vec<String>, replacement_list: &Vec<&'src Spanned<Token>>, output: &mut Vec<Spanned<Token>>) {
         // if the token invocation is failed, ie, the identifier IS a valid function styler macro, but there is no argument list following it
         let next_non_whitespace = self.peek_non_whitespace();
         if matches!(next_non_whitespace, Some(TokenTree::Token(span!(Token::Punctuator(Punctuator::LeftParen))))) || matches!(next_non_whitespace, Some(TokenTree::OwnedToken(span!(Token::Punctuator(Punctuator::LeftParen))))) {
@@ -129,29 +129,82 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                 panic!("this should never be reachable")
             };
 
-            assert_eq!(args.len(), parameterlist.len());
-            dbg!(&args);
-            let map: HashMap<_, _> = parameterlist.into_iter().zip(args).collect();
-            dbg!(&map);
-            let idk = replacement_list
-                .iter()
-                .map(|token| {
-                    if let span!(Token::Identifier(identifier)) = token {
-                        match map.get(identifier) {
-                            Some(replacement_list) => replacement_list.to_vec(),
-                            None => vec![*token],
-                        }
-                    } else {
-                        vec![*token]
-                    }
-                })
-                .flatten()
-                .map(|token| TokenTree::OwnedToken((*token).clone()))
-                .collect::<Vec<_>>();
-            self.token_trees.prepend_extend(idk.into_iter());
+            // This should raise an error if this expansion is not the result of a previously expanded macro
+            if args.len() != parameter_list.len() {
+                output.push(macro_name.clone());
+                output.extend(expanded);
+                return;
+            }
+            let map: HashMap<_, _> = parameter_list.into_iter().zip(args).collect();
+            let substituted = self.substitute_replacement_list_with_arguments(replacement_list.iter(), &map);
+
+            self.token_trees.prepend_extend(substituted.into_iter());
         } else {
             output.push(macro_name.clone());
             return;
+        }
+    }
+    pub fn substitute_replacement_list_with_arguments<'a, J: Iterator<Item = &'a &'a Spanned<Token>>>(&mut self, replacement_list: J, map: &HashMap<&String, ReplacementList<'a>>) -> Vec<TokenTree<'src>> {
+        let mut replacement_list = replacement_list.peekable();
+        let mut output = vec![];
+        while let Some(token) = replacement_list.next() {
+            match token {
+                span!(Token::Punctuator(Punctuator::Hash)) => {
+                    let param = replacement_list.next().expect("`#` must be followed by macro parameter");
+                    if let span!(Token::Identifier(identifier)) = param {
+                        if let Some(argument_replacement_list) = map.get(identifier) {
+                            let mut pasted = String::new();
+                            self.stringify_tokens(argument_replacement_list.to_vec().into_iter(), &mut pasted);
+                            output.push(TokenTree::OwnedToken(Spanned::new(0..0, Token::StringLiteral(pasted))));
+                        } else {
+                            panic!("no param")
+                        }
+                    } else {
+                        panic!("token following # must be an identifier")
+                    }
+                }
+                span!(Token::Identifier(identifier)) if map.contains_key(identifier) => {
+                    let replacement = map.get(identifier).unwrap();
+                    output.extend(replacement.iter().map(|token| TokenTree::OwnedToken((*token).clone())));
+                }
+
+                _ => {
+                    output.push(TokenTree::OwnedToken((*token).clone()));
+                }
+            }
+        }
+        output
+    }
+    pub fn stringify_tokens<'a, T: Iterator<Item = &'a Spanned<Token>>>(&mut self, tokens: T, s: &mut String) {
+        for token in tokens {
+            self.stringify_token(token, s);
+        }
+    }
+    pub fn stringify_token(&mut self, token: &Spanned<Token>, s: &mut String) {
+        match &token.value {
+            Token::Identifier(identifier) => s.push_str(identifier),
+            Token::StringLiteral(string) => {
+                s.push('"');
+                s.push_str(string);
+                s.push('"');
+            }
+            Token::PPNumber(number) => {
+                s.push_str(number);
+            }
+            Token::Whitespace(whitespace) => {
+                s.push(match whitespace {
+                    cyntax_common::ast::Whitespace::Space => ' ',
+                    cyntax_common::ast::Whitespace::Newline => '\n',
+                    cyntax_common::ast::Whitespace::Tab => '\t',
+                });
+            }
+            Token::Punctuator(punctuator) => s.push_str(&punctuator.to_string()),
+            Token::Delimited { opener, closer, inner_tokens } => {
+                s.push(opener.value);
+                self.stringify_tokens(inner_tokens.iter(), s);
+                s.push(closer.value);
+            }
+            Token::ControlLine(_) => unreachable!(),
         }
     }
     pub fn handle_control_line(&mut self, control_line: ControlLine<'src>) {

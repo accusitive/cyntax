@@ -1,3 +1,9 @@
-#define str(x) #x
+#define W Z
+#define Z(X) W(X,2)
+#define Y(X) Z(X)
+#define X Y
 
-str(2)
+int test = X(1);
+int main() {
+	return test;
+}
