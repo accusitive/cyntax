@@ -269,6 +269,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
 
         match tt {
             Some(TokenTree::Token(span!(Token::Whitespace(_)))) => self.peek_non_whitespace_nth(n + 1),
+            Some(TokenTree::OwnedToken(span!(Token::Whitespace(_)))) => self.peek_non_whitespace_nth(n + 1),
             Some(tt) => Some(tt),
             None => None,
         }
@@ -278,6 +279,8 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
 
         match tt {
             TokenTree::Token(span!(Token::Whitespace(_))) => self.next_non_whitespace(),
+            TokenTree::OwnedToken(span!(Token::Whitespace(_))) => self.next_non_whitespace(),
+
             tt => Some(tt),
         }
     }

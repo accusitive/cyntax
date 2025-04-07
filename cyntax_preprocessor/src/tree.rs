@@ -181,6 +181,7 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
                                 closer: token.map_ref(|_| ')'),
                                 inner_tokens: parameters,
                             };
+                            skip_whitespace(&mut tokens_iter);
                             let replacement_list = tokens_iter.collect();
                             return ControlLine::DefineFunction {
                                 macro_name: macro_name,
@@ -196,6 +197,8 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
                     if matches!(tokens_iter.peek(), Some(span!(Token::Whitespace(Whitespace::Space)))) {
                         tokens_iter.next().unwrap();
                     }
+                    skip_whitespace(&mut tokens_iter);
+
                     let replacement_list = tokens_iter.collect();
                     return ControlLine::DefineObject { macro_name, replacement_list };
                 }
