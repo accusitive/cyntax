@@ -50,7 +50,9 @@ name = "cyntax"
 version = "0.1.0"
 dependencies = [
  "bumpalo",
+ "codespan-reporting",
  "cyntax_common",
+ "cyntax_errors",
  "cyntax_lexer",
  "cyntax_preprocessor",
  "smallvec 1.14.0",

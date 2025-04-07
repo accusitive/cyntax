@@ -22,6 +22,9 @@ impl<T: Clone> Spanned<T> {
             value: f(&self.value),
         }
     }
+    pub fn with_offset(self, offset: usize) -> Spanned<T> {
+        Spanned { value: self.value, range: (self.range.start + offset)..(self.range.end + offset) }
+    }
 }
 impl<T: PartialEq + Clone> PartialEq for Spanned<T> {
     fn eq(&self, other: &Self) -> bool {

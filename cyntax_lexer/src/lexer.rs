@@ -94,9 +94,9 @@ impl<'src> Iterator for Lexer<'src> {
             // ),
             // Entirely skip over line comments
             span!('/') if matches!(self.chars.peek(), Some(span!('/'))) => {
-                while let Some(span!(char)) = self.chars.next() {
+                while let Some(span!(char_span, char)) = self.chars.next() {
                     if char == '\n' {
-                        break;
+                        return Some(Spanned::new(char_span,Token::Whitespace(Whitespace::Newline)));
                     }
                 }
                 self.next()

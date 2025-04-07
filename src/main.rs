@@ -1,3 +1,4 @@
+use codespan_reporting::diagnostic::{Diagnostic, Label};
 use cyntax_common::{
     ast::{Token, Whitespace},
     spanned::Spanned,
@@ -41,7 +42,18 @@ fn print_tokens<'src, I: Iterator<Item = &'src Spanned<Token>>>(source: &'src st
         }
     }
 }
+fn debug_spans(source: &str, tokens: &[Spanned<Token>]) {
+    for token in tokens {
+        let diag = Diagnostic::new(codespan_reporting::diagnostic::Severity::Note).with_label(Label{
+            file_id: 0,
+            message: format!("debug: token {:?}", token),
+            range: token.range.clone(),
+            style: codespan_reporting::diagnostic::LabelStyle::Primary
+        });
 
+        println!("{}", cyntax_errors::write_codespan_report(diag, "test.c", source));
+    }
+}
 fn main() {
     let source = include_str!("../test.c");
     let lexer = cyntax_lexer::lexer::Lexer::new("test.c", source);
@@ -49,12 +61,13 @@ fn main() {
     // dbg!(&tokens);
     print_tokens(source, tokens.iter());
     println!();
-    let mut pp = cyntax_preprocessor::Preprocessor::new("test.c", source, &tokens);
+    let pp = cyntax_preprocessor::Preprocessor::new("test.c", source, &tokens);
     {
         let expanded = pp.expand();
         println!("========================================================");
         dbg!(&expanded);
         print_tokens(source, expanded.iter());
         println!();
+        // debug_spans(source, &expanded);
     }
 }

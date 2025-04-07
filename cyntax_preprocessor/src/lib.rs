@@ -38,7 +38,8 @@ impl<'src> Preprocessor<'src> {
             token_trees: PrependingPeekableIterator::new(tt.into_iter()),
             output: vec![],
             macros: HashMap::new(),
-            eof: false,
+            expanding: false,
+            
         };
         expander.expand();
 
