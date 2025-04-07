@@ -144,8 +144,9 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
             return;
         }
     }
-    pub fn substitute_replacement_list_with_arguments<'a, J: Iterator<Item = &'a &'a Spanned<Token>>>(&mut self, replacement_list: J, map: &HashMap<&String, ReplacementList<'a>>) -> Vec<TokenTree<'src>> {
-        let mut replacement_list = replacement_list.peekable();
+    pub fn substitute_replacement_list_with_arguments<'a, J: Debug + Iterator<Item = &'a &'a Spanned<Token>>>(&mut self, replacement_list: J, map: &HashMap<&String, ReplacementList<'a>>) -> Vec<TokenTree<'src>> {
+        let mut replacement_list = PrependingPeekableIterator::new(replacement_list);
+
         let mut output = vec![];
         while let Some(token) = replacement_list.next() {
             match token {

@@ -127,6 +127,10 @@ impl<'src> Iterator for Lexer<'src> {
                     range: range.start..end,
                 })
             }
+            span!(range, '#') if matches!(self.chars.peek(), Some(span!('#'))) => {
+                self.chars.next().unwrap();
+                Some(Spanned::new(range, Token::Punctuator(Punctuator::HashHash)))
+            }
             span!(range, punctuator) if Punctuator::is_punctuation(punctuator) => Some(Spanned::new(range, Token::Punctuator(Punctuator::from_char(punctuator).unwrap()))),
             span!(range, ' ') => Some(Spanned::new(range, Token::Whitespace(Whitespace::Space))),
             span!(range, '\t') => Some(Spanned::new(range, Token::Whitespace(Whitespace::Tab))),

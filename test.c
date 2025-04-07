@@ -1,9 +1,3 @@
-#define W Z
-#define Z(X) W(X,2)
-#define Y(X) Z(X)
-#define X Y
+#define glue(x,y) x##y
 
-int test = X(1);
-int main() {
-	return test;
-}
+int test = glue(4,2);
