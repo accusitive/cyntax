@@ -90,7 +90,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                     },
                 ));
             }
-            TokenTree::Token(spanned @ span!(Token::Identifier(identifier))) if !*self.expanding.get(identifier).unwrap() => {
+            TokenTree::Token(spanned @ span!(Token::Identifier(identifier))) if !*self.expanding.get(identifier).unwrap_or(&false) => {
                 dbg!(&"test");
                 match self.macros.get(identifier).cloned() {
                     _ if skip_macro_replacement => {
@@ -107,7 +107,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                     }
                 }
             }
-            TokenTree::OwnedToken(ref spanned @ span!(Token::Identifier(ref identifier))) if !*self.expanding.get(identifier).unwrap() => {
+            TokenTree::OwnedToken(ref spanned @ span!(Token::Identifier(ref identifier))) if !*self.expanding.get(identifier).unwrap_or(&false) => {
                 dbg!(&"test");
                 match self.macros.get(identifier).cloned() {
                     _ if skip_macro_replacement => {
@@ -259,6 +259,9 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         match control_line {
             ControlLine::DefineFunction { macro_name, parameters, replacement_list } => self.handle_define_function(macro_name, parameters, &replacement_list),
             ControlLine::DefineObject { macro_name, replacement_list } => self.handle_define_object(macro_name, &replacement_list),
+            ControlLine::Undefine(macro_name) => {
+                self.macros.remove(macro_name);
+            }
             _ => todo!(),
         }
     }
