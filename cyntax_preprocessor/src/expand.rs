@@ -25,7 +25,7 @@ pub struct Expander<'src, I: Debug + Iterator<Item = TokenTree<'src>>> {
     pub token_trees: PrependingPeekableIterator<I>,
     pub output: Vec<Spanned<Token>>,
     pub macros: HashMap<&'src String, MacroDefinition<'src>>,
-    pub expanding: bool
+    pub expanding: HashMap<String, bool>,
 }
 #[derive(Debug, Clone)]
 pub enum MacroDefinition<'src> {
@@ -36,6 +36,8 @@ pub enum MacroDefinition<'src> {
 impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
     pub fn expand(&mut self) {
         while let Some(tokens) = self.expand_next(false) {
+            dbg!();
+
             match tokens {
                 Ok(tokens) => {
                     self.output.extend(tokens);
@@ -49,9 +51,13 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
     // No token: None
     // Error: Some(Err(_))
     pub fn expand_next(&mut self, skip_macro_replacement: bool) -> Option<PResult<Vec<Spanned<Token>>>> {
-        self.token_trees.next().map(|tt| self.expand_token_tree(tt,skip_macro_replacement))
+        dbg!();
+
+        self.token_trees.next().map(|tt| self.expand_token_tree(tt, skip_macro_replacement))
     }
     pub fn expand_token_tree(&mut self, tt: TokenTree<'src>, skip_macro_replacement: bool) -> PResult<Vec<Spanned<Token>>> {
+        dbg!();
+
         let mut output = vec![];
         match tt {
             // When encountering an opening delimiter, collect all tokens between that and a matching closing delimiter, then reinject it into the token stream to be further processe
@@ -84,34 +90,40 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                     },
                 ));
             }
-            TokenTree::Token(spanned @ span!(Token::Identifier(idenitfier)))  => match self.macros.get(idenitfier).cloned() {
-                _ if skip_macro_replacement => {
-                    output.push(spanned.clone());
+            TokenTree::Token(spanned @ span!(Token::Identifier(identifier))) if !*self.expanding.get(identifier).unwrap() => {
+                dbg!(&"test");
+                match self.macros.get(identifier).cloned() {
+                    _ if skip_macro_replacement => {
+                        output.push(spanned.clone());
+                    }
+                    Some(MacroDefinition::Function { parameter_list, replacment_list }) => {
+                        self.handle_function_style_macro_invocation(identifier.clone(), spanned, &parameter_list, &replacment_list, &mut output);
+                    }
+                    Some(MacroDefinition::Object(replacement_list)) => {
+                        self.token_trees.prepend_extend(replacement_list.iter().map(|token| TokenTree::OwnedToken((*token).clone())));
+                    }
+                    _ => {
+                        output.push(spanned.clone());
+                    }
                 }
-                Some(MacroDefinition::Function { parameter_list, replacment_list }) => {
-                    self.handle_function_style_macro_invocation(spanned, &parameter_list, &replacment_list, &mut output);
+            }
+            TokenTree::OwnedToken(ref spanned @ span!(Token::Identifier(ref identifier))) if !*self.expanding.get(identifier).unwrap() => {
+                dbg!(&"test");
+                match self.macros.get(identifier).cloned() {
+                    _ if skip_macro_replacement => {
+                        output.push(spanned.clone());
+                    }
+                    Some(MacroDefinition::Function { parameter_list, replacment_list }) => {
+                        self.handle_function_style_macro_invocation(identifier.clone(), spanned, &parameter_list, &replacment_list, &mut output);
+                    }
+                    Some(MacroDefinition::Object(replacement_list)) => {
+                        self.token_trees.prepend_extend(replacement_list.iter().map(|token| TokenTree::OwnedToken((*token).clone())));
+                    }
+                    _ => {
+                        output.push(spanned.clone());
+                    }
                 }
-                Some(MacroDefinition::Object(replacement_list)) => {
-                    self.token_trees.prepend_extend(replacement_list.iter().map(|token| TokenTree::OwnedToken((*token).clone())));
-                }
-                _ => {
-                    output.push(spanned.clone());
-                }
-            },
-            TokenTree::OwnedToken(ref spanned @ span!(Token::Identifier(ref idenitfier)))if !skip_macro_replacement  => match self.macros.get(idenitfier).cloned() {
-                _ if skip_macro_replacement => {
-                    output.push(spanned.clone());
-                }
-                Some(MacroDefinition::Function { parameter_list, replacment_list }) => {
-                    self.handle_function_style_macro_invocation(spanned, &parameter_list, &replacment_list, &mut output);
-                }
-                Some(MacroDefinition::Object(replacement_list)) => {
-                    self.token_trees.prepend_extend(replacement_list.iter().map(|token| TokenTree::OwnedToken((*token).clone())));
-                }
-                _ => {
-                    output.push(spanned.clone());
-                }
-            },
+            }
             TokenTree::Token(spanned) => {
                 output.push(spanned.clone());
             }
@@ -125,10 +137,13 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         }
         Ok(output)
     }
-    pub fn handle_function_style_macro_invocation(&mut self, macro_name: &Spanned<Token>, parameter_list: &Vec<String>, replacement_list: &Vec<&'src Spanned<Token>>, output: &mut Vec<Spanned<Token>>) {
+    pub fn handle_function_style_macro_invocation<'a>(&mut self, macro_identifier: String, macro_name: &Spanned<Token>, parameter_list: &Vec<String>, replacement_list: &Vec<&'src Spanned<Token>>, output: &mut Vec<Spanned<Token>>) {
+       dbg!();
         // if the token invocation is failed, ie, the identifier IS a valid function styler macro, but there is no argument list following it
         let next_non_whitespace = self.peek_non_whitespace();
         if matches!(next_non_whitespace, Some(TokenTree::Token(span!(Token::Punctuator(Punctuator::LeftParen))))) || matches!(next_non_whitespace, Some(TokenTree::OwnedToken(span!(Token::Punctuator(Punctuator::LeftParen))))) {
+            self.expanding.insert(macro_identifier.clone(), true);
+
             let lparen = self.next_non_whitespace().unwrap().as_token();
             let inside = self.collect_until_closing_delimiter(&lparen, true).unwrap();
             let expanded = self.expand_token_tree(inside, true).unwrap();
@@ -143,8 +158,10 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                 output.extend(expanded);
                 return;
             }
+
             let map: HashMap<_, _> = parameter_list.into_iter().zip(args).collect();
             let substituted = self.substitute_replacement_list_with_arguments(replacement_list.to_vec().into_iter().cloned(), &map);
+            self.expanding.insert(macro_identifier, false);
 
             self.token_trees.prepend_extend(substituted.into_iter());
         } else {
@@ -152,16 +169,18 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
             return;
         }
     }
-    pub fn substitute_replacement_list_with_arguments<'a, J: Debug + Iterator<Item = Spanned<Token>>>(&mut self, replacement_list: J, map: &HashMap<&String, ReplacementList<'a>>) -> Vec<TokenTree<'src>> {
+    pub fn substitute_replacement_list_with_arguments<'a, J: Debug + Iterator<Item = Spanned<Token>>>(&mut self, replacement_list: J, parameter_to_arg: &HashMap<&String, ReplacementList<'a>>) -> Vec<TokenTree<'src>> {
         let mut replacement_list = PrependingPeekableIterator::new(replacement_list.filter(|tok| !matches!(tok, span!(Token::Whitespace(_)))));
+        dbg!();
 
         let mut output = vec![];
         while let Some(token) = replacement_list.next() {
+
             match token {
                 span!(Token::Punctuator(Punctuator::Hash)) => {
                     let param = replacement_list.next().expect("`#` must be followed by macro parameter");
                     if let span!(Token::Identifier(identifier)) = param {
-                        if let Some(argument_replacement_list) = map.get(&identifier) {
+                        if let Some(argument_replacement_list) = parameter_to_arg.get(&identifier) {
                             let mut pasted = String::new();
                             self.stringify_tokens(argument_replacement_list.to_vec().into_iter(), &mut pasted);
                             replacement_list.prepend(Spanned::new(0..0, Token::StringLiteral(pasted)));
@@ -172,12 +191,13 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                         panic!("token following # must be an identifier")
                     }
                 }
-                span!(Token::Identifier(identifier)) if map.contains_key(&identifier) => {
-                    let replacement = map.get(&identifier).unwrap();
+                span!(Token::Identifier(identifier)) if parameter_to_arg.contains_key(&identifier) => {
+                    let replacement = parameter_to_arg.get(&identifier).unwrap();
                     replacement_list.prepend_extend(replacement.to_vec().into_iter().cloned());
+
                 }
                 token if matches!(replacement_list.peek(), Some(span!(Token::Punctuator(Punctuator::HashHash)))) => {
-                    let hash_hash = replacement_list.next().unwrap();
+                    let _hash_hash = replacement_list.next().unwrap();
                     let other = replacement_list.next().unwrap();
                     let range = token.range.start..other.range.end;
 
@@ -185,22 +205,13 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                     self.stringify_token(&token, &mut left);
                     let mut right = String::new();
                     dbg!(&other);
-                    let expanded_right = self
-                        .substitute_replacement_list_with_arguments(std::iter::once(other), map)
-                        .into_iter()
-                        .map(|tt|tt.as_token().into_owned())
-                        // .map(|tt| self.expand_token_tree(tt).unwrap())
-                        // .flatten()
-                        .collect::<Vec<_>>();
+                    let expanded_right = self.substitute_replacement_list_with_arguments(std::iter::once(other), parameter_to_arg).into_iter().map(|tt| tt.as_token().into_owned()).collect::<Vec<_>>();
                     dbg!(&expanded_right);
                     self.stringify_tokens(expanded_right.iter(), &mut right);
 
-
                     let src = format!("{}{}", left, right);
                     dbg!(&src);
-                    let tokens = Lexer::new("test.c", &src).map(|span| {
-                        Spanned::new(range.clone(), span.value)
-                    }).collect::<Vec<_>>();
+                    let tokens = Lexer::new("test.c", &src).map(|span| Spanned::new(range.clone(), span.value)).collect::<Vec<_>>();
                     dbg!(&tokens);
                     replacement_list.prepend_extend(tokens.into_iter());
                 }
@@ -253,6 +264,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
     }
     pub fn handle_define_function<'func>(&mut self, macro_name: &'src String, parameters: Spanned<Token>, replacment_list: &'func Vec<&'src Spanned<Token>>) {
         let parameters = self.parse_parameters(parameters);
+        self.expanding.insert(macro_name.clone(), false);
         self.macros.insert(
             macro_name,
             MacroDefinition::Function {
@@ -262,6 +274,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         );
     }
     pub fn handle_define_object<'func>(&mut self, macro_name: &'src String, replacment_list: &'func Vec<&'src Spanned<Token>>) {
+        self.expanding.insert(macro_name.clone(), false);
         self.macros.insert(macro_name, MacroDefinition::Object(replacment_list.to_vec()));
     }
     pub fn parse_parameters<'func>(&mut self, parameter_token: Spanned<Token>) -> Vec<String> {
