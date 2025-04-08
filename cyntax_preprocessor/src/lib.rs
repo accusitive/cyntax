@@ -8,8 +8,8 @@ use prepend::PrependingPeekableIterator;
 use tree::{IntoTokenTree, TokenTree};
 
 mod expand;
+mod macros;
 mod prepend;
-mod substitute;
 mod tree;
 pub struct Preprocessor<'src> {
     // macros and whatever
@@ -33,14 +33,7 @@ impl<'src> Preprocessor<'src> {
         // let mut state = HashMap::new();
         let tt = self.token_trees;
 
-        let mut expander = Expander {
-            source: self.file_source,
-            token_trees: PrependingPeekableIterator::new(tt.into_iter()),
-            output: vec![],
-            macros: HashMap::new(),
-            expanding: HashMap::new(),
-            
-        };
+        let mut expander = Expander::new(self.file_source, PrependingPeekableIterator::new(tt.into_iter()));
         expander.expand();
 
         expander.output

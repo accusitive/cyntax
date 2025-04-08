@@ -96,7 +96,7 @@ impl<'src> Iterator for Lexer<'src> {
             span!('/') if matches!(self.chars.peek(), Some(span!('/'))) => {
                 while let Some(span!(char_span, char)) = self.chars.next() {
                     if char == '\n' {
-                        return Some(Spanned::new(char_span,Token::Whitespace(Whitespace::Newline)));
+                        return Some(Spanned::new(char_span, Token::Whitespace(Whitespace::Newline)));
                     }
                 }
                 self.next()

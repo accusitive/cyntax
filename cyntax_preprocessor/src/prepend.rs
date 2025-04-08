@@ -38,7 +38,6 @@ impl<I: Iterator + Debug> PrependingPeekableIterator<I> {
     where
         J::Item: Debug,
     {
-
         let mut index = 0;
         while let Some(item) = iter.next() {
             self.queue.insert(index, item);
