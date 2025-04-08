@@ -12,6 +12,9 @@ fn print_tokens<'src, I: Iterator<Item = &'src Spanned<Token>>>(source: &'src st
             Token::Identifier(identifier) => {
                 print!("{}", identifier);
             }
+            Token::BlueIdentifier(identifier) => {
+                print!("{}", identifier);
+            }
             Token::StringLiteral(string) => {
                 print!("\"");
                 print!("{}", string);

@@ -7,6 +7,7 @@ use crate::spanned::Spanned;
 #[derive(Debug, Clone)]
 pub enum Token {
     Identifier(String),
+    BlueIdentifier(String),
     StringLiteral(String),
     PPNumber(String),
 
