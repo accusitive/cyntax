@@ -4,9 +4,10 @@ use strum_macros::EnumString;
 
 use crate::spanned::Spanned;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     Identifier(String),
+    // An identifier that should not be considered for a potential macro invocation
     BlueIdentifier(String),
     StringLiteral(String),
     PPNumber(String),

@@ -278,6 +278,7 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
 }
 #[derive(Debug, Clone)]
 pub enum TokenTree<'src> {
+    Directive(ControlLine<'src>),
     IfDef {
         macro_name: &'src String,
         body: Vec<TokenTree<'src>>,
@@ -303,6 +304,7 @@ pub enum TokenTree<'src> {
         /// Must be endif?
         opposition: Box<TokenTree<'src>>,
     },
+
     // Maybe this shouldn't be a part of the token tree? The only difference would be changing all the opposition fields to an enum like
     // enum Opposition {
     // TokenTree(TokenTree),
@@ -314,7 +316,7 @@ pub enum TokenTree<'src> {
     Token(&'src Spanned<Token>),
     OwnedToken(Spanned<Token>),
     Delimited(Spanned<char>, Spanned<char>, Vec<TokenTree<'src>>),
-    Directive(ControlLine<'src>),
+    MacroExpansion(String, Vec<Spanned<Token>>)
 }
 
 impl<'src> TokenTree<'src> {
