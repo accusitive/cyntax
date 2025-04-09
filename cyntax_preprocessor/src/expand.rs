@@ -69,7 +69,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
             }
             ExpandControlFlow::RescanMany(tokens) => {
                 dbg!(&tokens);
-                self.token_trees.prepend_extend(tokens.into_iter().map(|token| TokenTree::OwnedToken(token)));
+                self.token_trees.prepend_extend(tokens.into_iter().map(|token| TokenTree::PreprocessorToken(token)));
                 // for token in tokens {
                 //     self.token_trees.prepend(TokenTree::OwnedToken(token));
                 // }
@@ -83,14 +83,14 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         let mut output = vec![];
         match tt {
             // When encountering an opening delimiter, collect all tokens between that and a matching closing delimiter, then reinject it into the token stream to be further processe
-            TokenTree::Token(opening_token @ span!(Token::Punctuator(Punctuator::LeftParen | Punctuator::LeftBrace | Punctuator::LeftBracket))) => {
-                let inner = self.collect_until_closing_delimiter(opening_token, skip_macro_replacement).unwrap();
-                return ExpandControlFlow::Rescan(inner);
+            TokenTree::LexerToken(opening_token @ span!(Token::Punctuator(Punctuator::LeftParen | Punctuator::LeftBrace | Punctuator::LeftBracket))) => {
+                let delimited_tt = self.collect_until_closing_delimiter(opening_token, skip_macro_replacement).unwrap();
+                return ExpandControlFlow::Rescan(delimited_tt);
             }
-            TokenTree::OwnedToken(ref opening_token @ span!(Token::Punctuator(Punctuator::LeftParen | Punctuator::LeftBrace | Punctuator::LeftBracket))) => {
+            TokenTree::PreprocessorToken(ref opening_token @ span!(Token::Punctuator(Punctuator::LeftParen | Punctuator::LeftBrace | Punctuator::LeftBracket))) => {
                 dbg!(opening_token, &self.token_trees);
-                let inner = self.collect_until_closing_delimiter(opening_token, skip_macro_replacement).unwrap();
-                return ExpandControlFlow::Rescan(inner);
+                let delimited_tt = self.collect_until_closing_delimiter(opening_token, skip_macro_replacement).unwrap();
+                return ExpandControlFlow::Rescan(delimited_tt);
             }
             // TokenTree::Token(Token::Punctuator(Punctuator::Hash))
             // When encountering a previously reinjected delimited token stream, expand the body and return a Delimited Token
@@ -115,8 +115,8 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                 dbg!(&body);
                 // return ExpandControlFlow::RescanMany(body);
                 let added = self.token_trees.prepend_extend(body.into_iter().map(|token| match token {
-                    // span!(span, Token::Identifier(identifier)) if self.expanding.contains(&identifier) => TokenTree::OwnedToken(Spanned::new(span, Token::BlueIdentifier(identifier.clone()))),
-                    _ => TokenTree::OwnedToken(token),
+                    span!(span, Token::Identifier(identifier)) if self.expanding.contains(&identifier) => TokenTree::PreprocessorToken(Spanned::new(span, Token::BlueIdentifier(identifier.clone()))),
+                    _ => TokenTree::PreprocessorToken(token),
                 }));
 
                 dbg!(&added);
@@ -126,56 +126,56 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                 self.expanding.pop();
                 return ExpandControlFlow::RescanMany(vec![]);
             }
-            TokenTree::Token(spanned @ span!(Token::Identifier(identifier))) => {
-                dbg!(&"test");
-                match self.macros.get(identifier).cloned() {
-                    _ if skip_macro_replacement => {
-                        dbg!("X");
-                        output.push(spanned.clone());
-                    }
-                    Some(MacroDefinition::Function { parameter_list, replacment_list }) => {
-                        dbg!("X");
-                        let tt = self.handle_function_style_macro_invocation(&identifier, spanned, &parameter_list, &replacment_list);
-                        return ExpandControlFlow::Rescan(tt);
-                    }
-                    Some(MacroDefinition::Object(replacement_list)) => {
-                        dbg!("X");
-                        let tt = self.handle_object_style_macro_invocaton(&identifier, &replacement_list);
-                        return ExpandControlFlow::Rescan(tt);
-                    }
-                    _ => {
-                        dbg!("X");
-                        output.push(spanned.clone());
-                    }
-                }
-            }
-            TokenTree::OwnedToken(ref spanned @ span!(Token::Identifier(ref identifier))) => {
-                dbg!(&"test");
-                match self.macros.get(identifier).cloned() {
-                    _ if skip_macro_replacement => {
-                        dbg!("X");
-                        output.push(spanned.clone());
-                    }
-                    Some(MacroDefinition::Function { parameter_list, replacment_list }) => {
-                        dbg!("X");
-                        let tt = self.handle_function_style_macro_invocation(&identifier, spanned, &parameter_list, &replacment_list);
-                        return ExpandControlFlow::Rescan(tt);
-                    }
-                    Some(MacroDefinition::Object(replacement_list)) => {
-                        dbg!("X");
-                        let tt = self.handle_object_style_macro_invocaton(&identifier, &replacement_list);
-                        return ExpandControlFlow::Rescan(tt);
-                    }
-                    _ => {
-                        dbg!("X");
-                        output.push(spanned.clone());
-                    }
-                }
-            }
-            TokenTree::Token(spanned) => {
+            // TokenTree::Token(spanned @ span!(Token::Identifier(identifier))) => {
+            //     dbg!(&"test");
+            //     match self.macros.get(identifier).cloned() {
+            //         _ if skip_macro_replacement => {
+            //             dbg!("X");
+            //             output.push(spanned.clone());
+            //         }
+            //         Some(MacroDefinition::Function { parameter_list, replacment_list }) => {
+            //             dbg!("X");
+            //             let tt = self.handle_function_style_macro_invocation(&identifier, spanned, &parameter_list, &replacment_list);
+            //             return ExpandControlFlow::Rescan(tt);
+            //         }
+            //         Some(MacroDefinition::Object(replacement_list)) => {
+            //             dbg!("X");
+            //             let tt = self.handle_object_style_macro_invocaton(&identifier, &replacement_list);
+            //             return ExpandControlFlow::Rescan(tt);
+            //         }
+            //         _ => {
+            //             dbg!("X");
+            //             output.push(spanned.clone());
+            //         }
+            //     }
+            // }
+            // TokenTree::OwnedToken(ref spanned @ span!(Token::Identifier(ref identifier))) => {
+            //     dbg!(&"test");
+            //     match self.macros.get(identifier).cloned() {
+            //         _ if skip_macro_replacement => {
+            //             dbg!("X");
+            //             output.push(spanned.clone());
+            //         }
+            //         Some(MacroDefinition::Function { parameter_list, replacment_list }) => {
+            //             dbg!("X");
+            //             let tt = self.handle_function_style_macro_invocation(&identifier, spanned, &parameter_list, &replacment_list);
+            //             return ExpandControlFlow::Rescan(tt);
+            //         }
+            //         Some(MacroDefinition::Object(replacement_list)) => {
+            //             dbg!("X");
+            //             let tt = self.handle_object_style_macro_invocaton(&identifier, &replacement_list);
+            //             return ExpandControlFlow::Rescan(tt);
+            //         }
+            //         _ => {
+            //             dbg!("X");
+            //             output.push(spanned.clone());
+            //         }
+            //     }
+            // }
+            TokenTree::LexerToken(spanned) => {
                 output.push(spanned.clone());
             }
-            TokenTree::OwnedToken(spanned) => {
+            TokenTree::PreprocessorToken(spanned) => {
                 output.push(spanned);
             }
             TokenTree::Directive(control_line) => {
@@ -272,7 +272,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                         return Ok(TokenTree::Delimited(opening_char, Spanned::new(rp.clone(), expected_closer), inner));
                     }
                     token => {
-                        inner.push(TokenTree::OwnedToken(token.clone()));
+                        inner.push(TokenTree::PreprocessorToken(token.clone()));
                     }
                 }
             }
@@ -291,8 +291,8 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         let tt = self.token_trees.peek_nth(n).cloned();
 
         match tt {
-            Some(TokenTree::Token(span!(Token::Whitespace(_)))) => self.peek_non_whitespace_nth(n + 1),
-            Some(TokenTree::OwnedToken(span!(Token::Whitespace(_)))) => self.peek_non_whitespace_nth(n + 1),
+            Some(TokenTree::LexerToken(span!(Token::Whitespace(_)))) => self.peek_non_whitespace_nth(n + 1),
+            Some(TokenTree::PreprocessorToken(span!(Token::Whitespace(_)))) => self.peek_non_whitespace_nth(n + 1),
             Some(tt) => Some(tt),
             None => None,
         }
@@ -301,8 +301,8 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         let tt = self.token_trees.next()?;
 
         match tt {
-            TokenTree::Token(span!(Token::Whitespace(_))) => self.next_non_whitespace(),
-            TokenTree::OwnedToken(span!(Token::Whitespace(_))) => self.next_non_whitespace(),
+            TokenTree::LexerToken(span!(Token::Whitespace(_))) => self.next_non_whitespace(),
+            TokenTree::PreprocessorToken(span!(Token::Whitespace(_))) => self.next_non_whitespace(),
 
             tt => Some(tt),
         }

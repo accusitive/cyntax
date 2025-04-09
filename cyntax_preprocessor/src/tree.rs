@@ -60,7 +60,7 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> Iterator for IntoTokenTree<
                     ControlLine::EndIf => self.unwrap_diagnostic(|_| Err(cyntax_errors::errors::DanglingEndif(token.range.start..token.range.end))),
                 }
             }
-            _ => Some(TokenTree::Token(token)),
+            _ => Some(TokenTree::LexerToken(token)),
         }
     }
 }
@@ -313,8 +313,8 @@ pub enum TokenTree<'src> {
     // Which doesnt seem beneficial in any way
     Endif,
 
-    Token(&'src Spanned<Token>),
-    OwnedToken(Spanned<Token>),
+    LexerToken(&'src Spanned<Token>),
+    PreprocessorToken(Spanned<Token>),
     Delimited(Spanned<char>, Spanned<char>, Vec<TokenTree<'src>>),
     MacroExpansion(String, Vec<Spanned<Token>>)
 }
@@ -322,8 +322,8 @@ pub enum TokenTree<'src> {
 impl<'src> TokenTree<'src> {
     pub fn as_token(&self) -> Cow<'src, Spanned<Token>> {
         match self {
-            TokenTree::Token(spanned) => Cow::Borrowed(*spanned),
-            TokenTree::OwnedToken(spanned) => Cow::Owned(spanned.clone()),
+            TokenTree::LexerToken(spanned) => Cow::Borrowed(*spanned),
+            TokenTree::PreprocessorToken(spanned) => Cow::Owned(spanned.clone()),
             this => panic!("tried to assume {:?} was a token!", this),
         }
     }

@@ -20,13 +20,13 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         dbg!(macro_identifier);
         // if the token invocation is failed, ie, the identifier IS a valid function styler macro, but there is no argument list following it
         let next_non_whitespace = self.peek_non_whitespace();
-        let is_invocation = matches!(next_non_whitespace, Some(TokenTree::Token(span!(Token::Delimited { .. } | Token::Punctuator(Punctuator::LeftParen)))))
-                               || matches!(next_non_whitespace, Some(TokenTree::OwnedToken(span!(Token::Delimited { .. } | Token::Punctuator(Punctuator::LeftParen)))));
+        let is_invocation = matches!(next_non_whitespace, Some(TokenTree::LexerToken(span!(Token::Delimited { .. } | Token::Punctuator(Punctuator::LeftParen)))))
+                               || matches!(next_non_whitespace, Some(TokenTree::PreprocessorToken(span!(Token::Delimited { .. } | Token::Punctuator(Punctuator::LeftParen)))));
         dbg!(&is_invocation);
         if is_invocation {
             let expanded = match next_non_whitespace {
-                Some(TokenTree::OwnedToken(ref d@ span!(Token::Delimited { .. }))) => {self.next_non_whitespace().unwrap(); vec![d.clone()]},
-                Some(TokenTree::Token(d@ span!(Token::Delimited { .. }))) => {self.next_non_whitespace().unwrap(); vec![d.clone()]}
+                Some(TokenTree::PreprocessorToken(ref d@ span!(Token::Delimited { .. }))) => {self.next_non_whitespace().unwrap(); vec![d.clone()]},
+                Some(TokenTree::LexerToken(d@ span!(Token::Delimited { .. }))) => {self.next_non_whitespace().unwrap(); vec![d.clone()]}
                 _ => {
                     let lparen = self.next_non_whitespace().unwrap().as_token();
                     let inside = self.collect_until_closing_delimiter(&lparen, true).unwrap();
