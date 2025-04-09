@@ -111,20 +111,20 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                 ));
             }
             TokenTree::MacroExpansion(macro_name, body) => {
-                // self.expanding.push(macro_name);
+                self.expanding.push(macro_name);
                 dbg!(&body);
-                return ExpandControlFlow::RescanMany(body);
-                // let added = self.token_trees.prepend_extend(body.into_iter().map(|token| match token {
-                //     // span!(span, Token::Identifier(identifier)) if self.expanding.contains(&identifier) => TokenTree::OwnedToken(Spanned::new(span, Token::BlueIdentifier(identifier.clone()))),
-                //     _ => TokenTree::OwnedToken(token),
-                // }));
+                // return ExpandControlFlow::RescanMany(body);
+                let added = self.token_trees.prepend_extend(body.into_iter().map(|token| match token {
+                    // span!(span, Token::Identifier(identifier)) if self.expanding.contains(&identifier) => TokenTree::OwnedToken(Spanned::new(span, Token::BlueIdentifier(identifier.clone()))),
+                    _ => TokenTree::OwnedToken(token),
+                }));
 
-                // dbg!(&added);
+                dbg!(&added);
                 // let t = (0..added).map(|_| self.expand_next(skip_macro_replacement).unwrap()).flatten().collect();
                 // let t = self.expand_next(skip_macro_replacement).unwrap();
 
-                // self.expanding.pop();
-                // return ExpandControlFlow::RescanMany(t);
+                self.expanding.pop();
+                return ExpandControlFlow::RescanMany(vec![]);
             }
             TokenTree::Token(spanned @ span!(Token::Identifier(identifier))) => {
                 dbg!(&"test");
