@@ -304,13 +304,6 @@ pub enum TokenTree<'src> {
         /// Must be endif?
         opposition: Box<TokenTree<'src>>,
     },
-
-    // Maybe this shouldn't be a part of the token tree? The only difference would be changing all the opposition fields to an enum like
-    // enum Opposition {
-    // TokenTree(TokenTree),
-    // Endif
-    // }
-    // Which doesnt seem beneficial in any way
     Endif,
 
     LexerToken(&'src Spanned<Token>),
