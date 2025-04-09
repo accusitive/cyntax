@@ -309,7 +309,9 @@ pub enum TokenTree<'src> {
     LexerToken(&'src Spanned<Token>),
     PreprocessorToken(Spanned<Token>),
     Delimited(Spanned<char>, Spanned<char>, Vec<TokenTree<'src>>),
-    MacroExpansion(String, Vec<Spanned<Token>>)
+    MacroExpansion(String, Vec<Spanned<Token>>),
+    ExpandingMacro(String),
+    DoneExpandingMacro(String)
 }
 
 impl<'src> TokenTree<'src> {

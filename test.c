@@ -1,3 +1,3 @@
-#define a b
-#define b a
-a
+#define y 1 x
+#define x y
+y
