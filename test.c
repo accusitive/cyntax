@@ -1,3 +1,3 @@
-#define sq(X) X##X
-#define X 10
-sq(X);
+#define add(x,y) ((x) + (y))
+
+add(add(2,4), add(4,6));

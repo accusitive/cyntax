@@ -34,7 +34,7 @@ impl<I: Iterator + Debug> PrependingPeekableIterator<I> {
     pub fn prepend(&mut self, item: I::Item) {
         self.queue.insert(0, item);
     }
-    pub fn prepend_extend<J: Iterator<Item = I::Item>>(&mut self, mut iter: J)
+    pub fn prepend_extend<J: Iterator<Item = I::Item>>(&mut self, mut iter: J) -> usize
     where
         J::Item: Debug,
     {
@@ -43,6 +43,7 @@ impl<I: Iterator + Debug> PrependingPeekableIterator<I> {
             self.queue.insert(index, item);
             index += 1;
         }
+        index
     }
 }
 
