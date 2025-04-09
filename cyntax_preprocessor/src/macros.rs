@@ -24,8 +24,8 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
 
         if is_invocation {
             let lparen = self.next_non_whitespace().unwrap().as_token();
-            let inside = self.collect_until_closing_delimiter(&lparen, true).unwrap();
-            let expanded = self.fully_expand_token_tree(inside, true);
+            let inside = self.collect_until_closing_delimiter(&lparen, false).unwrap();
+            let expanded = self.fully_expand_token_tree(inside, false);
             let args = if let span!(Token::Delimited { opener: _, closer: _, inner_tokens }) = expanded.first().as_ref().unwrap() {
                 self.split_delimited(inner_tokens.iter())
             } else {
@@ -49,10 +49,11 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
     }
     pub fn handle_object_style_macro_invocaton(&mut self, macro_identifier: &String, replacement_list: &Vec<&'src Spanned<Token>>) -> TokenTree<'src> {
         dbg!();
-        let blue_painted = replacement_list.iter().map(|tok| match *tok {
-            token => token.clone(),
-        });
-        TokenTree::MacroExpansion(macro_identifier.clone(), blue_painted.collect::<Vec<_>>())
+        let patched = self.patch_replacement_list(macro_identifier, replacement_list.to_vec().into_iter().cloned(), &HashMap::new());
+        // let blue_painted = replacement_list.iter().map(|tok| match *tok {
+        //     token => token.clone(),
+        // });
+        TokenTree::MacroExpansion(macro_identifier.clone(), patched)
 
         // self.token_trees.prepend_extend(blue_painted);
     }
@@ -64,12 +65,12 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         while let Some(token) = replacement_list.next() {
             dbg!(&token,);
             match token {
-                // span!(span, Token::Identifier(identifier)) if self.expanding.contains(&identifier) => {
-                //     replacement_list.prepend(Spanned::new(span.clone(), Token::BlueIdentifier(identifier)));
-                // }
-                span!(Token::Identifier(identifier)) if parameter_to_arg.contains_key(&identifier) => {
+                span!(Token::Identifier(identifier)) if parameter_to_arg.contains_key(&identifier) && !matches!(replacement_list.peek(), Some(span!(Token::Punctuator(Punctuator::Hash | Punctuator::HashHash)))) => {
                     let replacement = parameter_to_arg.get(&identifier).unwrap();
                     replacement_list.prepend_extend(replacement.to_vec().into_iter().cloned());
+                }
+                span!(span, Token::Identifier(identifier)) if self.macros.contains_key(&identifier) => {
+                    output.push(Spanned::new(span.clone(), Token::Identifier(identifier)));
                 }
                 span!(Token::Punctuator(Punctuator::Hash)) => {
                     let param = replacement_list.next().expect("`#` must be followed by macro parameter");
@@ -88,11 +89,14 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
 
                 token if matches!(replacement_list.peek(), Some(span!(Token::Punctuator(Punctuator::HashHash)))) => {
                     let _hash_hash = replacement_list.next().unwrap();
+                    dbg!(&_hash_hash);
                     let other = replacement_list.next().unwrap();
                     let range = token.range.start..other.range.end;
 
                     let mut left = String::new();
-                    self.stringify_token(&token, &mut left);
+                    let expanded_left = self.patch_replacement_list(macro_identifier, std::iter::once(token), parameter_to_arg).into_iter().map(|tt| tt).collect::<Vec<_>>();
+
+                    self.stringify_tokens(expanded_left.iter(), &mut left);
                     let mut right = String::new();
                     dbg!(&other);
                     let expanded_right = self.patch_replacement_list(macro_identifier, std::iter::once(other), parameter_to_arg).into_iter().map(|tt| tt).collect::<Vec<_>>();

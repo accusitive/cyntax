@@ -1,3 +1,3 @@
-#define F(X) X + X
-#define X 5
-int a = F(X);
+#define sq(X) X##X
+#define X 10
+sq(X);
