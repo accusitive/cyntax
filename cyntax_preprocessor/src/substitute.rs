@@ -19,6 +19,8 @@ where
     pub map: HashMap<String, MacroArgument>,
     pub glue: bool,
     pub glue_string: String,
+    pub stringify: bool,
+    pub stringify_string: String,
 }
 
 impl<I: Debug + Iterator<Item = Spanned<Token>>> Iterator for ArgumentSubstitutionIterator<I> {
@@ -30,6 +32,14 @@ impl<I: Debug + Iterator<Item = Spanned<Token>>> Iterator for ArgumentSubstituti
         let token = token?;
 
         match &token {
+            token if self.stringify => {
+                dbg!(&token);
+                Self::stringify_tokens(self.maybe_substitute_arg(token.clone(), false).iter(), &mut self.stringify_string);
+                self.replacements.prepend(Spanned::new(token.range.clone(), Token::StringLiteral(self.stringify_string.clone())));
+                self.stringify = false;
+                self.stringify_string.clear();
+                Some(vec![])
+            }
             token if self.glue => {
                 Self::stringify_tokens(self.maybe_substitute_arg(token.clone(), false).iter(), &mut self.glue_string);
 
@@ -47,6 +57,10 @@ impl<I: Debug + Iterator<Item = Spanned<Token>>> Iterator for ArgumentSubstituti
                     Some(vec![])
                 }
             }
+            span!(Token::Punctuator(Punctuator::Hash)) => {
+                self.stringify = true;
+                Some(vec![])
+            }
             token if matches!(self.replacements.peek(), Some(span!(Token::Punctuator(Punctuator::HashHash)))) => {
                 self.glue = true;
                 Self::stringify_tokens(self.maybe_substitute_arg(token.clone(), false).iter(), &mut self.glue_string);
@@ -54,40 +68,6 @@ impl<I: Debug + Iterator<Item = Spanned<Token>>> Iterator for ArgumentSubstituti
 
                 Some(vec![])
             }
-            // span!(Token::Punctuator(Punctuator::Hash)) => {
-            //     let next = self.next().unwrap();
-            //     let mut s = String::new();
-            //     Self::stringify_tokens(next.iter(), &mut s);
-
-            //     Some(vec![Spanned::new(token.range.clone(), Token::StringLiteral(s))])
-            // }
-
-            // lhs if self.glue => {
-            //     dbg!(&lhs, &self.replacements.peek());
-            //     dbg!(&self.next());
-            //     panic!();
-            // }
-            // token if matches!(self.replacements.peek(), Some(span!(Token::Punctuator(Punctuator::HashHash)))) => {
-            // let _hh = self.replacements.next()?;
-            // self.replacements.prepend(token.clone());
-            // dbg!(&token, &_hh);
-            // self.glue = true;
-            // Some(vec![])
-
-            // let rhs = self.next()?;
-            // let range = lhs.range.start..lhs.range.end;
-
-            // let mut left = String::new();
-            // let mut right = String::new();
-
-            // Self::stringify_token(lhs, &mut left);
-            // Self::stringify_tokens(rhs.iter(), &mut right);
-
-            // let src = format!("{}{}", left, right);
-            // let tokens = Lexer::new("test.c", &src).map(|span| Spanned::new(range.clone(), span.value)).collect::<Vec<_>>();
-
-            // Some(tokens)
-            // }
             span!(Token::Identifier(identifier)) if self.map.contains_key(identifier) => {
                 let expanded = self.map.get(identifier).unwrap().expanded.clone();
                 Some(expanded)
@@ -102,7 +82,7 @@ impl<I: Debug + Iterator<Item = Spanned<Token>>> ArgumentSubstitutionIterator<I>
     pub fn maybe_substitute_arg(&mut self, token: Spanned<Token>, expand: bool) -> Vec<Spanned<Token>> {
         match token {
             span!(Token::Identifier(identifier)) if self.map.contains_key(&identifier) => {
-                let expanded = if expand { self.map.get(&identifier).unwrap().expanded.clone() } else {self.map.get(&identifier).unwrap().unexpanded.clone()  };
+                let expanded = if expand { self.map.get(&identifier).unwrap().expanded.clone() } else { self.map.get(&identifier).unwrap().unexpanded.clone() };
                 expanded
             }
             _ => vec![token],

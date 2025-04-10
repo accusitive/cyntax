@@ -170,9 +170,9 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                 // let arguments = self.deli
                 let tok = self.token_trees.peek().cloned();
                 match tok {
-                    Some(TokenTree::LexerToken(tok @ span!(Token::Punctuator(Punctuator::LeftParen)))) => {
+                    Some(TokenTree::LexerToken(span!(Token::Punctuator(Punctuator::LeftParen)))) | Some(TokenTree::PreprocessorToken(span!(Token::Punctuator(Punctuator::LeftParen)))) => {
                         let next = self.token_trees.next().unwrap().as_cow_token().into_owned();
-
+                        dbg!(&next, &self.token_trees);
                         let delimited_tt = self.collect_until_closing_delimiter(&next, false).unwrap();
                         dbg!(&delimited_tt);
 
@@ -192,10 +192,12 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                             let map = parameter_list.into_iter().zip(expanded_args).collect::<HashMap<_, _>>();
 
                             let output = ArgumentSubstitutionIterator {
-                                replacements: PrependingPeekableIterator::new(replacement_list.into_iter().cloned()),
+                                replacements: PrependingPeekableIterator::new(replacement_list.into_iter().filter(|a| !matches!(a, span!(Token::Whitespace(_)))).cloned()),
                                 map,
                                 glue: false,
-                                glue_string: String::new()
+                                glue_string: String::new(),
+                                stringify: false,
+                                stringify_string: String::new(),
                             }
                             .flatten()
                             .collect::<Vec<_>>();
