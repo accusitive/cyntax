@@ -11,6 +11,7 @@ mod expand;
 mod macros;
 mod prepend;
 mod tree;
+mod substitute;
 pub struct Preprocessor<'src> {
     // macros and whatever
     file_source: &'src str,

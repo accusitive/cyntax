@@ -10,14 +10,11 @@ use std::{
     fmt::Debug,
     iter::Peekable,
     ops::Range,
-    rc::Rc,
+    rc::Rc, string,
 };
 
 use crate::{
-    Preprocessor,
-    macros::ExpandFunctionMacroControlFlow,
-    prepend::PrependingPeekableIterator,
-    tree::{ControlLine, InternalLeaf, TokenTree},
+    macros::ExpandFunctionMacroControlFlow, prepend::PrependingPeekableIterator, substitute::ArgumentSubstitutionIterator, tree::{ControlLine, InternalLeaf, TokenTree}, Preprocessor
 };
 pub type ReplacementList<'src> = Vec<&'src Spanned<Token>>;
 pub type PResult<T> = Result<T, Report>;
@@ -41,9 +38,9 @@ pub enum ExpandControlFlow<'src> {
     RescanMany(Vec<TokenTree<'src>>),
 }
 #[derive(Debug)]
-pub struct MacroArgument<'src> {
-    unexpanded: ReplacementList<'src>,
-    expanded: Vec<Spanned<Token>>,
+pub struct MacroArgument{
+    pub unexpanded: Vec<Spanned<Token>>,
+    pub expanded: Vec<Spanned<Token>>,
 }
 impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
     pub fn new(source: &'src str, token_trees: PrependingPeekableIterator<I>) -> Self {
@@ -183,39 +180,48 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
 
                             let mut expanded_args = vec![];
                             for arg in args.clone() {
+                                // todo: mark arg with blueidentifier
                                 expanded_args.push(self.expand_arg(arg));
                             }
 
                             let map = parameter_list.into_iter().zip(expanded_args).collect::<HashMap<_, _>>();
 
-                            // let expanded_args = args
-                            //     .into_iter()
-                            //     .map(|arg| arg.into_iter().map(|a| match a {
-                            //         span!(Token::Identifier(identifier)) if map.contains_key(identifier) => {
-                            //             map.get(identifier).unwrap().into_iter().map(|r| (*r).clone()).collect::<Vec<_>>()
+                            let output = ArgumentSubstitutionIterator{
+                                replacements: PrependingPeekableIterator::new(replacement_list.into_iter().cloned()),
+                                map,
+                                stringify: false,
+                                flue: false,
+                            }.collect::<Vec<_>>();
+
+                            // let mut replacement_list = PrependingPeekableIterator::new(replacement_list.into_iter().cloned());
+
+                            // let mut output = vec![];
+                            // let mut stringify = false ;
+                            // let mut flue = false;
+                            // while let Some(token) = replacement_list.next() {
+                            //     match token {
+                            //         span!(Token::Punctuator(Punctuator::Hash)) => {
+                            //             stringify = true;
                             //         }
-                            //         token => vec![token.clone()]
-                            //     }).flatten()
-                            //     .collect::<Vec<_>>())
-                            //     .map(|arg| {
-                            //         Expander {
-                            //             // file_source: self.source,
-                            //             // file_name: "test.c",
-                            //             source: self.source,
-                            //             output: Vec::new(),
-                            //             expanding: self.expanding.clone(),
-                            //             macros: self.macros.clone(),
-                            //             token_trees: PrependingPeekableIterator::new(arg.into_iter().map(|t| TokenTree::PreprocessorToken(t)))
-                            //         }.expand()
-                            //     })
-                            // .map(|arg| self.expand_token_tree(TokenTree::Internal(InternalLeaf::MacroExpansion("".to_string(), arg.into_iter().cloned().collect::<Vec<_>>())), true))
-                            // .inspect(|a| {dbg!(&a);})
-                            // .collect::<Vec<_>>();
-                            // dbg!(&args);
-                            dbg!(&map);
-                            // self.fully_expand_token_tree(tt, skip_macro_replacement)
-                            // map
-                            return ExpandControlFlow::RescanMany(vec![TokenTree::Internal(InternalLeaf::MacroExpansion(identifier.to_owned(), replacement_list.to_vec().into_iter().cloned().collect()))]);
+                            //         span!(Token::Punctuator(Punctuator::HashHash)) => {
+                            //             // let next =
+                            //         }
+                            //         span!(Token::Identifier(identifier)) if map.contains_key(&identifier) => {
+                            //             replacement_list.prepend_extend(map.get(&identifier).unwrap().expanded.clone().into_iter());
+                            //         }
+                            //         token if stringify => {
+                            //             let mut stringified = String::new();
+                            //             Self::stringify_token(&token, &mut stringified);
+                            //             replacement_list.prepend(Spanned::new(next.range.clone(), Token::StringLiteral(stringified)));
+                            //             stringify = false;
+
+                            //         }
+                            //         token => output.push((token).clone()),
+                            //     }
+                            // }
+
+                            // dbg!(&map);
+                            return ExpandControlFlow::RescanMany(vec![TokenTree::Internal(InternalLeaf::MacroExpansion(identifier.to_owned(), output))]);
                         } else {
                             panic!()
                         }
@@ -230,7 +236,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
             None => ExpandControlFlow::Return(vec![Spanned::new(span.clone(), Token::Identifier(identifier.to_string()))]),
         }
     }
-    pub fn expand_arg<'a>(&mut self, arg: Vec<&'a Spanned<Token>>) -> MacroArgument<'a> {
+    pub fn expand_arg<'a>(&mut self, arg: Vec<&'a Spanned<Token>>) -> MacroArgument {
         let mut expander = Expander {
             source: self.source,
             expanding: self.expanding.clone(),
@@ -241,42 +247,10 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
 
         expander.expand();
 
-        MacroArgument { unexpanded: arg, expanded: expander.output }
+        MacroArgument { unexpanded: arg.into_iter().cloned().collect(), expanded: expander.output }
     }
-    pub fn stringify_tokens<'a, T: Iterator<Item = &'a Spanned<Token>>>(&mut self, tokens: T, s: &mut String) {
-        for token in tokens {
-            self.stringify_token(token, s);
-        }
-    }
-    pub fn stringify_token(&mut self, token: &Spanned<Token>, s: &mut String) {
-        match &token.value {
-            Token::Identifier(identifier) => s.push_str(identifier),
-            Token::BlueIdentifier(identifier) => s.push_str(identifier),
-
-            Token::StringLiteral(string) => {
-                s.push('"');
-                s.push_str(string);
-                s.push('"');
-            }
-            Token::PPNumber(number) => {
-                s.push_str(number);
-            }
-            Token::Whitespace(whitespace) => {
-                s.push(match whitespace {
-                    cyntax_common::ast::Whitespace::Space => ' ',
-                    cyntax_common::ast::Whitespace::Newline => '\n',
-                    cyntax_common::ast::Whitespace::Tab => '\t',
-                });
-            }
-            Token::Punctuator(punctuator) => s.push_str(&punctuator.to_string()),
-            Token::Delimited { opener, closer, inner_tokens } => {
-                s.push(opener.value);
-                self.stringify_tokens(inner_tokens.iter(), s);
-                s.push(closer.value);
-            }
-            Token::ControlLine(_) => unreachable!(),
-        }
-    }
+  
+  
     pub fn handle_control_line(&mut self, control_line: ControlLine<'src>) {
         dbg!(&control_line);
         match control_line {
