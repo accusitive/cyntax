@@ -276,6 +276,7 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
         }
     }
 }
+
 #[derive(Debug, Clone)]
 pub enum TokenTree<'src> {
     Directive(ControlLine<'src>),
@@ -308,17 +309,30 @@ pub enum TokenTree<'src> {
 
     LexerToken(&'src Spanned<Token>),
     PreprocessorToken(Spanned<Token>),
+
+    Internal(InternalLeaf<'src>)
+    
+}
+#[derive(Debug, Clone)]
+pub enum InternalLeaf<'src> {
     Delimited(Spanned<char>, Spanned<char>, Vec<TokenTree<'src>>),
     MacroExpansion(String, Vec<Spanned<Token>>),
+
     ExpandingMacro(String),
     DoneExpandingMacro(String)
 }
-
 impl<'src> TokenTree<'src> {
-    pub fn as_token(&self) -> Cow<'src, Spanned<Token>> {
+    pub fn as_cow_token(&self) -> Cow<'src, Spanned<Token>> {
         match self {
             TokenTree::LexerToken(spanned) => Cow::Borrowed(*spanned),
             TokenTree::PreprocessorToken(spanned) => Cow::Owned(spanned.clone()),
+            this => panic!("tried to assume {:?} was a token!", this),
+        }
+    }
+    pub fn as_token(&self) ->  Spanned<Token> {
+        match self {
+            TokenTree::LexerToken(spanned) => (*spanned).clone(),
+            TokenTree::PreprocessorToken(spanned) => spanned.clone(),
             this => panic!("tried to assume {:?} was a token!", this),
         }
     }

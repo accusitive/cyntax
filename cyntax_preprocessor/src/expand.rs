@@ -14,9 +14,10 @@ use std::{
 };
 
 use crate::{
+    Preprocessor,
     macros::ExpandFunctionMacroControlFlow,
     prepend::PrependingPeekableIterator,
-    tree::{ControlLine, TokenTree},
+    tree::{ControlLine, InternalLeaf, TokenTree},
 };
 pub type ReplacementList<'src> = Vec<&'src Spanned<Token>>;
 pub type PResult<T> = Result<T, Report>;
@@ -32,12 +33,17 @@ pub struct Expander<'src, I: Debug + Iterator<Item = TokenTree<'src>>> {
 #[derive(Debug, Clone)]
 pub enum MacroDefinition<'src> {
     Object(ReplacementList<'src>),
-    Function { parameter_list: Vec<String>, replacment_list: ReplacementList<'src> },
+    Function { parameter_list: Vec<String>, replacement_list: ReplacementList<'src> },
 }
 pub enum ExpandControlFlow<'src> {
     Return(Vec<Spanned<Token>>),
     Rescan(TokenTree<'src>),
     RescanMany(Vec<TokenTree<'src>>),
+}
+#[derive(Debug)]
+pub struct MacroArgument<'src> {
+    unexpanded: ReplacementList<'src>,
+    expanded: Vec<Spanned<Token>>,
 }
 impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
     pub fn new(source: &'src str, token_trees: PrependingPeekableIterator<I>) -> Self {
@@ -67,9 +73,9 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                 self.token_trees.prepend(token_tree);
                 self.expand_next(skip_macro_replacement).unwrap()
             }
-            ExpandControlFlow::RescanMany(tokens) => {
-                dbg!(&tokens);
-                self.token_trees.prepend_extend(tokens.into_iter());
+            ExpandControlFlow::RescanMany(token_trees) => {
+                dbg!(&token_trees);
+                self.token_trees.prepend_extend(token_trees.into_iter());
                 self.expand_next(skip_macro_replacement).unwrap()
             }
         }
@@ -79,10 +85,10 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
 
         let mut output = vec![];
         match tt {
-            TokenTree::ExpandingMacro(macro_name) => {
+            TokenTree::Internal(InternalLeaf::ExpandingMacro(macro_name)) => {
                 self.expanding.insert(macro_name);
             }
-            TokenTree::DoneExpandingMacro(macro_name) => {
+            TokenTree::Internal(InternalLeaf::DoneExpandingMacro(macro_name)) => {
                 self.expanding.remove(&macro_name);
             }
             TokenTree::Directive(control_line) => {
@@ -91,38 +97,42 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
 
             // When encountering an opening delimiter, collect all tokens between that and a matching closing delimiter, then reinject it into the token stream to be further processe
             TokenTree::LexerToken(opening_token @ span!(Token::Punctuator(Punctuator::LeftParen | Punctuator::LeftBrace | Punctuator::LeftBracket))) => {
-                let delimited_tt = self.collect_until_closing_delimiter(opening_token, skip_macro_replacement).unwrap();
+                let delimited_tt = self.collect_until_closing_delimiter(opening_token, true).unwrap();
                 return ExpandControlFlow::Rescan(delimited_tt);
             }
 
             TokenTree::PreprocessorToken(ref opening_token @ span!(Token::Punctuator(Punctuator::LeftParen | Punctuator::LeftBrace | Punctuator::LeftBracket))) => {
                 dbg!(opening_token, &self.token_trees);
-                let delimited_tt = self.collect_until_closing_delimiter(opening_token, skip_macro_replacement).unwrap();
+                let delimited_tt = self.collect_until_closing_delimiter(opening_token, true).unwrap();
                 return ExpandControlFlow::Rescan(delimited_tt);
             }
             // TokenTree::Token(Token::Punctuator(Punctuator::Hash))
             // When encountering a previously reinjected delimited token stream, expand the body and return a Delimited Token
-            TokenTree::Delimited(opener, closer, body) => {
-                let mut delimited_body = vec![];
-                for token in body {
-                    let token = self.fully_expand_token_tree(token, skip_macro_replacement);
-                    delimited_body.extend(token);
-                }
+            TokenTree::Internal(InternalLeaf::Delimited(opener, closer, body)) => {
+                let mut expander = Expander {
+                    source: self.source,
+                    expanding: self.expanding.clone(),
+                    macros: self.macros.clone(),
+                    output: Vec::new(),
+                    token_trees: PrependingPeekableIterator::new(body.into_iter()),
+                };
+
+                expander.expand();
                 let range = opener.range.start..closer.range.end;
                 return ExpandControlFlow::Return(vec![Spanned::new(
                     range,
                     Token::Delimited {
                         opener: opener,
                         closer: closer,
-                        inner_tokens: delimited_body,
+                        inner_tokens: expander.output,
                     },
                 )]);
             }
-            TokenTree::MacroExpansion(macro_name, tt) => {
+            TokenTree::Internal(InternalLeaf::MacroExpansion(macro_name, tt)) => {
                 let as_tokens = tt.into_iter().map(|token| TokenTree::PreprocessorToken(token)).collect::<Vec<_>>();
-                let mut f = vec![TokenTree::ExpandingMacro(macro_name.clone())];
+                let mut f = vec![TokenTree::Internal(InternalLeaf::ExpandingMacro(macro_name.clone()))];
                 f.extend(as_tokens);
-                f.push(TokenTree::DoneExpandingMacro(macro_name.clone()));
+                f.push(TokenTree::Internal(InternalLeaf::DoneExpandingMacro(macro_name.clone())));
                 return ExpandControlFlow::RescanMany(f);
             }
             TokenTree::LexerToken(span!(span, Token::Identifier(identifier))) if self.expanding.contains(identifier) => {
@@ -131,10 +141,10 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
             TokenTree::PreprocessorToken(span!(span, Token::Identifier(identifier))) if self.expanding.contains(&identifier) => {
                 return ExpandControlFlow::Return(vec![Spanned::new(span.clone(), Token::BlueIdentifier(identifier.clone()))]);
             }
-            TokenTree::LexerToken(span!(span, Token::Identifier(identifier))) => {
+            TokenTree::LexerToken(span!(span, Token::Identifier(identifier))) if !skip_macro_replacement => {
                 return self.handle_identifier(span, identifier);
             }
-            TokenTree::PreprocessorToken(span!(span, Token::Identifier(identifier))) => {
+            TokenTree::PreprocessorToken(span!(span, Token::Identifier(identifier))) if !skip_macro_replacement => {
                 return self.handle_identifier(&span, &identifier);
             }
             TokenTree::LexerToken(spanned) => {
@@ -150,15 +160,88 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         // Ok(output)
     }
     pub fn handle_identifier(&mut self, span: &Range<usize>, identifier: &String) -> ExpandControlFlow<'src> {
-        match self.macros.get(identifier) {
+        match self.macros.get(identifier).cloned() {
             Some(MacroDefinition::Object(replacement_list)) => {
-                return ExpandControlFlow::RescanMany(vec![TokenTree::MacroExpansion(identifier.to_owned(), replacement_list.to_vec().into_iter().cloned().collect())]);
+                return ExpandControlFlow::RescanMany(vec![TokenTree::Internal(InternalLeaf::MacroExpansion(identifier.to_owned(), replacement_list.to_vec().into_iter().cloned().collect()))]);
             }
-            Some(MacroDefinition::Function { .. }) => {
-                unimplemented!()
+            Some(MacroDefinition::Function { parameter_list, replacement_list }) => {
+                // let arguments = self.deli
+                let tok = self.token_trees.peek().cloned();
+                match tok {
+                    Some(TokenTree::LexerToken(tok @ span!(Token::Punctuator(Punctuator::LeftParen)))) => {
+                        let next = self.token_trees.next().unwrap().as_cow_token().into_owned();
+
+                        let delimited_tt = self.collect_until_closing_delimiter(&next, false).unwrap();
+                        dbg!(&delimited_tt);
+
+                        if let TokenTree::Internal(InternalLeaf::Delimited(span!('('), closer, inner_chars)) = delimited_tt {
+                            dbg!(&inner_chars);
+                            let inner_chars = inner_chars.into_iter().map(|tt| tt.as_cow_token().into_owned()).collect::<Vec<_>>();
+                            let args = self.split_delimited(inner_chars.iter());
+
+                            // let expanded_args = args.into_iter().map(|a| self.expand_arg(a)).collect::<Vec<_>>();
+
+                            let mut expanded_args = vec![];
+                            for arg in args.clone() {
+                                expanded_args.push(self.expand_arg(arg));
+                            }
+
+                            let map = parameter_list.into_iter().zip(expanded_args).collect::<HashMap<_, _>>();
+
+                            // let expanded_args = args
+                            //     .into_iter()
+                            //     .map(|arg| arg.into_iter().map(|a| match a {
+                            //         span!(Token::Identifier(identifier)) if map.contains_key(identifier) => {
+                            //             map.get(identifier).unwrap().into_iter().map(|r| (*r).clone()).collect::<Vec<_>>()
+                            //         }
+                            //         token => vec![token.clone()]
+                            //     }).flatten()
+                            //     .collect::<Vec<_>>())
+                            //     .map(|arg| {
+                            //         Expander {
+                            //             // file_source: self.source,
+                            //             // file_name: "test.c",
+                            //             source: self.source,
+                            //             output: Vec::new(),
+                            //             expanding: self.expanding.clone(),
+                            //             macros: self.macros.clone(),
+                            //             token_trees: PrependingPeekableIterator::new(arg.into_iter().map(|t| TokenTree::PreprocessorToken(t)))
+                            //         }.expand()
+                            //     })
+                            // .map(|arg| self.expand_token_tree(TokenTree::Internal(InternalLeaf::MacroExpansion("".to_string(), arg.into_iter().cloned().collect::<Vec<_>>())), true))
+                            // .inspect(|a| {dbg!(&a);})
+                            // .collect::<Vec<_>>();
+                            // dbg!(&args);
+                            dbg!(&map);
+                            // self.fully_expand_token_tree(tt, skip_macro_replacement)
+                            // map
+                            return ExpandControlFlow::RescanMany(vec![TokenTree::Internal(InternalLeaf::MacroExpansion(identifier.to_owned(), replacement_list.to_vec().into_iter().cloned().collect()))]);
+                        } else {
+                            panic!()
+                        }
+                    }
+                    _ => {
+                        panic!()
+                    }
+                };
+
+                todo!();
             }
             None => ExpandControlFlow::Return(vec![Spanned::new(span.clone(), Token::Identifier(identifier.to_string()))]),
         }
+    }
+    pub fn expand_arg<'a>(&mut self, arg: Vec<&'a Spanned<Token>>) -> MacroArgument<'a> {
+        let mut expander = Expander {
+            source: self.source,
+            expanding: self.expanding.clone(),
+            macros: self.macros.clone(),
+            output: Vec::new(),
+            token_trees: PrependingPeekableIterator::new(arg.clone().into_iter().map(|t| TokenTree::PreprocessorToken(t.clone())).collect::<Vec<_>>().into_iter()),
+        };
+
+        expander.expand();
+
+        MacroArgument { unexpanded: arg, expanded: expander.output }
     }
     pub fn stringify_tokens<'a, T: Iterator<Item = &'a Spanned<Token>>>(&mut self, tokens: T, s: &mut String) {
         for token in tokens {
@@ -211,7 +294,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
             macro_name,
             MacroDefinition::Function {
                 parameter_list: parameters.clone(),
-                replacment_list: replacment_list.to_vec(),
+                replacement_list: replacment_list.to_vec(),
             },
         );
     }
@@ -235,18 +318,18 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         let valid_closer = Punctuator::from_char(expected_closer).unwrap();
         let mut inner = vec![];
         let mut end = opening_char.range.end;
-        while let Some(token) = self.expand_next(skip_macro_replacement) {
-            let token = token;
-
-            for token in &token {
-                end = token.range.end;
-                match token {
-                    span!(rp, Token::Punctuator(punc @ (Punctuator::RightParen | Punctuator::RightBracket | Punctuator::RightBrace))) if *punc == valid_closer => {
-                        return Ok(TokenTree::Delimited(opening_char, Spanned::new(rp.clone(), expected_closer), inner));
-                    }
-                    token => {
-                        inner.push(TokenTree::PreprocessorToken(token.clone()));
-                    }
+        while let Some(token) = self.token_trees.next() {
+            if !matches!(token, TokenTree::LexerToken(_) | TokenTree::PreprocessorToken(_)) {
+                continue;
+            }
+            let token = token.as_token();
+            end = token.range.end;
+            match token {
+                span!(rp, Token::Punctuator(ref punc @ (Punctuator::RightParen | Punctuator::RightBracket | Punctuator::RightBrace))) if *punc == valid_closer => {
+                    return Ok(TokenTree::Internal(InternalLeaf::Delimited(opening_char, Spanned::new(rp.clone(), expected_closer), inner)));
+                }
+                token => {
+                    inner.push(TokenTree::PreprocessorToken(token.clone()));
                 }
             }
         }

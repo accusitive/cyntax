@@ -1,3 +1,3 @@
-#define y 1 x
-#define x y
-y
+#define clam 5
+#define add(x,y) x+y
+add(2,clam);
