@@ -170,33 +170,56 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                 // let arguments = self.deli\
                 let tok = self.token_trees.peek().cloned();
                 dbg!(&tok);
-                match tok {
-                    Some(TokenTree::LexerToken(span!(Token::Punctuator(Punctuator::LeftParen)))) | Some(TokenTree::PreprocessorToken(span!(Token::Punctuator(Punctuator::LeftParen)))) => {
-                        let next = self.token_trees.next().unwrap().as_cow_token().into_owned();
-                        dbg!(&next, &self.token_trees);
-                        let delimited_tt = self.collect_until_closing_delimiter(&next, false).unwrap();
-                        dbg!(&delimited_tt);
-
-                        match delimited_tt {
-                            TokenTree::Internal(InternalLeaf::Delimited(span!('('), closer, inner_chars)) => {
-                                return self.sdaofij(identifier, inner_chars, parameter_list, replacement_list);
-                            }
-
-                            TokenTree::LexerToken(span!(Token::Delimited { opener: span!('('), closer, inner_tokens })) => {
-                                let treed = inner_tokens.to_vec().into_iter().map(|tt| TokenTree::PreprocessorToken(tt)).collect();
-                                return self.sdaofij(identifier, treed, parameter_list, replacement_list);
-                            }
-                            TokenTree::PreprocessorToken(span!(Token::Delimited { opener: span!('('), closer, inner_tokens })) => {
-                                let treed = inner_tokens.to_vec().into_iter().map(|tt| TokenTree::PreprocessorToken(tt)).collect();
-                                return self.sdaofij(identifier, treed, parameter_list, replacement_list);
-                            }
-                            _ => panic!(),
-                        }
+                let delim = match tok {
+                    Some(tt @ TokenTree::Internal(InternalLeaf::Delimited(..))) => tt,
+                    Some(TokenTree::PreprocessorToken(span!(Token::Delimited { opener, closer, inner_tokens }))) => {
+                        let treed = inner_tokens.to_vec().into_iter().map(|tt| TokenTree::PreprocessorToken(tt)).collect();
+                        TokenTree::Internal(InternalLeaf::Delimited(opener, closer, treed))
                     }
-                    _ => {
-                        panic!("{:#?}", tok)
+                    Some(TokenTree::LexerToken(span!(Token::Delimited { opener, closer, inner_tokens }))) => {
+                        let treed = inner_tokens.to_vec().into_iter().map(|tt| TokenTree::PreprocessorToken(tt)).collect();
+                        TokenTree::Internal(InternalLeaf::Delimited(opener.clone(), closer.clone(), treed))
                     }
+                    Some(TokenTree::LexerToken(t @ span!(Token::Punctuator(Punctuator::LeftParen)))) => self.collect_until_closing_delimiter(&t, false).unwrap(),
+                    Some(TokenTree::PreprocessorToken(t @ span!(Token::Punctuator(Punctuator::LeftParen)))) => self.collect_until_closing_delimiter(&t, false).unwrap(),
+                    other => panic!("{:?}", other),
                 };
+                dbg!(&delim);
+
+                if let TokenTree::Internal(InternalLeaf::Delimited(opener, closer, inner)) = delim {
+                    return self.sdaofij(identifier, inner, parameter_list, replacement_list);
+                } else {
+                    unreachable!("WHAT {:#?}", delim);
+                }
+                // self.sdaofij(identifier, inner_chars, parameter_list, replacement_list)
+
+                // match tok {
+                //     Some(TokenTree::LexerToken(span!(Token::Punctuator(Punctuator::LeftParen)))) | Some(TokenTree::PreprocessorToken(span!(Token::Punctuator(Punctuator::LeftParen)))) => {
+                //         let next = self.token_trees.next().unwrap().as_cow_token().into_owned();
+                //         dbg!(&next, &self.token_trees);
+                //         let delimited_tt = self.collect_until_closing_delimiter(&next, false).unwrap();
+                //         dbg!(&delimited_tt);
+
+                //         match delimited_tt {
+                //             TokenTree::Internal(InternalLeaf::Delimited(span!('('), closer, inner_chars)) => {
+                //                 return self.sdaofij(identifier, inner_chars, parameter_list, replacement_list);
+                //             }
+
+                //             TokenTree::LexerToken(span!(Token::Delimited { opener: span!('('), closer, inner_tokens })) => {
+                //                 let treed = inner_tokens.to_vec().into_iter().map(|tt| TokenTree::PreprocessorToken(tt)).collect();
+                //                 return self.sdaofij(identifier, treed, parameter_list, replacement_list);
+                //             }
+                //             TokenTree::PreprocessorToken(span!(Token::Delimited { opener: span!('('), closer, inner_tokens })) => {
+                //                 let treed = inner_tokens.to_vec().into_iter().map(|tt| TokenTree::PreprocessorToken(tt)).collect();
+                //                 return self.sdaofij(identifier, treed, parameter_list, replacement_list);
+                //             }
+                //             _ => panic!(),
+                //         }
+                //     }
+                //     _ => {
+                //         panic!("{:#?}", tok)
+                //     }
+                // };
 
                 todo!();
             }
@@ -301,7 +324,9 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                     let nested = self.collect_until_closing_delimiter(opening_token, skip_macro_replacement).unwrap();
                     let expanded = self.fully_expand_token_tree(nested, skip_macro_replacement);
                     let treed = expanded.into_iter().map(|tt| TokenTree::PreprocessorToken(tt)).collect::<Vec<_>>();
-                    inner.extend(treed);
+                    // inner.extend(treed);
+                    assert_eq!(treed.len(), 1);
+                    return Ok(treed.first().unwrap().clone())
                     // inner.push(nested);
                 }
                 token => {
@@ -309,6 +334,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                 }
             }
         }
+        dbg!(&inner);
         Err(UnmatchedDelimiter {
             opening_delimiter_location: opening_token.range.clone(),
             potential_closing_delimiter_location: end,
