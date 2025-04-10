@@ -195,6 +195,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                                 replacements: PrependingPeekableIterator::new(replacement_list.into_iter().cloned()),
                                 map,
                                 glue: false,
+                                glue_string: String::new()
                             }
                             .flatten()
                             .collect::<Vec<_>>();
