@@ -1,6 +1,10 @@
 use std::{collections::HashMap, fmt::Debug};
 
-use cyntax_common::{ast::{Punctuator, Token}, spanned::Spanned};
+use cyntax_common::{
+    ast::{Punctuator, Token},
+    spanned::Spanned,
+};
+use cyntax_lexer::{lexer::Lexer, span};
 
 use crate::{expand::MacroArgument, prepend::PrependingPeekableIterator};
 
@@ -10,47 +14,63 @@ where
 {
     pub replacements: PrependingPeekableIterator<I>,
     pub map: HashMap<String, MacroArgument>,
-    pub stringify: bool,
-    pub flue: bool,
+    pub glue: bool
 }
 
-impl<I: Debug + Iterator<Item = Spanned<Token>>> Iterator for ArgumentSubstitutionIterator<I>
-{
-    type Item = Spanned<Token>;
+impl<I: Debug + Iterator<Item = Spanned<Token>>> Iterator for ArgumentSubstitutionIterator<I> {
+    type Item = Vec<Spanned<Token>>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let token = self.replacements.next()?;
+        let token = self.replacements.next();
+        dbg!(&token);
+        let token = token?;
 
-        match &token.value {
-            Token::Punctuator(Punctuator::Hash) => {
-                self.stringify = true;
-                self.next() // Skip `#` itself, process next token
-            }
 
-            Token::Punctuator(Punctuator::HashHash) => {
-                // Token pasting (flue)
-                self.flue = true;
-                self.next() // Skip `##`, handle paste in next call
-            }
-
-            Token::Identifier(identifier) if self.map.contains_key(identifier) => {
-                let expanded = self.map.get(identifier).unwrap().expanded.clone();
-                self.replacements.prepend_extend(expanded.into_iter());
-                self.next()
-            }
-
-            _ if self.stringify => {
+        match &token {
+            span!(Token::Punctuator(Punctuator::Hash)) => {
+                let next = self.next().unwrap();
                 let mut s = String::new();
-                Self::stringify_token(&token, &mut s);
-                self.stringify = false;
+                Self::stringify_tokens(next.iter(), &mut s);
 
-                Some(Spanned::new(
-                    token.range.clone(),
-                    Token::StringLiteral(s),
-                ))
+                Some(vec![Spanned::new(token.range.clone(), Token::StringLiteral(s))])
             }
 
-            _ => Some(token),
+            // lhs if self.glue => {
+            //     dbg!(&lhs, &self.replacements.peek());
+            //     dbg!(&self.next());
+            //     panic!();
+            // }
+            // token if matches!(self.replacements.peek(), Some(span!(Token::Punctuator(Punctuator::HashHash)))) => {
+                // let _hh = self.replacements.next()?;
+                // self.replacements.prepend(token.clone());
+                // dbg!(&token, &_hh);
+                // self.glue = true;
+                // Some(vec![])
+                
+                // let rhs = self.next()?;
+                // let range = lhs.range.start..lhs.range.end;
+
+                // let mut left = String::new();
+                // let mut right = String::new();
+
+                // Self::stringify_token(lhs, &mut left);
+                // Self::stringify_tokens(rhs.iter(), &mut right);
+
+                // let src = format!("{}{}", left, right);
+                // let tokens = Lexer::new("test.c", &src).map(|span| Spanned::new(range.clone(), span.value)).collect::<Vec<_>>();
+
+                // Some(tokens)
+            // }
+
+            span!(Token::Identifier(identifier)) if self.map.contains_key(identifier) => {
+                let expanded = self.map.get(identifier).unwrap().expanded.clone();
+                // self.replacements.prepend_extend(expanded.into_iter());
+                // self.next()
+                // Some(vec![])
+                Some(expanded)
+            }
+
+            _ => Some(vec![token]),
         }
     }
 }

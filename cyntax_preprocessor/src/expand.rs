@@ -10,11 +10,16 @@ use std::{
     fmt::Debug,
     iter::Peekable,
     ops::Range,
-    rc::Rc, string,
+    rc::Rc,
+    string,
 };
 
 use crate::{
-    macros::ExpandFunctionMacroControlFlow, prepend::PrependingPeekableIterator, substitute::ArgumentSubstitutionIterator, tree::{ControlLine, InternalLeaf, TokenTree}, Preprocessor
+    Preprocessor,
+    macros::ExpandFunctionMacroControlFlow,
+    prepend::PrependingPeekableIterator,
+    substitute::ArgumentSubstitutionIterator,
+    tree::{ControlLine, InternalLeaf, TokenTree},
 };
 pub type ReplacementList<'src> = Vec<&'src Spanned<Token>>;
 pub type PResult<T> = Result<T, Report>;
@@ -38,7 +43,7 @@ pub enum ExpandControlFlow<'src> {
     RescanMany(Vec<TokenTree<'src>>),
 }
 #[derive(Debug)]
-pub struct MacroArgument{
+pub struct MacroArgument {
     pub unexpanded: Vec<Spanned<Token>>,
     pub expanded: Vec<Spanned<Token>>,
 }
@@ -186,12 +191,13 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
 
                             let map = parameter_list.into_iter().zip(expanded_args).collect::<HashMap<_, _>>();
 
-                            let output = ArgumentSubstitutionIterator{
+                            let output = ArgumentSubstitutionIterator {
                                 replacements: PrependingPeekableIterator::new(replacement_list.into_iter().cloned()),
                                 map,
-                                stringify: false,
-                                flue: false,
-                            }.collect::<Vec<_>>();
+                                glue: false,
+                            }
+                            .flatten()
+                            .collect::<Vec<_>>();
 
                             // let mut replacement_list = PrependingPeekableIterator::new(replacement_list.into_iter().cloned());
 
@@ -247,10 +253,12 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
 
         expander.expand();
 
-        MacroArgument { unexpanded: arg.into_iter().cloned().collect(), expanded: expander.output }
+        MacroArgument {
+            unexpanded: arg.into_iter().cloned().collect(),
+            expanded: expander.output,
+        }
     }
-  
-  
+
     pub fn handle_control_line(&mut self, control_line: ControlLine<'src>) {
         dbg!(&control_line);
         match control_line {
