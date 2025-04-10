@@ -310,12 +310,12 @@ pub enum TokenTree<'src> {
     LexerToken(&'src Spanned<Token>),
     PreprocessorToken(Spanned<Token>),
 
-    Internal(InternalLeaf<'src>)
+    Internal(InternalLeaf)
     
 }
 #[derive(Debug, Clone)]
-pub enum InternalLeaf<'src> {
-    Delimited(Spanned<char>, Spanned<char>, Vec<TokenTree<'src>>),
+pub enum InternalLeaf {
+    // Delimited(Spanned<char>, Spanned<char>, Vec<TokenTree<'src>>),
     MacroExpansion(String, Vec<Spanned<Token>>),
 
     ExpandingMacro(String),

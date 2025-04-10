@@ -25,6 +25,15 @@ pub enum Token {
     },
 }
 
+impl Token {
+    pub fn as_delimited(self) -> (Spanned<char>, Spanned<char>, Vec<Spanned<Token>>) {
+        match self {
+            Token::Delimited { opener, closer, inner_tokens } => (opener, closer, inner_tokens),
+            _ => panic!(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum Directive {
     DefineObject(Spanned<String>, Vec<Spanned<Token>>),
