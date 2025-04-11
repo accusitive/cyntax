@@ -1,4 +1,7 @@
-use std::{collections::{HashMap, HashSet}, fmt::Debug};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Debug,
+};
 
 use cyntax_common::{
     ast::{Punctuator, Token},
@@ -57,7 +60,7 @@ impl<'a, I: Debug + Iterator<Item = Spanned<Token>>> Iterator for ArgumentSubsti
                 self.stringify_string.clear();
                 Some(vec![])
             }
-            
+
             span!(Token::Punctuator(Punctuator::Hash)) => {
                 self.stringify = true;
                 Some(vec![])
@@ -68,7 +71,7 @@ impl<'a, I: Debug + Iterator<Item = Spanned<Token>>> Iterator for ArgumentSubsti
                 self.replacements.next().unwrap(); // // eat ## 
                 Some(vec![])
             }
-            span!(Token::Identifier(identifier)) if self.map.contains_key(identifier)  => {
+            span!(Token::Identifier(identifier)) if self.map.contains_key(identifier) => {
                 let expanded = self.map.get(identifier).unwrap().expanded.clone();
                 Some(expanded)
             }

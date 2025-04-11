@@ -16,8 +16,6 @@ pub(crate) enum ExpandFunctionMacroControlFlow<'src> {
     Prepend(Vec<TokenTree<'src>>),
 }
 impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
-
-    
     pub fn parse_parameters<'func>(&mut self, parameter_token: Spanned<Token>) -> Vec<String> {
         if let span!(Token::Delimited { opener, closer, inner_tokens }) = parameter_token {
             let no_whitespace = inner_tokens.iter().filter(|token| !matches!(token, span!(Token::Whitespace(_))));

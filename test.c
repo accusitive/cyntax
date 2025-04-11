@@ -1,22 +1,20 @@
-#define x 3
-#define f(a) f(x * (a))
-#undef x
-#define x 2
-#define g f
-#define z z[0]
-#define h g(~
-#define m(a) a(w)
-#define w 0,1
-#define t(a) a
-#define p() int
-#define q(x) x
-#define r(x,y) x ## y
-#define str(x) #x
-// f(y+1) + f(f(z)) % t(t(g)(0) + t)(1);
-// g(x+(3,4)-w) | h 5) & m
-// (f)^m(m);
-// p() i[q()] = { q(1), r(2,3), r(4,), r(,5), r(,) };
-// char c[2][6] = { str(hello), str() };
+// #define STR1(u) # u
+// #define pass(a) a
+// #define __ASM_REG(reg)         STR1(one##reg)
+// #define _ASM_DX         __ASM_REG(tok)
+// X162 pass(__ASM_REG(tok))
+// X161 pass(_ASM_DX)
+// X163 pass(STR1(one##tok))
 
+// X170 pass(x ## y)
+// X171 pass(x pass(##) y)
 
-q()
+// #define Y(x) Z(x)
+// #define X Y
+// X180 return X(X(1));
+
+#define test(x) x
+#define testref test
+
+testref(0);
+test(0);

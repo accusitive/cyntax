@@ -310,8 +310,7 @@ pub enum TokenTree<'src> {
     LexerToken(&'src Spanned<Token>),
     PreprocessorToken(Spanned<Token>),
 
-    Internal(InternalLeaf)
-    
+    Internal(InternalLeaf),
 }
 #[derive(Debug, Clone)]
 pub enum InternalLeaf {
@@ -319,7 +318,7 @@ pub enum InternalLeaf {
     MacroExpansion(String, Vec<Spanned<Token>>),
 
     ExpandingMacro(String),
-    DoneExpandingMacro(String)
+    DoneExpandingMacro(String),
 }
 impl<'src> TokenTree<'src> {
     pub fn as_cow_token(&self) -> Cow<'src, Spanned<Token>> {
@@ -329,7 +328,7 @@ impl<'src> TokenTree<'src> {
             this => panic!("tried to assume {:?} was a token!", this),
         }
     }
-    pub fn as_token(&self) ->  Spanned<Token> {
+    pub fn as_token(&self) -> Spanned<Token> {
         match self {
             TokenTree::LexerToken(spanned) => (*spanned).clone(),
             TokenTree::PreprocessorToken(spanned) => spanned.clone(),
