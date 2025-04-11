@@ -1,22 +1,12 @@
-#define x 3
-#define f(a) f(x * (a))
-#undef x
-#define x 2
-#define g f
-#define z z[0]
-#define h g(~
-#define m(a) a(w)
-#define w 0,1
-#define t(a) a
-#define p() int
-#define q(x) x
-#define r(x,y) x ## y
-#define str(x) # x
-f(y+1) + f(f(z)) % t(t(g)(0) + t)(1);
-g(x+(3,4)-w) | h 5) & m(f)^m(m);
-char c[2][6] = { str(hello), str() };
-#define L21 f(y+1) + f(f(z)) % t(t(g)(0) + t)(1);
-#define L22 g(x+(3,4)-w) | h 5) & m\
-(f)^m(m);
-L21
-L22
+#define TRACE(a,b,c) X a X b X c X
+#define rettrue(x) 1
+A rettrue(bla) B
+TRACE(
+      ARG_1,
+#if rettrue(bla)
+      ARG_2,
+#else
+      ARG_2_wrong,
+#endif
+      ARG_3
+);

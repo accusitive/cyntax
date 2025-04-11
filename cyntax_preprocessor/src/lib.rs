@@ -36,6 +36,7 @@ impl<'src> Preprocessor<'src> {
     pub fn expand(self) -> Vec<Spanned<Token>> {
         let mut expander = Expander::new(self.file_source, PrependingPeekableIterator::new(self.token_trees.into_iter()));
         expander.expand().unwrap_diagnostic("test.c", self.file_source);
+        dbg!(&expander.expanding);
         expander.output
     }
 }

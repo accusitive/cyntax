@@ -68,7 +68,7 @@ fn main() {
     {
         let expanded = pp.expand();
         println!("========================================================");
-        dbg!(&expanded);
+        // dbg!(&expanded);
         print_tokens(source, expanded.iter());
         println!();
         // debug_spans(source, &expanded);

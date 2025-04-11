@@ -94,9 +94,11 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         let mut output = vec![];
         match tt {
             TokenTree::Internal(InternalLeaf::BeginExpandingMacro(macro_name)) => {
+                println!("begin {:#?}", &macro_name);
                 self.expanding.insert(macro_name);
             }
             TokenTree::Internal(InternalLeaf::FinishExpandingMacro(macro_name)) => {
+                println!("finish {:#?}",& macro_name);
                 self.expanding.remove(&macro_name);
             }
             TokenTree::Directive(ControlLine::Error(range, message)) => {
@@ -114,15 +116,17 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                 return Ok(ExpandControlFlow::RescanMany(f));
             }
             TokenTree::LexerToken(span!(span, Token::Identifier(identifier))) if self.expanding.contains(identifier) => {
+                dbg!(&identifier, &self.expanding);
                 return Ok(ExpandControlFlow::Return(vec![Spanned::new(span.clone(), Token::BlueIdentifier(identifier.clone()))]));
             }
             TokenTree::PreprocessorToken(span!(span, Token::Identifier(identifier))) if self.expanding.contains(&identifier) => {
+                dbg!(&identifier, &self.expanding);
                 return Ok(ExpandControlFlow::Return(vec![Spanned::new(span.clone(), Token::BlueIdentifier(identifier.clone()))]));
             }
-            TokenTree::LexerToken(span!(span, Token::Identifier(identifier))) if !skip_macro_replacement => {
+            TokenTree::LexerToken(span!(span, Token::Identifier(identifier))) if !skip_macro_replacement  => {
                 return self.handle_identifier(span, identifier);
             }
-            TokenTree::PreprocessorToken(span!(span, Token::Identifier(identifier))) if !skip_macro_replacement => {
+            TokenTree::PreprocessorToken(span!(span, Token::Identifier(identifier))) if !skip_macro_replacement  => {
                 return self.handle_identifier(&span, &identifier);
             }
             TokenTree::LexerToken(spanned) => {
@@ -217,8 +221,6 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                 } else {
                     return Ok(ExpandControlFlow::Return(vec![Spanned::new(span.clone(), Token::Identifier(identifier.to_string()))]));
                 }
-
-                todo!();
             }
             None => Ok(ExpandControlFlow::Return(vec![Spanned::new(span.clone(), Token::Identifier(identifier.to_string()))])),
         }
@@ -250,7 +252,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
             token_trees: PrependingPeekableIterator::new(arg.map(|t| TokenTree::LexerToken(t)).collect::<Vec<_>>().into_iter()),
         };
         dbg!(&expander.token_trees);
-        expander.expand();
+        expander.expand().unwrap();
         expander.output
     }
 
@@ -296,6 +298,15 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         let mut inner = vec![];
         let mut end = opening_char.range.end;
         while let Some(token) = self.token_trees.next() {
+            match &token {
+                TokenTree::Internal(InternalLeaf::BeginExpandingMacro(mac)) => {
+                    self.expanding.insert(mac.clone());
+                },
+                TokenTree::Internal(InternalLeaf::FinishExpandingMacro(mac)) => {
+                    self.expanding.remove(mac);
+                }
+                _ => {}
+             }
             if !matches!(token, TokenTree::LexerToken(_) | TokenTree::PreprocessorToken(_)) {
                 continue;
             }
@@ -336,6 +347,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         let tt = self.token_trees.peek_nth(n).cloned();
 
         match tt {
+            Some(TokenTree::Internal(InternalLeaf::BeginExpandingMacro(_))) => self.peek_non_whitespace_nth(n + 1),
             Some(TokenTree::Internal(InternalLeaf::FinishExpandingMacro(_))) => self.peek_non_whitespace_nth(n + 1),
             Some(TokenTree::LexerToken(span!(Token::Whitespace(_)))) => self.peek_non_whitespace_nth(n + 1),
             Some(TokenTree::PreprocessorToken(span!(Token::Whitespace(_)))) => self.peek_non_whitespace_nth(n + 1),
@@ -347,12 +359,21 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         let tt = self.token_trees.next()?;
 
         match tt {
+            TokenTree::Internal(InternalLeaf::BeginExpandingMacro(mac)) => {
+                println!("inserting in next_non_whitespace {:#?}", &mac);
+                self.expanding.insert(mac);
+                
+
+                self.next_non_whitespace()
+            }
             TokenTree::Internal(InternalLeaf::FinishExpandingMacro(mac)) => {
                 //todo: this is a TERRIBLE solution/hack, this desperately needs to be reconisderd
                 // I think just moving every call to self.token_trees.next() into a wrapper function that handles expanding add and remove, then ignoring it in fully_expand_token_tree should work?
-                assert!(self.expanding.remove(&mac));
+                println!("removing in next_non_whitespace {:#?}", mac);
+                self.expanding.remove(&mac);
                 self.next_non_whitespace()
             }
+
             TokenTree::LexerToken(span!(Token::Whitespace(_))) => self.next_non_whitespace(),
             TokenTree::PreprocessorToken(span!(Token::Whitespace(_))) => self.next_non_whitespace(),
 
