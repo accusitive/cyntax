@@ -1,4 +1,4 @@
-use std::{borrow::Cow, iter::Peekable};
+use std::{borrow::Cow, iter::Peekable, ops::Range};
 
 use cyntax_common::{
     ast::{Punctuator, Token, Whitespace},
@@ -21,7 +21,7 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> Iterator for IntoTokenTree<
             span!(Token::ControlLine(inner)) => {
                 let control_line = self.parse_control_line(inner);
                 match control_line {
-                    ControlLine::DefineObject { .. } | ControlLine::DefineFunction { .. } | ControlLine::Error(_) | ControlLine::Warning(_) | ControlLine::Undefine(_) => {
+                    ControlLine::DefineObject { .. } | ControlLine::DefineFunction { .. } | ControlLine::Error(..) | ControlLine::Warning(..) | ControlLine::Undefine(..) => {
                         return Some(TokenTree::Directive(control_line));
                     }
                     ControlLine::If { condition } => {
@@ -137,22 +137,23 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
 
         skip_whitespace(&mut tokens_iter);
 
-        let directive_name = self.expect_identifier(&mut tokens_iter).expect("expected identifier after directive character");
-
+        let directive = self.expect_identifier(&mut tokens_iter).expect("expected identifier after directive character");
+        let directive_name = directive.value;
+        let directive_range = directive.range;
         match () {
             _ if directive_name == "ifdef" => {
                 skip_whitespace(&mut tokens_iter);
 
                 let macro_name = self.expect_identifier(&mut tokens_iter).expect("expected macro_name in ifdef directive");
 
-                return ControlLine::IfDef { macro_name };
+                return ControlLine::IfDef { macro_name: macro_name.value };
             }
             _ if directive_name == "ifndef" => {
                 skip_whitespace(&mut tokens_iter);
 
                 let macro_name = self.expect_identifier(&mut tokens_iter).expect("expected macro_name in ifndef directive");
 
-                return ControlLine::IfNDef { macro_name };
+                return ControlLine::IfNDef { macro_name: macro_name.value };
             }
             _ if directive_name == "else" => {
                 return ControlLine::Else;
@@ -184,7 +185,7 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
                             skip_whitespace(&mut tokens_iter);
                             let replacement_list = tokens_iter.collect();
                             return ControlLine::DefineFunction {
-                                macro_name: macro_name,
+                                macro_name: macro_name.value,
                                 parameters: Spanned::new(opener.range.start..end, parameters_token),
                                 replacement_list: replacement_list,
                             };
@@ -200,23 +201,23 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
                     skip_whitespace(&mut tokens_iter);
 
                     let replacement_list = tokens_iter.collect();
-                    return ControlLine::DefineObject { macro_name, replacement_list };
+                    return ControlLine::DefineObject { macro_name: macro_name.value, replacement_list };
                 }
             }
             _ if directive_name == "undef" => {
                 skip_whitespace(&mut tokens_iter);
 
                 let macro_name = self.expect_identifier(&mut tokens_iter).expect("expected macro_name in ifdef directive");
-                return ControlLine::Undefine(macro_name);
+                return ControlLine::Undefine(macro_name.value);
             }
             _ if directive_name == "error" => {
                 skip_whitespace(&mut tokens_iter);
                 let reason = tokens_iter.next();
-                return ControlLine::Error(reason);
+                return ControlLine::Error(directive_range, reason);
             }
             _ if directive_name == "warning" => {
                 let reason = tokens_iter.next();
-                return ControlLine::Warning(reason);
+                return ControlLine::Warning(directive_range, reason);
             }
             _ => {
                 let directive_range = tokens.first().unwrap().range.start..tokens.last().unwrap().range.end;
@@ -225,9 +226,9 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
             }
         };
     }
-    pub fn expect_identifier<'b, I2: Iterator<Item = &'b Spanned<Token>>>(&mut self, iter: &mut I2) -> Option<&'b String> {
+    pub fn expect_identifier<'b, I2: Iterator<Item = &'b Spanned<Token>>>(&mut self, iter: &mut I2) -> Option<Spanned<&'b String>> {
         match iter.next()? {
-            span!(Token::Identifier(i)) => Some(i),
+            span!(range, Token::Identifier(i)) => Some(Spanned::new(range.clone(), i)),
             _ => None,
         }
     }
@@ -260,8 +261,8 @@ pub enum ControlLine<'src> {
         replacement_list: Vec<&'src Spanned<Token>>,
     },
     Undefine(&'src String),
-    Error(Option<&'src Spanned<Token>>),
-    Warning(Option<&'src Spanned<Token>>),
+    Error(Range<usize>, Option<&'src Spanned<Token>>),
+    Warning(Range<usize>, Option<&'src Spanned<Token>>),
 
     Empty,
 }

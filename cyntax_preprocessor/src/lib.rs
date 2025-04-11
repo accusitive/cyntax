@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 
 use cyntax_common::{ast::Token, spanned::Spanned};
+use cyntax_errors::UnwrapDiagnostic;
 use expand::Expander;
 use prepend::PrependingPeekableIterator;
 use tree::{IntoTokenTree, TokenTree};
@@ -35,7 +36,8 @@ impl<'src> Preprocessor<'src> {
         let tt = self.token_trees;
 
         let mut expander = Expander::new(self.file_source, PrependingPeekableIterator::new(tt.into_iter()));
-        expander.expand();
+        
+        expander.expand().unwrap_diagnostic("test.c", self.file_source);
 
         expander.output
     }
