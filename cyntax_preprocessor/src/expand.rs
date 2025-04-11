@@ -336,6 +336,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         let tt = self.token_trees.peek_nth(n).cloned();
 
         match tt {
+            Some(TokenTree::Internal(InternalLeaf::FinishExpandingMacro(_))) => self.peek_non_whitespace_nth(n + 1),
             Some(TokenTree::LexerToken(span!(Token::Whitespace(_)))) => self.peek_non_whitespace_nth(n + 1),
             Some(TokenTree::PreprocessorToken(span!(Token::Whitespace(_)))) => self.peek_non_whitespace_nth(n + 1),
             Some(_) => tt,
@@ -346,6 +347,12 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         let tt = self.token_trees.next()?;
 
         match tt {
+            TokenTree::Internal(InternalLeaf::FinishExpandingMacro(mac)) => {
+                //todo: this is a TERRIBLE solution/hack, this desperately needs to be reconisderd
+                // I think just moving every call to self.token_trees.next() into a wrapper function that handles expanding add and remove, then ignoring it in fully_expand_token_tree should work?
+                assert!(self.expanding.remove(&mac));
+                self.next_non_whitespace()
+            }
             TokenTree::LexerToken(span!(Token::Whitespace(_))) => self.next_non_whitespace(),
             TokenTree::PreprocessorToken(span!(Token::Whitespace(_))) => self.next_non_whitespace(),
 
