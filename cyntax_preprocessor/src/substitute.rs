@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Debug};
+use std::{collections::{HashMap, HashSet}, fmt::Debug};
 
 use cyntax_common::{
     ast::{Punctuator, Token},
@@ -7,23 +7,24 @@ use cyntax_common::{
 use cyntax_lexer::{lexer::Lexer, span};
 
 use crate::{
-    expand::{self, MacroArgument},
+    expand::{self, MacroArgument, MacroDefinition},
     prepend::PrependingPeekableIterator,
 };
 
-pub struct ArgumentSubstitutionIterator<I>
+pub struct ArgumentSubstitutionIterator<'a, I>
 where
     I: Debug + Iterator<Item = Spanned<Token>>,
 {
     pub replacements: PrependingPeekableIterator<I>,
     pub map: HashMap<String, MacroArgument>,
+    pub macros: HashSet<&'a &'a String>,
     pub glue: bool,
     pub glue_string: String,
     pub stringify: bool,
     pub stringify_string: String,
 }
 
-impl<I: Debug + Iterator<Item = Spanned<Token>>> Iterator for ArgumentSubstitutionIterator<I> {
+impl<'a, I: Debug + Iterator<Item = Spanned<Token>>> Iterator for ArgumentSubstitutionIterator<'a, I> {
     type Item = Vec<Spanned<Token>>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -32,14 +33,6 @@ impl<I: Debug + Iterator<Item = Spanned<Token>>> Iterator for ArgumentSubstituti
         let token = token?;
 
         match &token {
-            token if self.stringify => {
-                dbg!(&token);
-                Self::stringify_tokens(self.maybe_substitute_arg(token.clone(), false).iter(), &mut self.stringify_string);
-                self.replacements.prepend(Spanned::new(token.range.clone(), Token::StringLiteral(self.stringify_string.clone())));
-                self.stringify = false;
-                self.stringify_string.clear();
-                Some(vec![])
-            }
             token if self.glue => {
                 Self::stringify_tokens(self.maybe_substitute_arg(token.clone(), false).iter(), &mut self.glue_string);
 
@@ -50,13 +43,21 @@ impl<I: Debug + Iterator<Item = Spanned<Token>>> Iterator for ArgumentSubstituti
 
                     self.glue = false;
                     self.glue_string.clear();
-
                     Some(tokens)
                 } else {
                     self.replacements.next().unwrap();
                     Some(vec![])
                 }
             }
+            token if self.stringify => {
+                dbg!(&token);
+                Self::stringify_tokens(self.maybe_substitute_arg(token.clone(), false).iter(), &mut self.stringify_string);
+                self.replacements.prepend(Spanned::new(token.range.clone(), Token::StringLiteral(self.stringify_string.clone())));
+                self.stringify = false;
+                self.stringify_string.clear();
+                Some(vec![])
+            }
+            
             span!(Token::Punctuator(Punctuator::Hash)) => {
                 self.stringify = true;
                 Some(vec![])
@@ -65,10 +66,9 @@ impl<I: Debug + Iterator<Item = Spanned<Token>>> Iterator for ArgumentSubstituti
                 self.glue = true;
                 Self::stringify_tokens(self.maybe_substitute_arg(token.clone(), false).iter(), &mut self.glue_string);
                 self.replacements.next().unwrap(); // // eat ## 
-
                 Some(vec![])
             }
-            span!(Token::Identifier(identifier)) if self.map.contains_key(identifier) => {
+            span!(Token::Identifier(identifier)) if self.map.contains_key(identifier)  => {
                 let expanded = self.map.get(identifier).unwrap().expanded.clone();
                 Some(expanded)
             }
@@ -78,7 +78,7 @@ impl<I: Debug + Iterator<Item = Spanned<Token>>> Iterator for ArgumentSubstituti
     }
 }
 
-impl<I: Debug + Iterator<Item = Spanned<Token>>> ArgumentSubstitutionIterator<I> {
+impl<'a, I: Debug + Iterator<Item = Spanned<Token>>> ArgumentSubstitutionIterator<'a, I> {
     pub fn maybe_substitute_arg(&mut self, token: Spanned<Token>, expand: bool) -> Vec<Spanned<Token>> {
         match token {
             span!(Token::Identifier(identifier)) if self.map.contains_key(&identifier) => {
@@ -88,7 +88,7 @@ impl<I: Debug + Iterator<Item = Spanned<Token>>> ArgumentSubstitutionIterator<I>
             _ => vec![token],
         }
     }
-    pub fn stringify_tokens<'a, T: Iterator<Item = &'a Spanned<Token>>>(tokens: T, s: &mut String) {
+    pub fn stringify_tokens<'b, T: Iterator<Item = &'b Spanned<Token>>>(tokens: T, s: &mut String) {
         for token in tokens {
             Self::stringify_token(token, s);
         }
