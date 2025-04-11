@@ -14,20 +14,19 @@ use crate::{
     prepend::PrependingPeekableIterator,
 };
 
-pub struct ArgumentSubstitutionIterator<'a, I>
+pub struct ArgumentSubstitutionIterator<I>
 where
     I: Debug + Iterator<Item = Spanned<Token>>,
 {
     pub replacements: PrependingPeekableIterator<I>,
     pub map: HashMap<String, MacroArgument>,
-    pub macros: HashSet<&'a &'a String>,
     pub glue: bool,
     pub glue_string: String,
     pub stringify: bool,
     pub stringify_string: String,
 }
 
-impl<'a, I: Debug + Iterator<Item = Spanned<Token>>> Iterator for ArgumentSubstitutionIterator<'a, I> {
+impl<'a, I: Debug + Iterator<Item = Spanned<Token>>> Iterator for ArgumentSubstitutionIterator<I> {
     type Item = Vec<Spanned<Token>>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -81,7 +80,7 @@ impl<'a, I: Debug + Iterator<Item = Spanned<Token>>> Iterator for ArgumentSubsti
     }
 }
 
-impl<'a, I: Debug + Iterator<Item = Spanned<Token>>> ArgumentSubstitutionIterator<'a, I> {
+impl<'a, I: Debug + Iterator<Item = Spanned<Token>>> ArgumentSubstitutionIterator<I> {
     pub fn maybe_substitute_arg(&mut self, token: Spanned<Token>, expand: bool) -> Vec<Spanned<Token>> {
         match token {
             span!(Token::Identifier(identifier)) if self.map.contains_key(&identifier) => {

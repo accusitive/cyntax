@@ -167,7 +167,6 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                     glue_string: String::new(),
                     stringify: false,
                     stringify_string: String::new(),
-                    macros: self.get_macro_hashset(),
                 }
                 .flatten()
                 .collect::<Vec<_>>();
@@ -210,7 +209,6 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                         glue_string: String::new(),
                         stringify: false,
                         stringify_string: String::new(),
-                        macros: self.get_macro_hashset(),
                     }
                     .flatten()
                     .collect::<Vec<_>>();
@@ -226,9 +224,6 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         }
     }
 
-    fn get_macro_hashset(&mut self) -> HashSet<&&String> {
-        self.macros.keys().collect::<HashSet<&&String>>()
-    }
     pub fn next_delimited(&mut self) -> (Spanned<char>, Spanned<char>, Vec<Spanned<Token>>) {
         let paren = self.next_non_whitespace().unwrap();
         match paren {
