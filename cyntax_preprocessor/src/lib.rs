@@ -13,6 +13,8 @@ mod macros;
 mod prepend;
 mod substitute;
 mod tree;
+mod tests;
+
 pub struct Preprocessor<'src> {
     // macros and whatever
     file_source: &'src str,
@@ -32,42 +34,37 @@ impl<'src> Preprocessor<'src> {
         Self { file_source, file_name, token_trees: itt }
     }
     pub fn expand(self) -> Vec<Spanned<Token>> {
-        // let mut state = HashMap::new();
-        let tt = self.token_trees;
-
-        let mut expander = Expander::new(self.file_source, PrependingPeekableIterator::new(tt.into_iter()));
-        
+        let mut expander = Expander::new(self.file_source, PrependingPeekableIterator::new(self.token_trees.into_iter()));
         expander.expand().unwrap_diagnostic("test.c", self.file_source);
-
         expander.output
     }
 }
 
-mod tests {
-    use cyntax_common::ast::{Token, Whitespace};
-    use cyntax_lexer::lexer::Lexer;
+// mod tests {
+//     use cyntax_common::ast::{Token, Whitespace};
+//     use cyntax_lexer::lexer::Lexer;
 
-    use crate::Preprocessor;
-    fn test_helper(source: &str) -> Vec<Token> {
-        let tokens = Lexer::new("test.c", source).collect::<Vec<_>>();
-        let pp = Preprocessor::new("test.c", source, &tokens).expand();
-        let despanned = pp.into_iter().map(|token| token.value).filter(|token| !matches!(token, Token::Whitespace(_))).collect::<Vec<_>>();
+//     use crate::Preprocessor;
+//     fn test_helper(source: &str) -> Vec<Token> {
+//         let tokens = Lexer::new("test.c", source).collect::<Vec<_>>();
+//         let pp = Preprocessor::new("test.c", source, &tokens).expand();
+//         let despanned = pp.into_iter().map(|token| token.value).filter(|token| !matches!(token, Token::Whitespace(_))).collect::<Vec<_>>();
 
-        despanned
-    }
-    #[test]
-    fn test_simple() {
-        let source = r#"
-#define a 5
-a"#;
-        assert_eq!(test_helper(source), vec![Token::PPNumber("5".to_string())]);
-    }
-    #[test]
-    fn test_recursive_object_macros() {
-        let source = r#"
-#define a b
-#define b a
-a"#;
-        assert_eq!(test_helper(source), vec![Token::BlueIdentifier("a".to_string())]);
-    }
-}
+//         despanned
+//     }
+//     #[test]
+//     fn test_simple() {
+//         let source = r#"
+// #define a 5
+// a"#;
+//         assert_eq!(test_helper(source), vec![Token::PPNumber("5".to_string())]);
+//     }
+//     #[test]
+//     fn test_recursive_object_macros() {
+//         let source = r#"
+// #define a b
+// #define b a
+// a"#;
+//         assert_eq!(test_helper(source), vec![Token::BlueIdentifier("a".to_string())]);
+//     }
+// }

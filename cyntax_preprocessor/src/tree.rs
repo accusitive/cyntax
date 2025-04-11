@@ -318,8 +318,8 @@ pub enum InternalLeaf {
     // Delimited(Spanned<char>, Spanned<char>, Vec<TokenTree<'src>>),
     MacroExpansion(String, Vec<Spanned<Token>>),
 
-    ExpandingMacro(String),
-    DoneExpandingMacro(String),
+    BeginExpandingMacro(String),
+    FinishExpandingMacro(String),
 }
 impl<'src> TokenTree<'src> {
     pub fn as_cow_token(&self) -> Cow<'src, Spanned<Token>> {

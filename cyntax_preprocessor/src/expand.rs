@@ -78,12 +78,12 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
                 Ok(self.expand_next(skip_macro_replacement)?.unwrap())
             }
             ExpandControlFlow::RescanMany(token_trees) => {
-                let count = self.token_trees.prepend_extend(token_trees.into_iter());
+                assert!(token_trees.len() > 0);
+                dbg!(&token_trees);
+                self.token_trees.prepend_extend(token_trees.into_iter());
                 let mut result = Vec::new();
-                for _ in 0..count {
-                    let tokens = self.expand_next(skip_macro_replacement)?.unwrap();
-                    result.extend(tokens);
-                }
+                let tokens = self.expand_next(skip_macro_replacement)?.unwrap();
+                result.extend(tokens);
                 Ok(result)
             }
         }
@@ -93,10 +93,10 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
 
         let mut output = vec![];
         match tt {
-            TokenTree::Internal(InternalLeaf::ExpandingMacro(macro_name)) => {
+            TokenTree::Internal(InternalLeaf::BeginExpandingMacro(macro_name)) => {
                 self.expanding.insert(macro_name);
             }
-            TokenTree::Internal(InternalLeaf::DoneExpandingMacro(macro_name)) => {
+            TokenTree::Internal(InternalLeaf::FinishExpandingMacro(macro_name)) => {
                 self.expanding.remove(&macro_name);
             }
             TokenTree::Directive(ControlLine::Error(range, message)) => {
@@ -108,9 +108,9 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
             TokenTree::Internal(InternalLeaf::MacroExpansion(macro_name, tt)) => {
                 let as_tokens = tt.into_iter().map(|token| TokenTree::PreprocessorToken(token)).collect::<Vec<_>>();
                 let mut f = vec![];
-                f.push(TokenTree::Internal(InternalLeaf::ExpandingMacro(macro_name.clone())));
+                f.push(TokenTree::Internal(InternalLeaf::BeginExpandingMacro(macro_name.clone())));
                 f.extend(as_tokens);
-                f.push(TokenTree::Internal(InternalLeaf::DoneExpandingMacro(macro_name.clone())));
+                f.push(TokenTree::Internal(InternalLeaf::FinishExpandingMacro(macro_name.clone())));
                 return Ok(ExpandControlFlow::RescanMany(f));
             }
             TokenTree::LexerToken(span!(span, Token::Identifier(identifier))) if self.expanding.contains(identifier) => {
