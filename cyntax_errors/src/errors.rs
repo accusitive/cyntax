@@ -116,9 +116,9 @@ impl Diagnostic for ExpectedButFound {
     }
 }
 
-pub struct ErrorDirective<'e>(pub Range<usize>, pub Option<&'e Spanned<Token>>);
+pub struct ErrorDirective(pub Range<usize>, pub Option<Spanned<Token>>);
 
-impl<'err> Diagnostic for ErrorDirective<'err> {
+impl Diagnostic for ErrorDirective {
     fn title<'a>(&self) -> &'a str {
         "Encountered error directive"
     }
@@ -127,7 +127,7 @@ impl<'err> Diagnostic for ErrorDirective<'err> {
         DiagnosticSeverity::Error
     }
     fn labels(&self) -> Vec<Label> {
-        let msg = match self.1 {
+        let msg = match &self.1 {
             Some(msg) => Some(Label {
                 kind: crate::LabelKind::Secondary,
                 range: msg.range.clone(),

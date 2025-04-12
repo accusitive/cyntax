@@ -19,7 +19,7 @@ pub struct Preprocessor<'src> {
     // macros and whatever
     file_source: &'src str,
     file_name: &'src str,
-    token_trees: Vec<TokenTree<'src>>,
+    token_trees: Vec<TokenTree>,
 }
 
 impl<'src> Preprocessor<'src> {
