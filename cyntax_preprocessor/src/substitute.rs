@@ -16,9 +16,11 @@ where
     pub map: HashMap<String, MacroArgument>,
     pub is_variadic: bool,
     pub variadic_args: Vec<MacroArgument>,
-    pub glue: bool,
+    pub glue_next_token: bool,
+
     pub glue_string: String,
-    pub stringify: bool,
+
+    pub stringify_next_token: bool,
     pub stringify_string: String,
 }
 
@@ -31,7 +33,7 @@ impl<'a, I: Debug + Iterator<Item = Spanned<Token>>> Iterator for ArgumentSubsti
         let token = token?;
 
         match &token {
-            token if self.glue => {
+            token if self.glue_next_token => {
                 Self::stringify_tokens(self.maybe_substitute_arg(token.clone(), false).iter(), &mut self.glue_string);
 
                 if !matches!(self.replacements.peek(), Some(span!(Token::Punctuator(Punctuator::HashHash)))) {
@@ -39,7 +41,7 @@ impl<'a, I: Debug + Iterator<Item = Spanned<Token>>> Iterator for ArgumentSubsti
 
                     let tokens = Lexer::new("test.c", &src).map(|span| Spanned::new(token.range.clone(), span.value)).collect::<Vec<_>>();
 
-                    self.glue = false;
+                    self.glue_next_token = false;
                     self.glue_string.clear();
                     Some(tokens)
                 } else {
@@ -47,21 +49,21 @@ impl<'a, I: Debug + Iterator<Item = Spanned<Token>>> Iterator for ArgumentSubsti
                     Some(vec![])
                 }
             }
-            token if self.stringify => {
+            token if self.stringify_next_token => {
                 dbg!(&token);
                 Self::stringify_tokens(self.maybe_substitute_arg(token.clone(), false).iter(), &mut self.stringify_string);
                 self.replacements.prepend(Spanned::new(token.range.clone(), Token::StringLiteral(self.stringify_string.clone())));
-                self.stringify = false;
+                self.stringify_next_token = false;
                 self.stringify_string.clear();
                 Some(vec![])
             }
 
             span!(Token::Punctuator(Punctuator::Hash)) => {
-                self.stringify = true;
+                self.stringify_next_token = true;
                 Some(vec![])
             }
             token if matches!(self.replacements.peek(), Some(span!(Token::Punctuator(Punctuator::HashHash)))) => {
-                self.glue = true;
+                self.glue_next_token = true;
                 Self::stringify_tokens(self.maybe_substitute_arg(token.clone(), false).iter(), &mut self.glue_string);
                 self.replacements.next().unwrap(); // // eat ## 
                 Some(vec![])

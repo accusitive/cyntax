@@ -199,9 +199,9 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                     map: HashMap::new(),
                     variadic_args: vec![],
                     is_variadic: false,
-                    glue: false,
+                    glue_next_token: false,
                     glue_string: String::new(),
-                    stringify: false,
+                    stringify_next_token: false,
                     stringify_string: String::new(),
                 }
                 .flatten()
@@ -238,9 +238,9 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                         map,
                         variadic_args: extras,
                         is_variadic: parameter_list.variadic,
-                        glue: false,
+                        glue_next_token: false,
                         glue_string: String::new(),
-                        stringify: false,
+                        stringify_next_token: false,
                         stringify_string: String::new(),
                     }
                     .flatten()
