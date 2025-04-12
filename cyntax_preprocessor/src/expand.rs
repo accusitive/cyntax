@@ -113,41 +113,41 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
             TokenTree::Directive(ControlLine::Error(range, message)) => {
                 return Err(cyntax_errors::errors::ErrorDirective(range, message).into_why_report());
             }
-            TokenTree::Directive(ControlLine::Include(header_name)) => {
-                match header_name {
-                    crate::tree::HeaderName::Q(file_name) => {
-                        let content = std::fs::read_to_string(file_name.clone()).unwrap();
-                        let lexer = cyntax_lexer::lexer::Lexer::new(&file_name, &content);
-                        let toks = lexer.collect::<Vec<_>>();
-                        let trees = IntoTokenTree{
-                            source: &content,
-                            tokens: toks.iter().peekable(),
-                            expecting_opposition: false,
-                        }.collect::<Vec<TokenTree>>();
-
-                        return Ok(ExpandControlFlow::RescanMany(trees))
+            TokenTree::Directive(ControlLine::Include(header_name)) => match header_name {
+                crate::tree::HeaderName::Q(file_name) => {
+                    let content = std::fs::read_to_string(file_name.clone()).unwrap();
+                    let lexer = cyntax_lexer::lexer::Lexer::new(&file_name, &content);
+                    let toks = lexer.collect::<Vec<_>>();
+                    let trees = IntoTokenTree {
+                        source: &content,
+                        tokens: toks.iter().peekable(),
+                        expecting_opposition: false,
                     }
-                    crate::tree::HeaderName::H(tokens) =>{
-                        let first = tokens.first().unwrap();
-                        let last = tokens.last().unwrap();
-                        let range = first.range.start..last.range.end;
-                        let file_name = &self.file_source[range];
+                    .collect::<Vec<TokenTree>>();
 
-                        let content = std::fs::read_to_string(file_name).unwrap();
-                        let lexer = cyntax_lexer::lexer::Lexer::new(&file_name, &content);
-                        let toks = lexer.collect::<Vec<_>>();
-                        let trees = IntoTokenTree{
-                            source: &content,
-                            tokens: toks.iter().peekable(),
-                            expecting_opposition: false,
-                        }.collect::<Vec<TokenTree>>();
-
-                        return Ok(ExpandControlFlow::RescanMany(trees))
-                    },
+                    return Ok(ExpandControlFlow::RescanMany(trees));
                 }
-            }
+                crate::tree::HeaderName::H(tokens) => {
+                    let first = tokens.first().unwrap();
+                    let last = tokens.last().unwrap();
+                    let range = first.range.start..last.range.end;
+                    let file_name = &self.file_source[range];
+
+                    let content = std::fs::read_to_string(file_name).unwrap();
+                    let lexer = cyntax_lexer::lexer::Lexer::new(&file_name, &content);
+                    let toks = lexer.collect::<Vec<_>>();
+                    let trees = IntoTokenTree {
+                        source: &content,
+                        tokens: toks.iter().peekable(),
+                        expecting_opposition: false,
+                    }
+                    .collect::<Vec<TokenTree>>();
+
+                    return Ok(ExpandControlFlow::RescanMany(trees));
+                }
+            },
             TokenTree::Directive(control_line) => {
-                self.handle_control_line(control_line);
+                self.handle_control_line(control_line)?;
             }
             TokenTree::Internal(InternalLeaf::MacroExpansion(macro_name, tt)) => {
                 let as_tokens = tt.into_iter().map(|token| TokenTree::PreprocessorToken(token)).collect::<Vec<_>>();
@@ -220,9 +220,9 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                     let mut expanded_args = vec![];
 
                     for arg in arguments {
-                        let i = arg.clone().into_iter();
+                        let i = arg.value.clone().into_iter();
                         expanded_args.push(MacroArgument {
-                            unexpanded: arg.into_iter().cloned().collect(),
+                            unexpanded: arg.value.into_iter().cloned().collect(),
                             expanded: self.expand_arg(i.into_iter()),
                         });
                     }
@@ -278,19 +278,24 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
         expander.output
     }
 
-    pub fn handle_control_line(&mut self, control_line: ControlLine) {
+    pub fn handle_control_line(&mut self, control_line: ControlLine) -> PResult<()> {
         dbg!(&control_line);
         match control_line {
-            ControlLine::DefineFunction { macro_name, parameters, replacement_list } => self.handle_define_function(macro_name, parameters, &replacement_list),
-            ControlLine::DefineObject { macro_name, replacement_list } => self.handle_define_object(macro_name, &replacement_list),
+            ControlLine::DefineFunction { macro_name, parameters, replacement_list } => {
+                self.handle_define_function(macro_name, parameters, &replacement_list)?;
+            }
+            ControlLine::DefineObject { macro_name, replacement_list } => {
+                self.handle_define_object(macro_name, &replacement_list);
+            }
             ControlLine::Undefine(macro_name) => {
                 self.macros.remove(&macro_name);
             }
             _ => todo!(),
         }
+        Ok(())
     }
-    pub fn handle_define_function<'func>(&mut self, macro_name: String, parameters: Spanned<Token>, replacment_list: &'func Vec<Spanned<Token>>) {
-        let parameters = self.parse_parameters(parameters);
+    pub fn handle_define_function<'func>(&mut self, macro_name: String, parameters: Spanned<Token>, replacment_list: &'func Vec<Spanned<Token>>) -> PResult<()> {
+        let parameters = self.parse_parameters(parameters)?;
         self.macros.insert(
             macro_name,
             MacroDefinition::Function {
@@ -298,6 +303,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                 replacement_list: replacment_list.to_vec(),
             },
         );
+        Ok(())
     }
     pub fn handle_define_object<'func>(&mut self, macro_name: String, replacment_list: &'func Vec<Spanned<Token>>) {
         self.macros.insert(macro_name, MacroDefinition::Object(replacment_list.to_vec()));

@@ -1,2 +1,1 @@
-#include "./test2.h"
-#include </usr/include/stdio.h>
+#define test(x,,y) x##y
