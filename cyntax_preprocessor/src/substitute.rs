@@ -105,6 +105,11 @@ impl<'a, I: Debug + Iterator<Item = Spanned<Token>>> ArgumentSubstitutionIterato
                 s.push_str(string);
                 s.push('"');
             }
+            Token::CharLiteral(chars) => {
+                s.push('\'');
+                s.push_str(chars);
+                s.push('\'');
+            }
             Token::PPNumber(number) => {
                 s.push_str(number);
             }

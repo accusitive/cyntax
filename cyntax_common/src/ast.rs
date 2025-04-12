@@ -10,6 +10,8 @@ pub enum Token {
     // An identifier that should not be considered for a potential macro invocation
     BlueIdentifier(String),
     StringLiteral(String),
+    CharLiteral(String),
+
     PPNumber(String),
 
     // Directive(Directive),

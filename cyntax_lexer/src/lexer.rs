@@ -79,6 +79,10 @@ impl<'src> Iterator for Lexer<'src> {
                 let string = self.lex_string_literal(range);
                 Some(string.map(|string| Token::StringLiteral(string)))
             }
+            span!(range, '\'') => {
+                let string = self.lex_char_literal(range);
+                Some(string.map(|string| Token::CharLiteral(string)))
+            }
             first_character @ span!(digit!()) => {
                 let number = self.lex_number(&first_character);
                 Some(number.map(|num| Token::PPNumber(num)))
@@ -135,7 +139,9 @@ impl<'src> Iterator for Lexer<'src> {
             span!(range, ' ') => Some(Spanned::new(range, Token::Whitespace(Whitespace::Space))),
             span!(range, '\t') => Some(Spanned::new(range, Token::Whitespace(Whitespace::Tab))),
             span!(range, '\n') => Some(Spanned::new(range, Token::Whitespace(Whitespace::Newline))),
-            ch => unimplemented!("character {} is not implemented", ch.value),
+            ch => {
+                self.fatal_diagnostic(cyntax_errors::errors::SimpleError(ch.range, format!("unimplemented character {}", ch.value)))
+            }
         };
 
         // Set this after lexing the token, otherwise it would always be false for non-newline tokens
@@ -178,6 +184,29 @@ impl<'src> Lexer<'src> {
             }
             // Handle escaped characters within string literal
             if *c == '\\' && matches!(self.chars.peek_nth(1).unwrap(), span!('"' | '\\')) {
+                // Skip \
+                self.chars.next().unwrap();
+            }
+
+            let next = self.chars.next().unwrap();
+            end = next.range.end;
+            ranges.push(next.value);
+        }
+
+        Spanned::new(range.start..end, ranges)
+    }
+    pub fn lex_char_literal(&mut self, range: CharLocation) -> Spanned<String> {
+        let mut ranges = String::new();
+        let mut end = range.end;
+
+        while let Some(span!(c)) = self.chars.peek() {
+            if *c == '\'' {
+                let end_quote = self.chars.next().unwrap();
+                end = end_quote.range.end;
+                break;
+            }
+            // Handle escaped characters within string literal
+            if *c == '\\' && matches!(self.chars.peek_nth(1).unwrap(), span!('\'' | '\\')) {
                 // Skip \
                 self.chars.next().unwrap();
             }
@@ -237,17 +266,9 @@ impl<'src> Lexer<'src> {
 }
 // Util functions
 impl<'src> Lexer<'src> {
-    pub fn fatal_diagnostic<E: cyntax_errors::Diagnostic>(&mut self, diagnostic: E) {
-        panic!("{}", diagnostic.into_why_report().with(self.file_name, self.source));
-        // println!(
-        //     "{}",
-        //     cyntax_errors::write_codespan_report(
-        //         diagnostic.into_codespan_report(),
-        //         self.file_name,
-        //         self.source
-        //     )
-        // );
-        // panic!();
+    pub fn fatal_diagnostic<E: cyntax_errors::Diagnostic>(&mut self, diagnostic: E) -> !{
+        panic!("{}", diagnostic.into_why_report().with(self.file_name, self.source))
+
     }
     pub fn closing_delimiter_for(c: char) -> char {
         match c {

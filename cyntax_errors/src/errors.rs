@@ -156,3 +156,20 @@ impl Diagnostic for ErrorDirective {
         }
     }
 }
+
+pub struct SimpleError(pub Range<usize>, pub String);
+
+impl Diagnostic for SimpleError {
+    fn title<'a>(&self) -> &'a str {
+        "error"
+    }
+
+    fn severity(&self) -> DiagnosticSeverity {
+        DiagnosticSeverity::Error
+    }
+    fn labels(&self) -> Vec<Label> {
+        vec![
+            Label{ kind: crate::LabelKind::Primary, range: self.0.clone(), message: self.1.clone() }
+        ]
+    }
+}

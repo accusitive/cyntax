@@ -20,6 +20,11 @@ fn print_tokens<'src, I: Iterator<Item = &'src Spanned<Token>>>(source: &'src st
                 print!("{}", string);
                 print!("\"");
             }
+            Token::CharLiteral(chars) => {
+                print!("\'");
+                print!("{}", chars);
+                print!("\'");
+            } 
             Token::PPNumber(number) => {
                 print!("{}", number);
             }

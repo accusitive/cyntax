@@ -115,24 +115,35 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
             }
             TokenTree::Directive(ControlLine::Include(header_name)) => {
                 match header_name {
-                    crate::tree::HeaderName::Q(s) => {
-                        let content = std::fs::read_to_string(s).unwrap();
-                        // let content = self.arena.alloc(content);
-                        // self.files.push(content);
-                        // let content: &'src String = self.files.last().unwrap();
+                    crate::tree::HeaderName::Q(file_name) => {
+                        let content = std::fs::read_to_string(file_name.clone()).unwrap();
+                        let lexer = cyntax_lexer::lexer::Lexer::new(&file_name, &content);
+                        let toks = lexer.collect::<Vec<_>>();
+                        let trees = IntoTokenTree{
+                            source: &content,
+                            tokens: toks.iter().peekable(),
+                            expecting_opposition: false,
+                        }.collect::<Vec<TokenTree>>();
 
-                        // let lexer = cyntax_lexer::lexer::Lexer::new(s, &content);
-                        // let toks = lexer.collect::<Vec<_>>();
-                        // let trees = IntoTokenTree::<'src>{
-                        //     source: content,
-                        //     tokens: toks.iter().peekable(),
-                        //     expecting_opposition: false,
-                        // }.collect::<Vec<TokenTree<'_>>>();
-
-                        // return Ok(ExpandControlFlow::RescanMany(trees))
-                        todo!()
+                        return Ok(ExpandControlFlow::RescanMany(trees))
                     }
-                    crate::tree::HeaderName::H(spanneds) => todo!(),
+                    crate::tree::HeaderName::H(tokens) =>{
+                        let first = tokens.first().unwrap();
+                        let last = tokens.last().unwrap();
+                        let range = first.range.start..last.range.end;
+                        let file_name = &self.file_source[range];
+
+                        let content = std::fs::read_to_string(file_name).unwrap();
+                        let lexer = cyntax_lexer::lexer::Lexer::new(&file_name, &content);
+                        let toks = lexer.collect::<Vec<_>>();
+                        let trees = IntoTokenTree{
+                            source: &content,
+                            tokens: toks.iter().peekable(),
+                            expecting_opposition: false,
+                        }.collect::<Vec<TokenTree>>();
+
+                        return Ok(ExpandControlFlow::RescanMany(trees))
+                    },
                 }
             }
             TokenTree::Directive(control_line) => {
