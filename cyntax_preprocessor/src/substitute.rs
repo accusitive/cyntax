@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap},
     fmt::Debug,
 };
 
@@ -10,7 +10,7 @@ use cyntax_common::{
 use cyntax_lexer::{lexer::Lexer, span};
 
 use crate::{
-    expand::{self, MacroArgument, MacroDefinition},
+    expand::MacroArgument,
     prepend::PrependingPeekableIterator,
 };
 

@@ -1,22 +1,14 @@
-use std::{collections::HashMap, fmt::Debug, time::Instant};
-
+use std::fmt::Debug;
 use cyntax_common::{
     ast::{Punctuator, Token},
     spanned::Spanned,
 };
 use cyntax_errors::{Diagnostic, errors::SimpleError};
-use cyntax_lexer::{lexer::Lexer, span};
-
+use cyntax_lexer::span;
 use crate::{
-    expand::{ExpandControlFlow, Expander, PResult, ReplacementList},
-    prepend::PrependingPeekableIterator,
+    expand::{Expander, PResult},
     tree::TokenTree,
 };
-// #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-// pub enum MacroParameter {
-//     Identifier(String),
-//     Variadic
-// }
 #[derive(Debug, Clone)]
 pub struct MacroParameterList {
     pub parameters: Vec<String>,

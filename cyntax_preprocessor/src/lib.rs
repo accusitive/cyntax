@@ -1,8 +1,5 @@
 #![feature(iter_chain)]
 #![feature(iter_intersperse)]
-
-use std::collections::HashMap;
-
 use cyntax_common::{ast::Token, spanned::Spanned};
 use cyntax_errors::UnwrapDiagnostic;
 use expand::Expander;
@@ -41,32 +38,3 @@ impl<'src> Preprocessor<'src> {
         expander.output
     }
 }
-
-// mod tests {
-//     use cyntax_common::ast::{Token, Whitespace};
-//     use cyntax_lexer::lexer::Lexer;
-
-//     use crate::Preprocessor;
-//     fn test_helper(source: &str) -> Vec<Token> {
-//         let tokens = Lexer::new("test.c", source).collect::<Vec<_>>();
-//         let pp = Preprocessor::new("test.c", source, &tokens).expand();
-//         let despanned = pp.into_iter().map(|token| token.value).filter(|token| !matches!(token, Token::Whitespace(_))).collect::<Vec<_>>();
-
-//         despanned
-//     }
-//     #[test]
-//     fn test_simple() {
-//         let source = r#"
-// #define a 5
-// a"#;
-//         assert_eq!(test_helper(source), vec![Token::PPNumber("5".to_string())]);
-//     }
-//     #[test]
-//     fn test_recursive_object_macros() {
-//         let source = r#"
-// #define a b
-// #define b a
-// a"#;
-//         assert_eq!(test_helper(source), vec![Token::BlueIdentifier("a".to_string())]);
-//     }
-// }

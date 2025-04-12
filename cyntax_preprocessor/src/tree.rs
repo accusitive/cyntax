@@ -125,7 +125,7 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
 
         let mut tokens_iter = tokens.clone().into_iter().peekable();
         // utility function to strip all preceeding whitespace
-        let skip_whitespace = |tokens_iter:&mut Peekable<std::vec::IntoIter<Spanned<Token>>>| {
+        let skip_whitespace = |tokens_iter: &mut Peekable<std::vec::IntoIter<Spanned<Token>>>| {
             while let Some(token) = tokens_iter.peek() {
                 if matches!(token, span!(Token::Whitespace(_))) {
                     tokens_iter.next().unwrap();
@@ -230,8 +230,6 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
                     // TODO: error
                     _ => todo!(),
                 }
-                dbg!(&tokens_iter.collect::<Vec<_>>());
-                panic!();
             }
             _ => {
                 let directive_range = tokens.first().unwrap().range.start..tokens.last().unwrap().range.end;
@@ -249,6 +247,7 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum ControlLine {
     IfDef { macro_name: String },
     IfNDef { macro_name: String },
@@ -286,6 +285,7 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum TokenTree {
     Directive(ControlLine),
     IfDef {
@@ -327,7 +327,7 @@ pub enum InternalLeaf {
     BeginExpandingMacro(String),
     FinishExpandingMacro(String),
 }
-impl TokenTree{
+impl TokenTree {
     pub fn as_token(&self) -> Spanned<Token> {
         match self {
             TokenTree::PreprocessorToken(spanned) => spanned.clone(),

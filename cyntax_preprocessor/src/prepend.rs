@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, fmt::Debug, iter::Peekable};
+use std::{collections::VecDeque, fmt::Debug};
 
 use peekmore::{PeekMore, PeekMoreIterator};
 

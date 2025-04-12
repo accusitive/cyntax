@@ -1,6 +1,5 @@
-use bumpalo::Bump;
 use cyntax_common::{
-    ast::{Directive, Punctuator, Token},
+    ast::{Punctuator, Token},
     spanned::Spanned,
 };
 use cyntax_errors::{errors::SimpleError, why::Report};
@@ -80,8 +79,6 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
         Ok(())
     }
     pub fn expand_next(&mut self, skip_macro_replacement: bool) -> PResult<Option<Vec<Spanned<Token>>>> {
-        dbg!();
-
         match self.next_token_tree() {
             Some(tt) => {
                 let expanded = self.fully_expand_token_tree(tt, skip_macro_replacement)?;
