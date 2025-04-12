@@ -1,3 +1,4 @@
+use bumpalo::Bump;
 use cyntax_common::{
     ast::{Directive, Punctuator, Token},
     spanned::Spanned,
@@ -14,14 +15,16 @@ use std::{
 use crate::{
     prepend::PrependingPeekableIterator,
     substitute::ArgumentSubstitutionIterator,
-    tree::{ControlLine, InternalLeaf, TokenTree},
+    tree::{ControlLine, InternalLeaf, IntoTokenTree, TokenTree},
 };
 pub type ReplacementList<'src> = Vec<&'src Spanned<Token>>;
 pub type PResult<T> = Result<T, Report>;
 
 #[derive(Debug)]
 pub struct Expander<'src, I: Debug + Iterator<Item = TokenTree<'src>>> {
-    pub source: &'src str,
+    pub file_name: &'src str,
+    pub file_source: &'src str,
+    // pub files: Vec<String>,
     pub token_trees: PrependingPeekableIterator<I>,
     pub output: Vec<Spanned<Token>>,
     pub macros: HashMap<&'src str, MacroDefinition<'src>>,
@@ -43,13 +46,15 @@ pub struct MacroArgument {
     pub expanded: Vec<Spanned<Token>>,
 }
 impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
-    pub fn new(source: &'src str, token_trees: PrependingPeekableIterator<I>) -> Self {
+    pub fn new(name: &'src str, source: &'src str, token_trees: PrependingPeekableIterator<I>) -> Self {
         Self {
-            source,
+            file_name: name,
+            file_source: source,
             token_trees,
             output: Vec::new(),
             macros: HashMap::new(),
             expanding: HashSet::new(),
+            // files: vec![]
         }
     }
     // this recursion isnt that bad, there shouldnt really ever be many BeginExpandingMacro tokens next to eachother. id be shocked to see more than 10
@@ -107,6 +112,29 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         match tt {
             TokenTree::Directive(ControlLine::Error(range, message)) => {
                 return Err(cyntax_errors::errors::ErrorDirective(range, message).into_why_report());
+            }
+            TokenTree::Directive(ControlLine::Include(header_name)) => {
+                match header_name {
+                    crate::tree::HeaderName::Q(s) => {
+                        let content = std::fs::read_to_string(s).unwrap();
+                        let content = self.arena.alloc(content);
+                        // self.files.push(content);
+                        // let content: &'src String = self.files.last().unwrap();
+
+                        let lexer = cyntax_lexer::lexer::Lexer::new(s, &content);
+                        let toks = lexer.collect::<Vec<_>>();
+                        let trees = IntoTokenTree::<'src>{
+                            source: content,
+                            tokens: toks.iter().peekable(),
+                            expecting_opposition: false,
+                        }.collect::<Vec<TokenTree<'_>>>();
+
+
+                        return Ok(ExpandControlFlow::RescanMany(trees))
+
+                    },
+                    crate::tree::HeaderName::H(spanneds) => todo!(),
+                }
             }
             TokenTree::Directive(control_line) => {
                 self.handle_control_line(control_line);
@@ -249,7 +277,8 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
     }
     pub fn expand_arg<'a, J: Iterator<Item = &'a Spanned<Token>>>(&mut self, arg: J) -> Vec<Spanned<Token>> {
         let mut expander = Expander {
-            source: self.source,
+            file_name: self.file_name,
+            file_source: self.file_source,
             expanding: self.expanding.clone(),
             macros: self.macros.clone(),
             output: Vec::new(),
