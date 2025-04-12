@@ -52,6 +52,21 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
             expanding: HashSet::new(),
         }
     }
+    // this recursion isnt that bad, there shouldnt really ever be many BeginExpandingMacro tokens next to eachother. id be shocked to see more than 10
+    pub fn next_token_tree(&mut self) -> Option<TokenTree<'src>> {
+        match self.token_trees.next() {
+            Some(TokenTree::Internal(InternalLeaf::BeginExpandingMacro(mac))) => {
+                self.expanding.insert(mac);
+                self.next_token_tree()
+            }
+            Some(TokenTree::Internal(InternalLeaf::FinishExpandingMacro(mac))) => {
+                self.expanding.remove(&mac);
+                self.next_token_tree()
+            }
+            Some(tt) => Some(tt),
+            None => None,
+        }
+    }
     pub fn expand(&mut self) -> PResult<()> {
         while let Some(tokens) = self.expand_next(false)? {
             self.output.extend(tokens);
@@ -61,8 +76,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
     pub fn expand_next(&mut self, skip_macro_replacement: bool) -> PResult<Option<Vec<Spanned<Token>>>> {
         dbg!();
 
-        // match self.token_trees.next().map(|tt| self.fully_expand_token_tree(tt, skip_macro_replacement))
-        match self.token_trees.next() {
+        match self.next_token_tree() {
             Some(tt) => {
                 let expanded = self.fully_expand_token_tree(tt, skip_macro_replacement)?;
                 Ok(Some(expanded))
@@ -89,18 +103,8 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         }
     }
     pub fn expand_token_tree(&mut self, tt: TokenTree<'src>, skip_macro_replacement: bool) -> PResult<ExpandControlFlow<'src>> {
-        // dbg!(&tt);
-
         let mut output = vec![];
         match tt {
-            TokenTree::Internal(InternalLeaf::BeginExpandingMacro(macro_name)) => {
-                println!("begin {:#?}", &macro_name);
-                self.expanding.insert(macro_name);
-            }
-            TokenTree::Internal(InternalLeaf::FinishExpandingMacro(macro_name)) => {
-                println!("finish {:#?}",& macro_name);
-                self.expanding.remove(&macro_name);
-            }
             TokenTree::Directive(ControlLine::Error(range, message)) => {
                 return Err(cyntax_errors::errors::ErrorDirective(range, message).into_why_report());
             }
@@ -297,16 +301,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         let valid_closer = Punctuator::from_char(expected_closer).unwrap();
         let mut inner = vec![];
         let mut end = opening_char.range.end;
-        while let Some(token) = self.token_trees.next() {
-            match &token {
-                TokenTree::Internal(InternalLeaf::BeginExpandingMacro(mac)) => {
-                    self.expanding.insert(mac.clone());
-                },
-                TokenTree::Internal(InternalLeaf::FinishExpandingMacro(mac)) => {
-                    self.expanding.remove(mac);
-                }
-                _ => {}
-             }
+        while let Some(token) = self.next_token_tree() {
             if !matches!(token, TokenTree::LexerToken(_) | TokenTree::PreprocessorToken(_)) {
                 continue;
             }
@@ -356,24 +351,9 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         }
     }
     pub fn next_non_whitespace(&mut self) -> Option<TokenTree<'src>> {
-        let tt = self.token_trees.next()?;
+        let tt = self.next_token_tree()?;
 
         match tt {
-            TokenTree::Internal(InternalLeaf::BeginExpandingMacro(mac)) => {
-                println!("inserting in next_non_whitespace {:#?}", &mac);
-                self.expanding.insert(mac);
-                
-
-                self.next_non_whitespace()
-            }
-            TokenTree::Internal(InternalLeaf::FinishExpandingMacro(mac)) => {
-                //todo: this is a TERRIBLE solution/hack, this desperately needs to be reconisderd
-                // I think just moving every call to self.token_trees.next() into a wrapper function that handles expanding add and remove, then ignoring it in fully_expand_token_tree should work?
-                println!("removing in next_non_whitespace {:#?}", mac);
-                self.expanding.remove(&mac);
-                self.next_non_whitespace()
-            }
-
             TokenTree::LexerToken(span!(Token::Whitespace(_))) => self.next_non_whitespace(),
             TokenTree::PreprocessorToken(span!(Token::Whitespace(_))) => self.next_non_whitespace(),
 

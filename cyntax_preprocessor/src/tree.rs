@@ -21,7 +21,7 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> Iterator for IntoTokenTree<
             span!(Token::ControlLine(inner)) => {
                 let control_line = self.parse_control_line(inner);
                 match control_line {
-                    ControlLine::DefineObject { .. } | ControlLine::DefineFunction { .. } | ControlLine::Error(..) | ControlLine::Warning(..) | ControlLine::Undefine(..) => {
+                    ControlLine::DefineObject { .. } | ControlLine::DefineFunction { .. } | ControlLine::Error(..) | ControlLine::Warning(..) | ControlLine::Undefine(..) | ControlLine::Include(..) => {
                         return Some(TokenTree::Directive(control_line));
                     }
                     ControlLine::If { condition } => {
@@ -219,6 +219,22 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
                 let reason = tokens_iter.next();
                 return ControlLine::Warning(directive_range, reason);
             }
+            _ if directive_name == "include" => {
+                skip_whitespace(&mut tokens_iter);
+                match tokens_iter.next() {
+                    Some(span!(Token::Punctuator(Punctuator::LessThan))) => {
+                        let inner = tokens_iter.take_while(|tok| !matches!(tok, span!(Token::Punctuator(Punctuator::GreaterThan)))).collect::<Vec<_>>();
+                        return ControlLine::Include(HeaderName::H(inner))
+                    }
+                    Some(span!(Token::StringLiteral(string))) => {
+                        return ControlLine::Include(HeaderName::Q(string))
+                    }
+                    // TODO: error
+                    _ => todo!(),
+                }
+                dbg!(&tokens_iter.collect::<Vec<_>>());
+                panic!();
+            }
             _ => {
                 let directive_range = tokens.first().unwrap().range.start..tokens.last().unwrap().range.end;
                 let err = cyntax_errors::errors::UnknownDirective(directive_range);
@@ -261,10 +277,18 @@ pub enum ControlLine<'src> {
         replacement_list: Vec<&'src Spanned<Token>>,
     },
     Undefine(&'src String),
+    Include(HeaderName<'src>),
     Error(Range<usize>, Option<&'src Spanned<Token>>),
     Warning(Range<usize>, Option<&'src Spanned<Token>>),
 
     Empty,
+}
+#[derive(Debug, Clone)]
+pub enum HeaderName<'src> {
+    /// "header-name.h"
+    Q(&'src str),
+    /// <header-name.h>
+    H(Vec<&'src Spanned<Token>>)
 }
 impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
     pub fn unwrap_diagnostic<T, E: Diagnostic, F: FnOnce(&mut Self) -> Result<T, E>>(&mut self, value: F) -> T {
