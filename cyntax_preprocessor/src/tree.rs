@@ -253,10 +253,10 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
 #[derive(Debug, Clone)]
 pub enum ControlLine<'src> {
     IfDef {
-        macro_name: &'src String,
+        macro_name: &'src str,
     },
     IfNDef {
-        macro_name: &'src String,
+        macro_name: &'src str,
     },
 
     If {
@@ -268,15 +268,15 @@ pub enum ControlLine<'src> {
     Else,
     EndIf,
     DefineFunction {
-        macro_name: &'src String,
+        macro_name: &'src str,
         parameters: Spanned<Token>,
         replacement_list: Vec<&'src Spanned<Token>>,
     },
     DefineObject {
-        macro_name: &'src String,
+        macro_name: &'src str,
         replacement_list: Vec<&'src Spanned<Token>>,
     },
-    Undefine(&'src String),
+    Undefine(&'src str),
     Include(HeaderName<'src>),
     Error(Range<usize>, Option<&'src Spanned<Token>>),
     Warning(Range<usize>, Option<&'src Spanned<Token>>),
@@ -306,12 +306,12 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
 pub enum TokenTree<'src> {
     Directive(ControlLine<'src>),
     IfDef {
-        macro_name: &'src String,
+        macro_name: &'src str,
         body: Vec<TokenTree<'src>>,
         opposition: Box<TokenTree<'src>>,
     },
     IfNDef {
-        macro_name: &'src String,
+        macro_name: &'src str,
         body: Vec<TokenTree<'src>>,
         opposition: Box<TokenTree<'src>>,
     },

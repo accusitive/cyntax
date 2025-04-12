@@ -24,7 +24,7 @@ pub struct Expander<'src, I: Debug + Iterator<Item = TokenTree<'src>>> {
     pub source: &'src str,
     pub token_trees: PrependingPeekableIterator<I>,
     pub output: Vec<Spanned<Token>>,
-    pub macros: HashMap<&'src String, MacroDefinition<'src>>,
+    pub macros: HashMap<&'src str, MacroDefinition<'src>>,
     pub expanding: HashSet<String>, // pub expanding: HashMap<String, bool>
 }
 #[derive(Debug, Clone)]
@@ -165,7 +165,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
         Ok(ExpandControlFlow::Return(output))
         // Ok(output)
     }
-    pub fn handle_identifier(&mut self, span: &Range<usize>, identifier: &String) -> PResult<ExpandControlFlow<'src>> {
+    pub fn handle_identifier(&mut self, span: &Range<usize>, identifier: &str) -> PResult<ExpandControlFlow<'src>> {
         match self.macros.get(identifier).cloned() {
             Some(MacroDefinition::Object(replacement_list)) => {
                 let output = ArgumentSubstitutionIterator {
@@ -271,7 +271,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
             _ => todo!(),
         }
     }
-    pub fn handle_define_function<'func>(&mut self, macro_name: &'src String, parameters: Spanned<Token>, replacment_list: &'func Vec<&'src Spanned<Token>>) {
+    pub fn handle_define_function<'func>(&mut self, macro_name: &'src str, parameters: Spanned<Token>, replacment_list: &'func Vec<&'src Spanned<Token>>) {
         let parameters = self.parse_parameters(parameters);
         self.macros.insert(
             macro_name,
@@ -281,7 +281,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree<'src>>> Expander<'src, I> {
             },
         );
     }
-    pub fn handle_define_object<'func>(&mut self, macro_name: &'src String, replacment_list: &'func Vec<&'src Spanned<Token>>) {
+    pub fn handle_define_object<'func>(&mut self, macro_name: &'src str, replacment_list: &'func Vec<&'src Spanned<Token>>) {
         self.macros.insert(macro_name, MacroDefinition::Object(replacment_list.to_vec()));
     }
 
