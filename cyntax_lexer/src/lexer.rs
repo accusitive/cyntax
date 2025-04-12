@@ -105,6 +105,15 @@ impl<'src> Iterator for Lexer<'src> {
                 }
                 self.next()
             }
+            //inline comments
+            span!('/') if matches!(self.chars.peek(), Some(span!('*'))) => {
+                while let Some(span!(char_span, char)) = self.chars.next() {
+                    if char == '*' && matches!(self.chars.peek(), Some(span!('/'))) {
+                        return Some(Spanned::new(char_span, Token::Whitespace(Whitespace::Newline)));
+                    }
+                }
+                self.next()
+            }
             span!(range, '#') if self.at_start_of_line => {
                 let mut tokens = vec![];
                 let mut end = range.end;
