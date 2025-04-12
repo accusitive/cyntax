@@ -24,7 +24,7 @@ fn print_tokens<'src, I: Iterator<Item = &'src Spanned<Token>>>(source: &'src st
                 print!("\'");
                 print!("{}", chars);
                 print!("\'");
-            } 
+            }
             Token::PPNumber(number) => {
                 print!("{}", number);
             }

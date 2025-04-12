@@ -1,14 +1,14 @@
-use std::fmt::Debug;
+use crate::{
+    expand::{Expander, PResult},
+    tree::TokenTree,
+};
 use cyntax_common::{
     ast::{Punctuator, Token},
     spanned::Spanned,
 };
 use cyntax_errors::{Diagnostic, errors::SimpleError};
 use cyntax_lexer::span;
-use crate::{
-    expand::{Expander, PResult},
-    tree::TokenTree,
-};
+use std::fmt::Debug;
 #[derive(Debug, Clone)]
 pub struct MacroParameterList {
     pub parameters: Vec<String>,
@@ -16,7 +16,12 @@ pub struct MacroParameterList {
 }
 impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
     pub fn parse_parameters<'func>(&mut self, parameter_token: Spanned<Token>) -> PResult<MacroParameterList> {
-        if let span!(Token::Delimited { opener: span!('('), closer: _closer, inner_tokens }) = parameter_token {
+        if let span!(Token::Delimited {
+            opener: span!('('),
+            closer: _closer,
+            inner_tokens
+        }) = parameter_token
+        {
             let no_whitespace = inner_tokens.iter().filter(|token| !matches!(token, span!(Token::Whitespace(_))));
             let mut parameters = self.split_delimited(no_whitespace);
             dbg!(&parameters);

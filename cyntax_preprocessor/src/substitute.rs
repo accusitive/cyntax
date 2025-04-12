@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap},
-    fmt::Debug,
-};
+use std::{collections::HashMap, fmt::Debug};
 
 use cyntax_common::{
     ast::{Punctuator, Token},
@@ -9,10 +6,7 @@ use cyntax_common::{
 };
 use cyntax_lexer::{lexer::Lexer, span};
 
-use crate::{
-    expand::MacroArgument,
-    prepend::PrependingPeekableIterator,
-};
+use crate::{expand::MacroArgument, prepend::PrependingPeekableIterator};
 
 pub struct ArgumentSubstitutionIterator<I>
 where

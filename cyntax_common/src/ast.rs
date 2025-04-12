@@ -88,7 +88,7 @@ pub enum Punctuator {
     Question,  // ?
     Colon,     // :
     Semicolon, // ;
-    DotDotDot,  // ...
+    DotDotDot, // ...
 
     // Assignment Operators
     Assign,    // =

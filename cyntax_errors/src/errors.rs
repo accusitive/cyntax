@@ -131,7 +131,7 @@ impl Diagnostic for ErrorDirective {
             Some(msg) => Some(Label {
                 kind: crate::LabelKind::Secondary,
                 range: msg.range.clone(),
-                message: "Error message provided".into()
+                message: "Error message provided".into(),
             }),
             None => None,
         };
@@ -168,8 +168,10 @@ impl Diagnostic for SimpleError {
         DiagnosticSeverity::Error
     }
     fn labels(&self) -> Vec<Label> {
-        vec![
-            Label{ kind: crate::LabelKind::Primary, range: self.0.clone(), message: self.1.clone() }
-        ]
+        vec![Label {
+            kind: crate::LabelKind::Primary,
+            range: self.0.clone(),
+            message: self.1.clone(),
+        }]
     }
 }

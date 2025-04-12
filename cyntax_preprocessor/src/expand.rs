@@ -2,8 +2,8 @@ use cyntax_common::{
     ast::{Punctuator, Token},
     spanned::Spanned,
 };
-use cyntax_errors::{errors::SimpleError, why::Report};
 use cyntax_errors::{Diagnostic, errors::UnmatchedDelimiter};
+use cyntax_errors::{errors::SimpleError, why::Report};
 use cyntax_lexer::span;
 use std::{
     collections::{HashMap, HashSet},

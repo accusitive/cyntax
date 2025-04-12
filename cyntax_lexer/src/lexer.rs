@@ -153,9 +153,7 @@ impl<'src> Iterator for Lexer<'src> {
             span!(range, ' ') => Some(Spanned::new(range, Token::Whitespace(Whitespace::Space))),
             span!(range, '\t') => Some(Spanned::new(range, Token::Whitespace(Whitespace::Tab))),
             span!(range, '\n') => Some(Spanned::new(range, Token::Whitespace(Whitespace::Newline))),
-            ch => {
-                self.fatal_diagnostic(cyntax_errors::errors::SimpleError(ch.range, format!("unimplemented character {}", ch.value)))
-            }
+            ch => self.fatal_diagnostic(cyntax_errors::errors::SimpleError(ch.range, format!("unimplemented character {}", ch.value))),
         };
 
         // Set this after lexing the token, otherwise it would always be false for non-newline tokens
@@ -280,9 +278,8 @@ impl<'src> Lexer<'src> {
 }
 // Util functions
 impl<'src> Lexer<'src> {
-    pub fn fatal_diagnostic<E: cyntax_errors::Diagnostic>(&mut self, diagnostic: E) -> !{
+    pub fn fatal_diagnostic<E: cyntax_errors::Diagnostic>(&mut self, diagnostic: E) -> ! {
         panic!("{}", diagnostic.into_why_report().with(self.file_name, self.source))
-
     }
     pub fn closing_delimiter_for(c: char) -> char {
         match c {

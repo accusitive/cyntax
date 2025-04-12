@@ -47,7 +47,6 @@ impl<I: Iterator + Debug> PrependingPeekableIterator<I> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

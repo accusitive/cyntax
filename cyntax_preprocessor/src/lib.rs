@@ -10,8 +10,8 @@ mod expand;
 mod macros;
 mod prepend;
 mod substitute;
-mod tree;
 mod tests;
+mod tree;
 
 pub struct Preprocessor<'src> {
     // macros and whatever

@@ -1,4 +1,4 @@
-use std::{borrow::Cow, iter::Peekable, ops::Range};
+use std::{iter::Peekable, ops::Range};
 
 use cyntax_common::{
     ast::{Punctuator, Token, Whitespace},
