@@ -1,4 +1,5 @@
 #![feature(iter_chain)]
+#![feature(iter_intersperse)]
 
 use std::collections::HashMap;
 

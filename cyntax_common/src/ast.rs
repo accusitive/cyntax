@@ -1,5 +1,3 @@
-use std::ops::Range;
-
 use strum_macros::EnumString;
 
 use crate::spanned::Spanned;
@@ -7,16 +5,12 @@ use crate::spanned::Spanned;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     Identifier(String),
-    // An identifier that should not be considered for a potential macro invocation
+    /// An identifier that should not be considered for a potential macro invocation
     BlueIdentifier(String),
     StringLiteral(String),
     CharLiteral(String),
-
     PPNumber(String),
-
-    // Directive(Directive),
     ControlLine(Vec<Spanned<Token>>),
-
     Whitespace(Whitespace),
     Punctuator(Punctuator),
     /// closer being None is valid in control lines
@@ -94,7 +88,7 @@ pub enum Punctuator {
     Question,  // ?
     Colon,     // :
     Semicolon, // ;
-    Ellipsis,  // ...
+    DotDotDot,  // ...
 
     // Assignment Operators
     Assign,    // =
@@ -205,7 +199,7 @@ impl Punctuator {
             Punctuator::Question => "?".to_string(),
             Punctuator::Colon => ":".to_string(),
             Punctuator::Semicolon => ";".to_string(),
-            Punctuator::Ellipsis => "...".to_string(),
+            Punctuator::DotDotDot => "...".to_string(),
             Punctuator::Assign => "=".to_string(),
             Punctuator::MulAssign => "*=".to_string(),
             Punctuator::DivAssign => "/=".to_string(),

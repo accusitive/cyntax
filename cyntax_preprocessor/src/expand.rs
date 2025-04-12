@@ -3,7 +3,7 @@ use cyntax_common::{
     ast::{Directive, Punctuator, Token},
     spanned::Spanned,
 };
-use cyntax_errors::why::Report;
+use cyntax_errors::{errors::SimpleError, why::Report};
 use cyntax_errors::{Diagnostic, errors::UnmatchedDelimiter};
 use cyntax_lexer::span;
 use std::{
@@ -13,6 +13,7 @@ use std::{
 };
 
 use crate::{
+    macros::MacroParameterList,
     prepend::PrependingPeekableIterator,
     substitute::ArgumentSubstitutionIterator,
     tree::{ControlLine, InternalLeaf, IntoTokenTree, TokenTree},
@@ -33,7 +34,7 @@ pub struct Expander<'src, I: Debug + Iterator<Item = TokenTree>> {
 #[derive(Debug, Clone)]
 pub enum MacroDefinition {
     Object(ReplacementList),
-    Function { parameter_list: Vec<String>, replacement_list: ReplacementList },
+    Function { parameter_list: MacroParameterList, replacement_list: ReplacementList },
 }
 pub enum ExpandControlFlow {
     Return(Vec<Spanned<Token>>),
@@ -199,6 +200,8 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                 let output = ArgumentSubstitutionIterator {
                     replacements: PrependingPeekableIterator::new(replacement_list.into_iter().filter(|a| !matches!(a, span!(Token::Whitespace(_))))),
                     map: HashMap::new(),
+                    variadic_args: vec![],
+                    is_variadic: false,
                     glue: false,
                     glue_string: String::new(),
                     stringify: false,
@@ -213,8 +216,10 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                 let nws = self.peek_non_whitespace();
                 if matches!(nws, Some(TokenTree::PreprocessorToken(span!(Token::Punctuator(Punctuator::LeftParen) | Token::Delimited { opener: span!('('), .. })))) {
                     let (opener, closer, tokens) = self.next_delimited();
-
                     let arguments = self.split_delimited(tokens.iter());
+                    if (arguments.len() < parameter_list.parameters.len()) || (!parameter_list.variadic && (arguments.len() > parameter_list.parameters.len())) {
+                        return Err(SimpleError(opener.range.start..closer.range.end, format!("Expected {} parameters, found {}", parameter_list.parameters.len(), arguments.len())).into_why_report());
+                    }
                     dbg!(&arguments);
 
                     let mut expanded_args = vec![];
@@ -226,15 +231,16 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                             expanded: self.expand_arg(i.into_iter()),
                         });
                     }
+                    let mut eai = expanded_args.into_iter();
+                    let map = parameter_list.parameters.into_iter().zip(eai.by_ref()).collect::<HashMap<_, _>>();
 
-                    let map = parameter_list
-                        .into_iter()
-                        .zip(expanded_args.into_iter().chain(std::iter::repeat_with(|| MacroArgument { unexpanded: vec![], expanded: vec![] })))
-                        .collect::<HashMap<_, _>>();
+                    let extras = eai.collect::<Vec<_>>();
 
                     let output = ArgumentSubstitutionIterator {
                         replacements: PrependingPeekableIterator::new(replacement_list.into_iter().filter(|a| !matches!(a, span!(Token::Whitespace(_))))),
                         map,
+                        variadic_args: extras,
+                        is_variadic: parameter_list.variadic,
                         glue: false,
                         glue_string: String::new(),
                         stringify: false,

@@ -20,6 +20,8 @@ where
 {
     pub replacements: PrependingPeekableIterator<I>,
     pub map: HashMap<String, MacroArgument>,
+    pub is_variadic: bool,
+    pub variadic_args: Vec<MacroArgument>,
     pub glue: bool,
     pub glue_string: String,
     pub stringify: bool,
@@ -74,7 +76,14 @@ impl<'a, I: Debug + Iterator<Item = Spanned<Token>>> Iterator for ArgumentSubsti
                 let expanded = self.map.get(identifier).unwrap().expanded.clone();
                 Some(expanded)
             }
-
+            span!(Token::Identifier(identifier)) if self.is_variadic && identifier == "__VA_ARGS__" => Some(
+                self.variadic_args
+                    .iter()
+                    .map(|arg| arg.expanded.clone())
+                    .flatten()
+                    .intersperse(Spanned::new(0..0, Token::Punctuator(Punctuator::Comma)))
+                    .collect::<Vec<_>>(),
+            ),
             _ => Some(vec![token]),
         }
     }
