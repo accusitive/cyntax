@@ -11,8 +11,9 @@ pub enum ExternalDeclaration {
 }
 #[derive(Debug)]
 pub struct FunctionDefinition {
-    pub specifiers: Vec<DeclarationSpecifier>,
-    pub declarator: Declarator,
+    pub specifiers: Vec<Spanned<DeclarationSpecifier>>,
+    pub declarator: Spanned<Declarator>,
+    pub body: Statement
     // pub declaration_list: Vec<Declaration>,
 }
 #[derive(Debug)]
@@ -90,4 +91,18 @@ pub struct Declaration {
 pub struct ParameterList {
     pub parameters: Vec<ParameterDeclaration>,
     pub variadic: bool
+}
+#[derive(Debug)]
+pub enum Statement {
+    Labeled,
+    Compound(Vec<BlockItem>),
+    Expression,
+    Selection,
+    Iteration,
+    Jump
+}
+#[derive(Debug)]
+pub enum BlockItem {
+    Declaration(Declaration),
+    Statement(Statement)
 }
