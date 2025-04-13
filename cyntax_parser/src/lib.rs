@@ -105,6 +105,9 @@ impl Parser {
         let specifiers = self.parse_declaration_specifiers()?;
         if self.eat_if_next(Token::Punctuator(Punctuator::Semicolon))? {
             Ok(Declaration { specifiers, init_declarators: vec![] })
+        } else if self.eat_if_next(Token::Punctuator(Punctuator::LeftBrace))? {
+            let body = self.parse_statement()?;
+            todo!();
         } else {
             let init_declarators = self.parse_init_declarators()?;
             Ok(Declaration { specifiers, init_declarators })
@@ -146,6 +149,7 @@ impl Parser {
                 Token::Keyword(Keyword::Unsigned) => DeclarationSpecifier::TypeSpecifier(ast::TypeSpecifier::Unsigned),
                 Token::Keyword(Keyword::Bool) => DeclarationSpecifier::TypeSpecifier(ast::TypeSpecifier::Bool),
                 Token::Keyword(Keyword::Complex) => DeclarationSpecifier::TypeSpecifier(ast::TypeSpecifier::Complex),
+                Token::Keyword(Keyword::Struct) => DeclarationSpecifier::TypeSpecifier(self.parse_struct_type_specifier()?),
 
                 // Type qualifiers
                 Token::Keyword(Keyword::Const) => DeclarationSpecifier::TypeQualifier(ast::TypeQualifier::Const),
@@ -157,6 +161,9 @@ impl Parser {
                 x => unimplemented!("{:#?}", x),
             },
         ))
+    }
+    pub fn parse_struct_type_specifier(&mut self) -> PResult<ast::TypeSpecifier> {
+        Ok(ast::TypeSpecifier::Struct)
     }
     fn consider_comma<T>(&mut self, v: &Vec<T>) -> PResult<bool> {
         Ok(v.len() >= 1 && matches!(self.peek_token()?, span!(Token::Punctuator(Punctuator::Comma))))
@@ -245,7 +252,7 @@ impl Parser {
                 self.expect_token(Token::Punctuator(Punctuator::RightParen))?;
                 Spanned::new(span, Declarator::Parenthesized(Box::new(d)))
             }
-            x => unreachable!("{:#?}", x),
+            x => return Err(SimpleError(x.range, format!("Expected direct declarator, found {:#?}", x.value)).into_why_report()),
         };
         if self.eat_if_next(Token::Punctuator(Punctuator::LeftParen))? {
             let params = self.parse_parameter_list()?;
