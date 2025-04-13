@@ -9,7 +9,8 @@ impl Parser {
     pub fn parse_statement(&mut self) -> PResult<Statement> {
         if self.can_start_labelled_stmt() {
         } else if self.can_start_compound_statement() {
-            return Ok(self.parse_compound_statement()?);
+            let compound_stmt = self.parse_compound_statement()?;
+            return Ok(compound_stmt);
         }
         // expression stmt
         else if self.can_start_selection_statement() {
@@ -29,7 +30,6 @@ impl Parser {
         let mut block_items = vec![];
         while self.can_start_block_item() {
             let block_item = self.parse_block_item()?;
-            self.expect_token(Token::Punctuator(Punctuator::Semicolon))?;
             block_items.push(block_item);
         }
 

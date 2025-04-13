@@ -1,4 +1,4 @@
-use cyntax_common::spanned::Spanned;
+use cyntax_common::{ast::Keyword, spanned::Spanned};
 
 #[derive(Debug)]
 pub struct TranslationUnit {
@@ -13,8 +13,7 @@ pub enum ExternalDeclaration {
 pub struct FunctionDefinition {
     pub specifiers: Vec<Spanned<DeclarationSpecifier>>,
     pub declarator: Spanned<Declarator>,
-    pub body: Statement
-    // pub declaration_list: Vec<Declaration>,
+    pub body: Statement, // pub declaration_list: Vec<Declaration>,
 }
 #[derive(Debug)]
 pub enum DeclarationSpecifier {
@@ -29,7 +28,7 @@ pub enum StorageClassSpecifier {
     Extern,
     Static,
     Auto,
-    Register
+    Register,
 }
 #[derive(Debug)]
 pub enum TypeSpecifier {
@@ -46,14 +45,47 @@ pub enum TypeSpecifier {
     Bool,
     /// _Complex
     Complex,
-    Struct,
+    Struct(StructSpecifier),
     Enum,
-    TypedefName(String)
+    TypedefName(String),
+}
+#[derive(Debug)]
+pub struct StructSpecifier {
+    pub identifier: Option<String>,
+    pub declarations: Vec<StructDeclaration>,
+}
+#[derive(Debug)]
+pub struct StructDeclaration {
+    pub specifier_qualifiers: Vec<SpecifierQualifier>,
+    pub declarators: Vec<StructDeclarator>,
+}
+#[derive(Debug)]
+pub struct StructDeclarator {
+    pub declarator: Option<Declarator>,
+    // bitfield: Expression
+}
+#[derive(Debug)]
+pub enum SpecifierQualifier {
+    Specifier(TypeSpecifier),
+    Qualifier(TypeQualifier),
 }
 #[derive(Debug)]
 pub enum TypeQualifier {
-    Const, Restrict, Volatile
+    Const,
+    Restrict,
+    Volatile,
 }
+impl From<Keyword> for TypeQualifier {
+    fn from(value: Keyword) -> Self {
+        match value {
+            Keyword::Const => Self::Const,
+            Keyword::Restrict => Self::Restrict,
+            Keyword::Volatile => Self::Volatile,
+            _ => panic!()
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum Declarator {
     Identifier(String),
@@ -64,12 +96,12 @@ pub enum Declarator {
     // todo: array
     Function(Box<Spanned<Self>>, Vec<Spanned<ParameterDeclaration>>),
     // maybe this shouldnt be in the main declarator?
-    Abstract
+    Abstract,
 }
 #[derive(Debug)]
 pub struct Pointer {
     pub type_qualifiers: Vec<Spanned<TypeQualifier>>,
-    pub ptr: Option<Box<Spanned<Self>>>
+    pub ptr: Option<Box<Spanned<Self>>>,
 }
 #[derive(Debug)]
 pub struct ParameterDeclaration {
@@ -80,18 +112,17 @@ pub struct ParameterDeclaration {
 #[derive(Debug)]
 pub struct InitDeclarator {
     pub declarator: Spanned<Declarator>,
-    pub initializer: Option<Initializer>
+    pub initializer: Option<Initializer>,
 }
 #[derive(Debug)]
 pub struct Declaration {
     pub specifiers: Vec<Spanned<DeclarationSpecifier>>,
-    pub init_declarators: Vec<InitDeclarator>
-
+    pub init_declarators: Vec<InitDeclarator>,
 }
 #[derive(Debug)]
 pub struct ParameterList {
     pub parameters: Vec<ParameterDeclaration>,
-    pub variadic: bool
+    pub variadic: bool,
 }
 #[derive(Debug)]
 pub enum Statement {
@@ -100,26 +131,26 @@ pub enum Statement {
     Expression,
     Selection,
     Iteration,
-    Jump
+    Jump,
 }
 #[derive(Debug)]
 pub enum BlockItem {
     Declaration(Declaration),
-    Statement(Statement)
+    Statement(Statement),
 }
 #[derive(Debug)]
 pub enum Initializer {
     Assignemnt,
-    List(Vec<DesignatedIntiializer>)
+    List(Vec<DesignatedIntiializer>),
 }
 #[derive(Debug)]
 pub struct DesignatedIntiializer {
     pub designation: Vec<Designator>,
-    pub initializer: Initializer
+    pub initializer: Initializer,
 }
 #[derive(Debug)]
 pub enum Designator {
     // [constant-expression]
     ConstantExpression,
-    Identifier(Spanned<String>)
+    Identifier(Spanned<String>),
 }

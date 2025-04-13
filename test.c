@@ -1,3 +1,5 @@
-int main() {
-    int a = {.a = 1, .b = 2};
-}
+struct test {
+    int a;
+    int *b, c;
+    int :5
+} s;

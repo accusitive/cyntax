@@ -143,6 +143,7 @@ impl Parser {
             }
             x => return Err(SimpleError(x.range, format!("Expected direct declarator, found {:#?}", x.value)).into_why_report()),
         };
+        // Function stuff
         if self.eat_if_next(Token::Punctuator(Punctuator::LeftParen))? {
             let params = self.parse_parameter_list()?;
             let rp = self.expect_token(Token::Punctuator(Punctuator::RightParen))?;
@@ -151,7 +152,7 @@ impl Parser {
 
             return Ok(Spanned::new(span, Declarator::Function(Box::new(base), params)));
         }
-        // arroy and function stuff here
+        // todo: Array staff
         Ok(base)
     }
     pub fn parse_initializer(&mut self) -> PResult<Initializer> {

@@ -1,9 +1,12 @@
-use std::{ops::Range, str::FromStr};
 use crate::ast::*;
-use cyntax_common::{ast::*, spanned::{Span, Spanned}};
+use cyntax_common::{
+    ast::*,
+    spanned::{Span, Spanned},
+};
 use cyntax_errors::{Diagnostic, errors::SimpleError};
 use cyntax_lexer::span;
 use peekmore::{PeekMore, PeekMoreIterator};
+use std::{ops::Range, str::FromStr};
 
 #[macro_use]
 pub mod patterns;
@@ -76,12 +79,16 @@ impl Parser {
             Ok(false)
         }
     }
-    pub fn peek_matches(&mut self, t: Token) -> PResult<bool> {
-        if self.peek_token()?.value == t {
+    pub fn eat_if_same_variant(&mut self, t: Token) -> PResult<bool> {
+        if std::mem::discriminant(&self.peek_token()?.value) == std::mem::discriminant(&t) {
+            self.next_token().unwrap();
             Ok(true)
         } else {
             Ok(false)
         }
+    }
+    pub fn peek_matches(&mut self, t: Token) -> PResult<bool> {
+        if self.peek_token()?.value == t { Ok(true) } else { Ok(false) }
     }
     pub fn expect_token(&mut self, t: Token) -> PResult<Spanned<Token>> {
         match self.next_token()? {
@@ -92,7 +99,7 @@ impl Parser {
     pub fn expect_identifier(&mut self) -> PResult<Spanned<String>> {
         match self.next_token()? {
             span!(span, Token::Identifier(identifier)) => Ok(Spanned::new(span, identifier)),
-            stoken => Err(SimpleError(stoken.range, format!("expected identifier, found {:?}", stoken.value)).into_why_report())
+            stoken => Err(SimpleError(stoken.range, format!("expected identifier, found {:?}", stoken.value)).into_why_report()),
         }
     }
     pub fn parse_translation_unit(&mut self) -> PResult<TranslationUnit> {
@@ -102,15 +109,48 @@ impl Parser {
         }
         Ok(TranslationUnit { external_declarations })
     }
-    
+
     pub fn parse_struct_type_specifier(&mut self) -> PResult<ast::TypeSpecifier> {
-        todo!();
-        Ok(ast::TypeSpecifier::Struct)
+        let name = if let span!(Token::Identifier(identifer)) = self.peek_token()? { Some(identifer.clone()) } else { None };
+        if name.is_some() {
+            self.next_token()?;
+        }
+
+        if self.eat_if_next(Token::Punctuator(Punctuator::LeftBrace))? {
+            let declarations = self.parse_struct_declaration_list()?;
+
+            self.expect_token(Token::Punctuator(Punctuator::RightBrace))?;
+            Ok(ast::TypeSpecifier::Struct(StructSpecifier { identifier: name, declarations }))
+        } else {
+            Ok(ast::TypeSpecifier::Struct(StructSpecifier { identifier: name, declarations: vec![] }))
+        }
+    }
+    pub fn parse_struct_declaration_list(&mut self) -> PResult<StructDeclaration> {
+        // let specifier_qualifier = self.parse_Speci
+        todo!()
+    }
+    pub fn parse_specifier_qualifier_list(&mut self) -> PResult<SpecifierQualifier> {
+        let mut specifier_qualifiers = vec![];
+        while self.can_parse_type_qualifier() || self.can_parse_type_specifier() {
+            match self.next_token()? {
+                span!(kw @ Token::Keyword(type_specifier!())) => {
+                    specifier_qualifiers.push(TypeSpecifier::from(kw));
+
+                },
+                span!(kw @ Token::Keyword(type_qualifier!())) => {
+                    self.parse_declaration_specifier()
+                    // specifier_qualifiers.push(TypeQualifier::from(kw));
+
+                },
+                _ => unreachable!()
+            }
+        }
+        Ok(specifier_qualifiers)
     }
     fn consider_comma<T>(&mut self, v: &Vec<T>) -> PResult<bool> {
         Ok(v.len() >= 1 && matches!(self.peek_token()?, span!(Token::Punctuator(Punctuator::Comma))))
     }
-    
+
     pub fn can_start_pointer(&mut self) -> PResult<bool> {
         Ok(matches!(self.peek_token()?, span!(Token::Punctuator(Punctuator::Asterisk))))
     }
@@ -128,13 +168,16 @@ impl Parser {
     pub fn parse_type_qualifiers(&mut self) -> PResult<Vec<Spanned<TypeQualifier>>> {
         let mut type_qualifiers = vec![];
 
-        while self.can_parse_type_qualifier()? {
+        while self.can_parse_type_qualifier() {
             type_qualifiers.push(self.parse_type_qualifier()?);
         }
         Ok(type_qualifiers)
     }
-    pub fn can_parse_type_qualifier(&mut self) -> PResult<bool> {
-        Ok(matches!(self.peek_token()?, span!(Token::Keyword(type_qualifier!()))))
+    pub fn can_parse_type_qualifier(&mut self) -> bool {
+        matches!(self.peek_token(), Ok(span!(Token::Keyword(type_qualifier!()))))
+    }
+    pub fn can_parse_type_specifier(&mut self) -> bool {
+        matches!(self.peek_token(), Ok(span!(Token::Keyword(type_specifier!()))))
     }
     pub fn parse_type_qualifier(&mut self) -> PResult<Spanned<TypeQualifier>> {
         let Spanned { value, range } = self.next_token()?;
@@ -149,7 +192,7 @@ impl Parser {
             },
         ))
     }
-    
+
     pub fn parse_parameter_list(&mut self) -> PResult<Vec<Spanned<ParameterDeclaration>>> {
         let mut parameters = vec![];
 
