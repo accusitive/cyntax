@@ -1,13 +1,13 @@
 use std::{ops::Range, str::FromStr};
 
-use ast::{DeclarationSpecifier, ExternalDeclaration, TranslationUnit};
+use ast::{DeclarationSpecifier, Declarator, ExternalDeclaration, TranslationUnit};
 use cyntax_common::{
-    ast::{Keyword, Token},
+    ast::{Keyword, Punctuator, Token},
     spanned::Spanned,
 };
 use cyntax_errors::{Diagnostic, errors::SimpleError};
 use cyntax_lexer::span;
-use peekmore::PeekMore;
+use peekmore::{PeekMore, PeekMoreIterator};
 #[macro_use]
 pub mod patterns;
 pub mod ast;
@@ -32,12 +32,14 @@ impl Iterator for TokenStream {
 #[derive(Debug)]
 pub struct Parser {
     token_stream: peekmore::PeekMoreIterator<TokenStream>,
+    delimited_stack: Vec<PeekMoreIterator<TokenStream>>,
     last_location: Range<usize>,
 }
 impl Parser {
     pub fn new(tokens: Vec<Spanned<Token>>) -> Self {
         Parser {
             token_stream: TokenStream { iter: tokens.into_iter() }.peekmore(),
+            delimited_stack: vec![],
             last_location: 0..0,
         }
     }
@@ -54,6 +56,27 @@ impl Parser {
             .into_why_report()),
         }
     }
+    pub fn peek_token(&mut self) -> PResult<&Spanned<Token>> {
+        match self.token_stream.peek() {
+            Some(token) => {
+                self.last_location = token.range.clone();
+                Ok(token)
+            }
+            None => Err(SimpleError {
+                0: self.last_location.clone(),
+                1: "Unexpected EOF!".to_string(),
+            }
+            .into_why_report()),
+        }
+    }
+    pub fn eat_if_next(&mut self, t: Token) -> PResult<bool> {
+        if self.peek_token()?.value == t {
+            self.next_token().unwrap();
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
     pub fn parse_translation_unit(&mut self) -> PResult<TranslationUnit> {
         let mut external_declarations = vec![];
         while let Some(external_declaration) = self.parse_external_declaration()? {
@@ -67,10 +90,14 @@ impl Parser {
         }
         let declaration = self.parse_declaration()?;
 
+        if self.eat_if_next(Token::Punctuator(Punctuator::Semicolon))? {
+        } else {
+            let init_declarators = self.parse_init_declarators();
+        }
         todo!();
     }
 
-    pub fn parse_declaration(&mut self) -> PResult<()>{
+    pub fn parse_declaration(&mut self) -> PResult<()> {
         let specifiers = self.parse_declaration_specifiers()?;
 
         dbg!(&specifiers);
@@ -119,5 +146,56 @@ impl Parser {
             // Some(span!(Token::Keyword(Keyword::Inline))) => DeclarationSpecifier::Function(ast::FunctionSpecifier::Inline),
             x => unimplemented!("{:#?}", x),
         })
+    }
+    pub fn parse_init_declarators(&mut self) -> PResult<()> {
+        let mut init_declarators = vec![];
+        while self.can_parse_init_declarator() {
+            init_declarators.push(self.parse_init_declarator()?)
+        }
+        Ok(())
+    }
+
+    pub fn can_parse_init_declarator(&mut self) -> bool {
+        self.can_parse_declarator()
+    }
+    pub fn can_parse_declarator(&mut self) -> bool {
+        return matches!(self.token_stream.peek(), Some(span!(Token::Punctuator(Punctuator::Asterisk) | Token::Identifier(_) | Token::Punctuator(Punctuator::LeftParen))));
+    }
+    pub fn parse_init_declarator(&mut self) -> PResult<()> {
+        let declarator = self.parse_declarator();
+        if self.eat_if_next(Token::Punctuator(Punctuator::Equal))? {
+            // let initializer = self.parse_initializer();
+            todo!()
+        } else {
+        }
+        Ok(())
+    }
+    pub fn parse_declarator(&mut self) -> PResult<Declarator> {
+        if self.eat_if_next(Token::Punctuator(Punctuator::Asterisk))? {
+            let declarator = self.parse_direct_declarator()?;
+            Ok(Declarator::Pointer(Box::new(declarator)))
+        } else {
+            panic!();
+        }
+    }
+    pub fn parse_direct_declarator(&mut self) -> PResult<Declarator> {
+        match self.peek_token()? {
+            span!(Token::Identifier(identifier)) => Ok(Declarator::Identifier(identifier.clone())),
+            span!(Token::Delimited {
+                opener: span!('('),
+                closer: span!(')'),
+                inner_tokens
+            }) => {
+                let owned_tokens = inner_tokens.to_vec();
+                Ok(Declarator::Parenthesized(Box::new(self.in_delimited(owned_tokens, |this| this.parse_declarator())?)))
+            }
+            x => unreachable!("{:#?}", x),
+        }
+    }
+    pub fn in_delimited<T, F: FnMut(&mut Self) -> T>(&mut self, tokens: Vec<Spanned<Token>>, mut f: F) -> T {
+        self.delimited_stack.push(TokenStream { iter: tokens.into_iter() }.peekmore());
+        let result = f(self);
+        self.delimited_stack.pop();
+        result
     }
 }
