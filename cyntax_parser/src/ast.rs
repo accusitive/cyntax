@@ -1,3 +1,5 @@
+use cyntax_common::spanned::Spanned;
+
 #[derive(Debug)]
 pub struct TranslationUnit {
     pub external_declarations: Vec<ExternalDeclaration>,
@@ -55,32 +57,32 @@ pub enum TypeQualifier {
 pub enum Declarator {
     Identifier(String),
     /// *declarator
-    Pointer(Pointer, Box<Self>),
+    Pointer(Spanned<Pointer>, Box<Spanned<Self>>),
     /// (declarator)
-    Parenthesized(Box<Self>),
+    Parenthesized(Box<Spanned<Self>>),
     // todo: array
-    Function(Box<Self>, Vec<ParameterDeclaration>),
+    Function(Box<Spanned<Self>>, Vec<Spanned<ParameterDeclaration>>),
     // maybe this shouldnt be in the main declarator?
     Abstract
 }
 #[derive(Debug)]
 pub struct Pointer {
-    pub type_qualifiers: Vec<TypeQualifier>,
-    pub ptr: Option<Box<Self>>
+    pub type_qualifiers: Vec<Spanned<TypeQualifier>>,
+    pub ptr: Option<Box<Spanned<Self>>>
 }
 #[derive(Debug)]
 pub struct ParameterDeclaration {
-    pub specifiers: Vec<DeclarationSpecifier>,
-    pub declarator: Declarator,
+    pub specifiers: Vec<Spanned<DeclarationSpecifier>>,
+    pub declarator: Spanned<Declarator>,
 }
 
 #[derive(Debug)]
 pub struct InitDeclarator {
-    pub declarator: Declarator
+    pub declarator: Spanned<Declarator>
 }
 #[derive(Debug)]
 pub struct Declaration {
-    pub specifiers: Vec<DeclarationSpecifier>,
+    pub specifiers: Vec<Spanned<DeclarationSpecifier>>,
     pub init_declarators: Vec<InitDeclarator>
 
 }
