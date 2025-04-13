@@ -89,6 +89,12 @@ impl Parser {
             stoken => Err(SimpleError(stoken.range, format!("expected {:?}, found {:?}", t, stoken.value)).into_why_report()),
         }
     }
+    pub fn expect_identifier(&mut self) -> PResult<Spanned<String>> {
+        match self.next_token()? {
+            span!(span, Token::Identifier(identifier)) => Ok(Spanned::new(span, identifier)),
+            stoken => Err(SimpleError(stoken.range, format!("expected identifier, found {:?}", stoken.value)).into_why_report())
+        }
+    }
     pub fn parse_translation_unit(&mut self) -> PResult<TranslationUnit> {
         let mut external_declarations = vec![];
         while let Some(external_declaration) = self.parse_external_declaration()? {
@@ -98,20 +104,21 @@ impl Parser {
     }
     
     pub fn parse_struct_type_specifier(&mut self) -> PResult<ast::TypeSpecifier> {
+        todo!();
         Ok(ast::TypeSpecifier::Struct)
     }
     fn consider_comma<T>(&mut self, v: &Vec<T>) -> PResult<bool> {
         Ok(v.len() >= 1 && matches!(self.peek_token()?, span!(Token::Punctuator(Punctuator::Comma))))
     }
     
-    pub fn can_parse_pointer(&mut self) -> PResult<bool> {
+    pub fn can_start_pointer(&mut self) -> PResult<bool> {
         Ok(matches!(self.peek_token()?, span!(Token::Punctuator(Punctuator::Asterisk))))
     }
     pub fn parse_pointer(&mut self) -> PResult<Spanned<Pointer>> {
         let asterist = self.expect_token(Token::Punctuator(Punctuator::Asterisk))?;
         let type_qualifiers = self.parse_type_qualifiers()?;
 
-        if self.can_parse_pointer()? {
+        if self.can_start_pointer()? {
             let ptr = self.parse_pointer()?;
             Ok(Spanned::new(asterist.range.start..ptr.range.end, Pointer { type_qualifiers, ptr: Some(Box::new(ptr)) }))
         } else {
@@ -155,7 +162,7 @@ impl Parser {
         Ok(parameters)
     }
     pub fn can_parse_parameter(&mut self) -> bool {
-        return self.can_parse_declaration_specifier();
+        return self.can_start_declaration_specifier();
     }
     pub fn parse_parameter(&mut self) -> PResult<Spanned<ParameterDeclaration>> {
         //todo: abstract declarator

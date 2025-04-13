@@ -79,7 +79,8 @@ pub struct ParameterDeclaration {
 
 #[derive(Debug)]
 pub struct InitDeclarator {
-    pub declarator: Spanned<Declarator>
+    pub declarator: Spanned<Declarator>,
+    pub initializer: Option<Initializer>
 }
 #[derive(Debug)]
 pub struct Declaration {
@@ -105,4 +106,20 @@ pub enum Statement {
 pub enum BlockItem {
     Declaration(Declaration),
     Statement(Statement)
+}
+#[derive(Debug)]
+pub enum Initializer {
+    Assignemnt,
+    List(Vec<DesignatedIntiializer>)
+}
+#[derive(Debug)]
+pub struct DesignatedIntiializer {
+    pub designation: Vec<Designator>,
+    pub initializer: Initializer
+}
+#[derive(Debug)]
+pub enum Designator {
+    // [constant-expression]
+    ConstantExpression,
+    Identifier(Spanned<String>)
 }

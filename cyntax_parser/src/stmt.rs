@@ -29,6 +29,7 @@ impl Parser {
         let mut block_items = vec![];
         while self.can_start_block_item() {
             let block_item = self.parse_block_item()?;
+            self.expect_token(Token::Punctuator(Punctuator::Semicolon))?;
             block_items.push(block_item);
         }
 
@@ -39,13 +40,13 @@ impl Parser {
         }
     }
     pub fn can_start_block_item(&mut self) -> bool {
-        self.can_parse_declaration_specifier() || self.can_start_statement()
+        self.can_start_declaration_specifier() || self.can_start_statement()
     }
     pub fn can_start_statement(&mut self) -> bool {
         self.can_start_labelled_stmt() || self.can_start_compound_statement() || self.can_start_selection_statement() || self.can_start_iteration_statement() || self.can_start_jump_statement()
     }
     pub fn parse_block_item(&mut self) -> PResult<BlockItem> {
-        if self.can_parse_declaration_specifier() {
+        if self.can_start_declaration_specifier() {
             let decl = self.parse_declaration()?;
             Ok(BlockItem::Declaration(decl))
         } else if self.can_start_statement() {

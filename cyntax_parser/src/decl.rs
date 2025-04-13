@@ -39,16 +39,6 @@ impl Parser {
 
         dbg!(&self.peek_token());
         unreachable!()
-        // if self.eat_if_next(Token::Punctuator(Punctuator::Semicolon))? {
-        //     return Ok(Some(ExternalDeclaration::Declaration(Declaration { specifiers, init_declarators: vec![] })));
-        // } else if self.can_start_compound_statement() {
-        //     let body = self.parse_statement()?;
-        //     dbg!(&body);
-        //     Ok(Some(ExternalDeclaration::FunctionDefinition(FunctionDefinition { specifiers: specifiers })))
-        // } else {
-        //     let init_declarators = self.parse_init_declarators()?;
-        //     return Ok(Some(ExternalDeclaration::Declaration(Declaration { specifiers, init_declarators })));
-        // }
     }
     pub fn parse_declaration(&mut self) -> PResult<Declaration> {
         let specifiers = self.parse_declaration_specifiers()?;
@@ -57,13 +47,13 @@ impl Parser {
     }
     pub fn parse_declaration_specifiers(&mut self) -> PResult<Vec<Spanned<DeclarationSpecifier>>> {
         let mut declaration_specifiers = vec![];
-        while self.can_parse_declaration_specifier() {
+        while self.can_start_declaration_specifier() {
             let specifier = self.parse_declaration_specifier()?;
             declaration_specifiers.push(specifier);
         }
         Ok(declaration_specifiers.into())
     }
-    pub fn can_parse_declaration_specifier(&mut self) -> bool {
+    pub fn can_start_declaration_specifier(&mut self) -> bool {
         // todo: add typename/identifiers to this
         return matches!(self.token_stream.peek(), Some(span!(Token::Keyword(storage_class!() | type_specifier!() | type_qualifier!() | Keyword::Inline))));
     }
@@ -106,7 +96,7 @@ impl Parser {
     }
     pub fn parse_init_declarators(&mut self) -> PResult<Vec<InitDeclarator>> {
         let mut init_declarators = vec![];
-        while self.can_parse_init_declarator() || self.consider_comma(&init_declarators)? {
+        while self.can_start_init_declarator() || self.consider_comma(&init_declarators)? {
             if init_declarators.len() >= 1 {
                 self.expect_token(Token::Punctuator(Punctuator::Comma))?;
             }
@@ -115,24 +105,25 @@ impl Parser {
         Ok(init_declarators)
     }
 
-    pub fn can_parse_init_declarator(&mut self) -> bool {
-        self.can_parse_declarator()
+    pub fn can_start_init_declarator(&mut self) -> bool {
+        self.can_start_declarator()
     }
-    pub fn can_parse_declarator(&mut self) -> bool {
+    pub fn can_start_declarator(&mut self) -> bool {
         return matches!(self.token_stream.peek(), Some(span!(Token::Punctuator(Punctuator::Asterisk) | Token::Identifier(_) | Token::Punctuator(Punctuator::LeftParen))));
     }
     pub fn parse_init_declarator(&mut self) -> PResult<InitDeclarator> {
         let declarator = self.parse_declarator()?;
         dbg!(&declarator);
-        if self.eat_if_next(Token::Punctuator(Punctuator::Equal))? {
-            // let initializer = self.parse_initializer();
-            todo!()
+        if self.eat_if_next(Token::Punctuator(Punctuator::Assign))? {
+            let initializer = self.parse_initializer()?;
+            dbg!(&initializer);
+            Ok(InitDeclarator { declarator, initializer: Some(initializer) })
         } else {
-            Ok(InitDeclarator { declarator })
+            Ok(InitDeclarator { declarator, initializer: None })
         }
     }
     pub fn parse_declarator(&mut self) -> PResult<Spanned<Declarator>> {
-        if self.can_parse_pointer()? {
+        if self.can_start_pointer()? {
             let ptr = self.parse_pointer()?;
             let declarator = self.parse_direct_declarator()?;
 
@@ -163,4 +154,64 @@ impl Parser {
         // arroy and function stuff here
         Ok(base)
     }
+    pub fn parse_initializer(&mut self) -> PResult<Initializer> {
+        //todo: assignement-expr
+        if self.eat_if_next(Token::Punctuator(Punctuator::LeftBrace))? {
+            let list = self.parse_initializer_list()?;
+            // comma is optional
+            let _ = self.eat_if_next(Token::Punctuator(Punctuator::Comma));
+            self.expect_token(Token::Punctuator(Punctuator::RightBrace))?;
+            Ok(Initializer::List(list))
+        } else {
+            self.next_token()?;
+            Ok(Initializer::Assignemnt)
+        }
+    }
+    pub fn parse_initializer_list(&mut self) -> PResult<Vec<DesignatedIntiializer>> {
+        let mut initializers = vec![];
+
+        while self.can_start_designation() || self.can_start_initializer() || self.consider_comma(&initializers)? {
+            if initializers.len() > 0 {
+                self.expect_token(Token::Punctuator(Punctuator::Comma))?;
+            }
+            let designation = self.parse_designation()?;
+            let init = self.parse_initializer()?;
+            dbg!(&init);
+            initializers.push(DesignatedIntiializer { designation, initializer: init })
+        }
+        Ok(initializers)
+    }
+    pub fn can_start_designation(&mut self) -> bool {
+        matches!(self.peek_token(), Ok(span!(Token::Punctuator(Punctuator::LeftBracket | Punctuator::Dot))))
+    }
+    pub fn can_start_initializer(&mut self) -> bool {
+        matches!(self.peek_token(), Ok(span!(Token::Punctuator(Punctuator::LeftBrace)))) || self.can_start_expression()
+    }
+    pub fn can_start_expression(&mut self) -> bool {
+        false
+    }
+    pub fn parse_designation(&mut self) -> PResult<Vec<Designator>> {
+        let mut designator_list = vec![];
+
+        while self.can_start_designation() {
+            designator_list.push(self.parse_designator()?)
+        }
+
+        if designator_list.len() > 0 {
+            self.expect_token(Token::Punctuator(Punctuator::Assign))?;
+        }
+        Ok(designator_list)
+    }
+    pub fn parse_designator(&mut self) -> PResult<Designator> {
+        if self.eat_if_next(Token::Punctuator(Punctuator::Dot))? {
+            let identifier = self.expect_identifier()?;
+            Ok(Designator::Identifier(identifier))
+        } else if self.eat_if_next(Token::Punctuator(Punctuator::LeftBracket))? {
+            unimplemented!("need to implement expression parsing for this")
+        } else {
+            unreachable!()
+        }
+    }
 }
+
+// int a  = {}
