@@ -1,6 +1,6 @@
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use cyntax_common::{
-    ast::{Token, Whitespace},
+    ast::{Keyword, Token, Whitespace},
     spanned::Spanned,
 };
 
@@ -14,6 +14,9 @@ fn print_tokens<'src, I: Iterator<Item = &'src Spanned<Token>>>(source: &'src st
             }
             Token::BlueIdentifier(identifier) => {
                 print!("{}", identifier);
+            }
+            Token::Keyword(kw) => {
+                print!("{}", kw.to_string())
             }
             Token::StringLiteral(string) => {
                 print!("\"");
@@ -70,12 +73,16 @@ fn main() {
     print_tokens(source, tokens.iter());
     println!();
     let pp = cyntax_preprocessor::Preprocessor::new("test.c", source, &tokens);
+    let expanded = pp.expand();
     {
-        let expanded = pp.expand();
         println!("========================================================");
         // dbg!(&expanded);
         print_tokens(source, expanded.iter());
         println!();
         // debug_spans(source, &expanded);
     }
+
+    let mut parser = cyntax_parser::Parser::new(expanded);
+    let tu = parser.parse_translation_unit();
+    dbg!(&tu);
 }

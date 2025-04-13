@@ -54,6 +54,7 @@ dependencies = [
  "cyntax_common",
  "cyntax_errors",
  "cyntax_lexer",
+ "cyntax_parser",
  "cyntax_preprocessor",
  "smallvec 1.14.0",
 ]
@@ -85,6 +86,17 @@ dependencies = [
  "smallvec 1.14.0",
  "strum",
  "strum_macros",
+]
+
+[[package]]
+name = "cyntax_parser"
+version = "0.1.0"
+dependencies = [
+ "cyntax_common",
+ "cyntax_errors",
+ "cyntax_lexer",
+ "cyntax_preprocessor",
+ "peekmore",
 ]
 
 [[package]]

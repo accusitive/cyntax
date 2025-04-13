@@ -19,6 +19,7 @@ pub enum Token {
         closer: Spanned<char>,
         inner_tokens: Vec<Spanned<Token>>,
     },
+    Keyword(Keyword)
 }
 
 impl Token {
@@ -118,7 +119,7 @@ pub enum Punctuator {
     PercentColonPercentColon, // %:%:
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, EnumString)]
+#[derive(Debug, Clone, PartialEq, Eq, EnumString, strum_macros::Display)]
 #[strum(serialize_all = "lowercase")]
 pub enum Keyword {
     Auto,

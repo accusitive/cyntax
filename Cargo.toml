@@ -9,6 +9,8 @@ cyntax_errors = {path = "./cyntax_errors"}
 cyntax_lexer = {path = "./cyntax_lexer"}
 cyntax_common = {path = "./cyntax_common"}
 cyntax_preprocessor = {path = "./cyntax_preprocessor"}
+cyntax_parser = {path = "./cyntax_parser"}
+
 smallvec = "1.14.0"
 bumpalo = "3.17.0"
 codespan-reporting = "0.12.0"

@@ -131,7 +131,7 @@ impl<'a, I: Debug + Iterator<Item = Spanned<Token>>> ArgumentSubstitutionIterato
                 Self::stringify_tokens(inner_tokens.iter(), s);
                 s.push(closer.value);
             }
-            Token::ControlLine(_) => unreachable!(),
+            _ => unreachable!(),
         }
     }
 }
