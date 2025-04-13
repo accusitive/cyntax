@@ -84,5 +84,13 @@ fn main() {
 
     let mut parser = cyntax_parser::Parser::new(expanded);
     let tu = parser.parse_translation_unit();
-    dbg!(&tu);
+    match tu {
+        Ok(tu) => {
+            dbg!(&tu);
+
+        }
+        Err(e) => {
+            print!("{}", e.with("test.c", source));
+        }
+    }
 }

@@ -5,7 +5,7 @@ pub struct TranslationUnit {
 #[derive(Debug)]
 pub enum ExternalDeclaration {
     FunctionDefinition(FunctionDefinition),
-    Declaration,
+    Declaration(Declaration),
 }
 #[derive(Debug)]
 pub struct FunctionDefinition {
@@ -55,16 +55,37 @@ pub enum TypeQualifier {
 pub enum Declarator {
     Identifier(String),
     /// *declarator
-    Pointer(Box<Self>),
+    Pointer(Pointer, Box<Self>),
     /// (declarator)
     Parenthesized(Box<Self>),
     // todo: array
-    Function(Vec<ParameterDeclaration>),
+    Function(Box<Self>, Vec<ParameterDeclaration>),
     // maybe this shouldnt be in the main declarator?
     Abstract
+}
+#[derive(Debug)]
+pub struct Pointer {
+    pub type_qualifiers: Vec<TypeQualifier>,
+    pub ptr: Option<Box<Self>>
 }
 #[derive(Debug)]
 pub struct ParameterDeclaration {
     pub specifiers: Vec<DeclarationSpecifier>,
     pub declarator: Declarator,
+}
+
+#[derive(Debug)]
+pub struct InitDeclarator {
+    pub declarator: Declarator
+}
+#[derive(Debug)]
+pub struct Declaration {
+    pub specifiers: Vec<DeclarationSpecifier>,
+    pub init_declarators: Vec<InitDeclarator>
+
+}
+#[derive(Debug)]
+pub struct ParameterList {
+    pub parameters: Vec<ParameterDeclaration>,
+    pub variadic: bool
 }

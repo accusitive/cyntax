@@ -34,3 +34,20 @@ impl<T: PartialEq + Clone> PartialEq for Spanned<T> {
         self.value == other.value
     }
 }
+trait SpanRef {
+    fn span_ref(&self) -> Option<&Range<usize>>;
+}
+trait Span {
+    fn span(&self) -> Option<Range<usize>>;
+}
+
+impl<T: Clone> SpanRef for Spanned<T> {
+    fn span_ref(&self) -> Option<&Range<usize>> {
+        Some(&self.range)
+    }
+}
+impl<T: SpanRef> Span for Vec<T> {
+    fn span(&self) -> Option<Range<usize>> {
+        Some(self.first()?.span_ref()?.start..self.last()?.span_ref()?.end)
+    }
+}
