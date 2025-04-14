@@ -1,5 +1,7 @@
 use cyntax_common::ast::{Keyword, Punctuator, Token};
 use cyntax_common::spanned::Spanned;
+use cyntax_errors::Diagnostic;
+use cyntax_errors::errors::SimpleError;
 use cyntax_lexer::span;
 
 use crate::ast::{BlockItem, Statement};
@@ -16,6 +18,7 @@ impl Parser {
         else if self.can_start_selection_statement() {
         } else if self.can_start_iteration_statement() {
         } else if self.can_start_jump_statement() {
+            return self.parse_jump_statement();
         }
         unimplemented!("{:#?}", self.peek_token());
     }
@@ -64,5 +67,34 @@ impl Parser {
     }
     pub fn can_start_jump_statement(&mut self) -> bool {
         return matches!(self.peek_token(), Ok(span!(Token::Keyword(Keyword::Goto | Keyword::Continue | Keyword::Break | Keyword::Return))));
+    }
+    pub fn parse_jump_statement(&mut self) -> PResult<Statement> {
+        let jump_stmt = match self.next_token()? {
+            span!(Token::Keyword(Keyword::Goto)) => {
+                let identifier = self.expect_identifier()?;
+                Ok(Statement::Goto(identifier))
+            }
+            span!(Token::Keyword(Keyword::Continue)) => Ok(Statement::Continue),
+            span!(Token::Keyword(Keyword::Break)) => Ok(Statement::Break),
+            span!(Token::Keyword(Keyword::Return)) => {
+                dbg!(&self.peek_token());
+                if matches!(self.peek_token(), Ok(span!(Token::Punctuator(Punctuator::Semicolon)))) {
+                    Ok(Statement::Return(None))
+                } else {
+                    Ok(self.maybe_recover(
+                        |this| {
+                            let e = this.parse_expression()?;
+                            Ok(Statement::Return(Some(e)))
+                        },
+                        || Statement::Error,
+                        Token::Punctuator(Punctuator::Semicolon),
+                    ))
+                }
+            }
+            _ => unreachable!(),
+        };
+        self.expect_token(Token::Punctuator(Punctuator::Semicolon))?;
+
+        jump_stmt
     }
 }

@@ -3,16 +3,21 @@ use cyntax_common::{
     ast::*,
     spanned::{Span, Spanned},
 };
-use cyntax_errors::{errors::SimpleError, why::Report, Diagnostic};
+use cyntax_errors::{Diagnostic, errors::SimpleError, why::Report};
 use cyntax_lexer::span;
 use peekmore::{PeekMore, PeekMoreIterator};
-use std::{ops::Range, str::FromStr};
+use std::{
+    collections::{HashMap, HashSet},
+    ops::{Deref, Range},
+    str::FromStr,
+};
 
 #[macro_use]
 pub mod patterns;
 pub mod ast;
 pub mod decl;
 pub mod stmt;
+pub mod expr;
 pub type PResult<T> = Result<T, cyntax_errors::why::Report>;
 
 #[derive(Debug)]
@@ -33,18 +38,22 @@ impl Iterator for TokenStream {
         }
     }
 }
+type Scope = HashSet<String>;
 #[derive(Debug)]
 pub struct Parser {
+    pub diagnostics: Vec<Report>,
+
     token_stream: peekmore::PeekMoreIterator<TokenStream>,
     last_location: Range<usize>,
-    diagnostics: Vec<Report>
+    scopes: Vec<Scope>,
 }
 impl Parser {
     pub fn new(tokens: Vec<Spanned<Token>>) -> Self {
         Parser {
             token_stream: TokenStream { iter: tokens.into_iter() }.peekmore(),
             last_location: 0..0,
-            diagnostics: vec![]
+            diagnostics: vec![],
+            scopes: vec![],
         }
     }
     pub fn next_token(&mut self) -> PResult<Spanned<Token>> {
@@ -98,21 +107,55 @@ impl Parser {
             stoken => Err(SimpleError(stoken.range, format!("expected {:?}, found {:?}", t, stoken.value)).into_why_report()),
         }
     }
-    pub fn maybe_recover<T, F: FnMut(&mut Self) -> PResult<T>, E: FnMut() -> T>(&mut self, mut f: F, mut e: E, recovery_char: Token) -> T{
+    pub fn maybe_recover<T, F: FnMut(&mut Self) -> PResult<T>, E: FnMut() -> T>(&mut self, mut f: F, mut e: E, recovery_char: Token) -> T {
         match f(self) {
             Ok(value) => value,
             Err(err) => {
                 self.diagnostics.push(err);
                 while let Ok(tok) = self.next_token() {
                     if tok.value == recovery_char {
-                        
                         break;
                     }
                 }
                 e()
-
-            },
+            }
         }
+    }
+    pub fn maybe_recover_dont_consume_recovery_char<T, F: FnMut(&mut Self) -> PResult<T>, E: FnMut() -> T>(&mut self, mut f: F, mut e: E, recovery_char: Token) -> T {
+        match f(self) {
+            Ok(value) => value,
+            Err(err) => {
+                self.diagnostics.push(err);
+                while let Ok(tok) = self.peek_token() {
+                    if tok.value == recovery_char {
+                        break;
+                    }
+                }
+                e()
+            }
+        }
+    }
+    pub fn get_declarator_name(&mut self, declarator: &Declarator) -> String {
+        match declarator {
+            Declarator::Identifier(identifier) => identifier.clone(),
+            Declarator::Pointer(_, declarator) => self.get_declarator_name(&declarator.value),
+            Declarator::Parenthesized(declarator) => self.get_declarator_name(&declarator.value),
+            Declarator::Function(declarator, _) => self.get_declarator_name(&declarator.value),
+            Declarator::Abstract => unreachable!(),
+        }
+    }
+    pub fn declare_typedef(&mut self, init_declarator: &InitDeclarator) {
+        let declarator_name = self.get_declarator_name(&init_declarator.declarator.value);
+        self.scopes.last_mut().unwrap().insert(declarator_name);
+        dbg!(&self.scopes);
+    }
+    pub fn is_typedef(&self, identifier: &str) -> bool {
+        for scope in &self.scopes {
+            if scope.contains(identifier) {
+                return true;
+            }
+        }
+        return false;
     }
     pub fn expect_identifier(&mut self) -> PResult<Spanned<String>> {
         match self.next_token()? {
@@ -121,10 +164,12 @@ impl Parser {
         }
     }
     pub fn parse_translation_unit(&mut self) -> PResult<TranslationUnit> {
+        self.scopes.push(HashSet::new());
         let mut external_declarations = vec![];
         while let Some(external_declaration) = self.parse_external_declaration()? {
             external_declarations.push(external_declaration);
         }
+        self.scopes.pop();
         Ok(TranslationUnit { external_declarations })
     }
 
@@ -138,6 +183,7 @@ impl Parser {
             let declarations = self.parse_struct_declaration_list()?;
 
             self.expect_token(Token::Punctuator(Punctuator::RightBrace))?;
+            dbg!(&self.peek_token());
             Ok(ast::TypeSpecifier::Struct(StructSpecifier { identifier: name, declarations }))
         } else {
             Ok(ast::TypeSpecifier::Struct(StructSpecifier { identifier: name, declarations: vec![] }))
@@ -146,10 +192,22 @@ impl Parser {
     pub fn parse_struct_declaration_list(&mut self) -> PResult<Vec<StructDeclaration>> {
         let mut struct_declarations = vec![];
         while self.can_parse_type_qualifier() || self.can_start_declaration_specifier() {
-            let specifier_qualifiers = self.parse_specifier_qualifier_list()?;
-            let declarators = self.parse_struct_declarator_lsit()?;
-            self.expect_token(Token::Punctuator(Punctuator::Semicolon))?;
-            struct_declarations.push(StructDeclaration { declarators, specifier_qualifiers });
+            if let Some((specifier_qualifiers, declarators)) = self.maybe_recover(
+                |this| {
+                    let specifier_qualifiers = this.parse_specifier_qualifier_list()?;
+                    let declarators = this.parse_struct_declarator_lsit()?;
+                    this.expect_token(Token::Punctuator(Punctuator::Semicolon))?;
+
+                    Ok(Some((specifier_qualifiers, declarators)))
+                },
+                || None,
+                Token::Punctuator(Punctuator::Semicolon),
+            ) {
+                struct_declarations.push(StructDeclaration { declarators, specifier_qualifiers });
+            } else {
+                dbg!(&self.peek_token());
+                // panic!("recovered but its still blown out");
+            }
         }
 
         Ok(struct_declarations)
@@ -170,7 +228,7 @@ impl Parser {
                 span!(Token::Keyword(Keyword::Bool)) => SpecifierQualifier::Specifier(TypeSpecifier::Bool),
                 span!(Token::Keyword(Keyword::Complex)) => SpecifierQualifier::Specifier(TypeSpecifier::Complex),
                 span!(Token::Keyword(Keyword::Struct)) => SpecifierQualifier::Specifier(self.parse_struct_type_specifier()?),
-
+                span!(Token::Identifier(identifier)) if self.is_typedef(&identifier) => SpecifierQualifier::Specifier(TypeSpecifier::TypedefName(identifier)),
                 span!(Token::Keyword(kw @ type_qualifier!())) => SpecifierQualifier::Qualifier(kw.into()),
                 _ => unreachable!(),
             });
@@ -218,7 +276,11 @@ impl Parser {
         matches!(self.peek_token(), Ok(span!(Token::Keyword(type_qualifier!()))))
     }
     pub fn can_parse_type_specifier(&mut self) -> bool {
-        matches!(self.peek_token(), Ok(span!(Token::Keyword(type_specifier!()))))
+        match self.peek_token().cloned() {
+            Ok(span!(Token::Keyword(type_specifier!()))) => true,
+            Ok(span!(Token::Identifier(identifier))) if self.is_typedef(&identifier) => true,
+            _ => false,
+        }
     }
     pub fn parse_type_qualifier(&mut self) -> PResult<Spanned<TypeQualifier>> {
         let Spanned { value, range } = self.next_token()?;

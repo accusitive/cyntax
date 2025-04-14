@@ -131,7 +131,11 @@ pub enum Statement {
     Expression,
     Selection,
     Iteration,
-    Jump,
+    Goto(Spanned<String>),
+    Continue,
+    Break,
+    Error,
+    Return(Option<Expression>),
 }
 #[derive(Debug)]
 pub enum BlockItem {
@@ -153,4 +157,8 @@ pub enum Designator {
     // [constant-expression]
     ConstantExpression,
     Identifier(Spanned<String>),
+}
+#[derive(Debug)]
+pub enum Expression {
+    Identifier(String)
 }

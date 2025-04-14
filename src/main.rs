@@ -84,10 +84,16 @@ fn main() {
 
     let mut parser = cyntax_parser::Parser::new(expanded);
     let tu = parser.parse_translation_unit();
+
     match tu {
         Ok(tu) => {
             dbg!(&tu);
-
+            if parser.diagnostics.len() > 0 {
+                for diag in &parser.diagnostics {
+                    println!("recovered: {}", diag.clone().with("test.c", source));
+                }
+                println!("compilation failed!");
+            }
         }
         Err(e) => {
             print!("{}", e.with("test.c", source));

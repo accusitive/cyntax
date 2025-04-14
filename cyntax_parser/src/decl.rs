@@ -14,18 +14,28 @@ impl Parser {
         let specifiers = self.parse_declaration_specifiers()?;
 
         let mut init_declarators = self.parse_init_declarators()?;
-        dbg!(&self.peek_token());
+        let mut is_typedef = false;
+        for specifier in &specifiers {
+            if matches!(specifier, span!(DeclarationSpecifier::StorageClass(StorageClassSpecifier::Typedef))) {
+                is_typedef = true;
+            }
+        }
+        if is_typedef {
+            for declarator in &init_declarators {
+                self.declare_typedef(declarator);
+            }
+        }
+
+
+        // dbg!(&self.peek_token());
 
         // int a;
         if self.eat_if_next(Token::Punctuator(Punctuator::Semicolon))? {
-            return Ok(Some(ExternalDeclaration::Declaration(Declaration {
-                specifiers: specifiers,
-                init_declarators: init_declarators,
-            })));
+            return Ok(Some(ExternalDeclaration::Declaration(Declaration { specifiers, init_declarators })));
         }
 
         // int main() {}
-        if init_declarators.len() == 1 /* && check to make sure no initializer */ && self.peek_matches(Token::Punctuator(Punctuator::LeftBrace))? {
+        if init_declarators.len() == 1 && init_declarators[0].initializer.is_none() && self.peek_matches(Token::Punctuator(Punctuator::LeftBrace))? {
             let declarator = init_declarators.remove(0).declarator;
             let body = self.parse_statement()?;
             return Ok(Some(ExternalDeclaration::FunctionDefinition(FunctionDefinition { specifiers, declarator, body })));
@@ -33,7 +43,6 @@ impl Parser {
         // int a,b() {}
         if init_declarators.len() > 1 && self.peek_matches(Token::Punctuator(Punctuator::LeftBrace))? {
             let range = specifiers.span_fallback(self.last_location.clone()).start..self.last_location.end;
-
             return Err(SimpleError(range, "Declarations with more than 1 declarator cannot have a function body".to_string()).into_why_report());
         }
 
@@ -42,7 +51,22 @@ impl Parser {
     }
     pub fn parse_declaration(&mut self) -> PResult<Declaration> {
         let specifiers = self.parse_declaration_specifiers()?;
+
+        let mut is_typedef = false;
+
         let init_declarators = self.parse_init_declarators()?;
+
+        for specifier in &specifiers {
+            if matches!(specifier, span!(DeclarationSpecifier::StorageClass(StorageClassSpecifier::Typedef))) {
+                is_typedef = true;
+            }
+        }
+        if is_typedef {
+            for declarator in &init_declarators {
+                self.declare_typedef(declarator);
+            }
+        }
+
         Ok(Declaration { specifiers, init_declarators })
     }
     pub fn parse_declaration_specifiers(&mut self) -> PResult<Vec<Spanned<DeclarationSpecifier>>> {
@@ -54,8 +78,11 @@ impl Parser {
         Ok(declaration_specifiers.into())
     }
     pub fn can_start_declaration_specifier(&mut self) -> bool {
-        // todo: add typename/identifiers to this
-        return matches!(self.token_stream.peek(), Some(span!(Token::Keyword(storage_class!() | type_specifier!() | type_qualifier!() | Keyword::Inline))));
+        match self.peek_token().cloned() {
+            Ok(span!(Token::Keyword(storage_class!() | type_specifier!() | type_qualifier!() | Keyword::Inline))) => true,
+            Ok(span!(Token::Identifier(identifier))) if self.is_typedef(&identifier) => true,
+            _ => false,
+        }
     }
     pub fn parse_declaration_specifier(&mut self) -> PResult<Spanned<DeclarationSpecifier>> {
         let Spanned { value, range } = self.next_token()?;
@@ -87,7 +114,7 @@ impl Parser {
                 Token::Keyword(Keyword::Const) => DeclarationSpecifier::TypeQualifier(TypeQualifier::Const),
                 Token::Keyword(Keyword::Restrict) => DeclarationSpecifier::TypeQualifier(TypeQualifier::Restrict),
                 Token::Keyword(Keyword::Volatile) => DeclarationSpecifier::TypeQualifier(TypeQualifier::Volatile),
-
+                Token::Identifier(identifier) if self.is_typedef(&identifier) => DeclarationSpecifier::TypeSpecifier(TypeSpecifier::TypedefName(identifier)),
                 // Function specifiers
                 // Some(span!(Token::Keyword(Keyword::Inline))) => DeclarationSpecifier::Function(FunctionSpecifier::Inline),
                 x => unimplemented!("{:#?}", x),
