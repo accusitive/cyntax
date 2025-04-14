@@ -3,7 +3,7 @@ use cyntax_common::{
     ast::*,
     spanned::{Span, Spanned},
 };
-use cyntax_errors::{Diagnostic, errors::SimpleError};
+use cyntax_errors::{errors::SimpleError, why::Report, Diagnostic};
 use cyntax_lexer::span;
 use peekmore::{PeekMore, PeekMoreIterator};
 use std::{ops::Range, str::FromStr};
@@ -37,12 +37,14 @@ impl Iterator for TokenStream {
 pub struct Parser {
     token_stream: peekmore::PeekMoreIterator<TokenStream>,
     last_location: Range<usize>,
+    diagnostics: Vec<Report>
 }
 impl Parser {
     pub fn new(tokens: Vec<Spanned<Token>>) -> Self {
         Parser {
             token_stream: TokenStream { iter: tokens.into_iter() }.peekmore(),
             last_location: 0..0,
+            diagnostics: vec![]
         }
     }
     pub fn next_token(&mut self) -> PResult<Spanned<Token>> {
@@ -96,6 +98,22 @@ impl Parser {
             stoken => Err(SimpleError(stoken.range, format!("expected {:?}, found {:?}", t, stoken.value)).into_why_report()),
         }
     }
+    pub fn maybe_recover<T, F: FnMut(&mut Self) -> PResult<T>, E: FnMut() -> T>(&mut self, mut f: F, mut e: E, recovery_char: Token) -> T{
+        match f(self) {
+            Ok(value) => value,
+            Err(err) => {
+                self.diagnostics.push(err);
+                while let Ok(tok) = self.next_token() {
+                    if tok.value == recovery_char {
+                        
+                        break;
+                    }
+                }
+                e()
+
+            },
+        }
+    }
     pub fn expect_identifier(&mut self) -> PResult<Spanned<String>> {
         match self.next_token()? {
             span!(span, Token::Identifier(identifier)) => Ok(Spanned::new(span, identifier)),
@@ -125,27 +143,50 @@ impl Parser {
             Ok(ast::TypeSpecifier::Struct(StructSpecifier { identifier: name, declarations: vec![] }))
         }
     }
-    pub fn parse_struct_declaration_list(&mut self) -> PResult<StructDeclaration> {
-        // let specifier_qualifier = self.parse_Speci
-        todo!()
+    pub fn parse_struct_declaration_list(&mut self) -> PResult<Vec<StructDeclaration>> {
+        let mut struct_declarations = vec![];
+        while self.can_parse_type_qualifier() || self.can_start_declaration_specifier() {
+            let specifier_qualifiers = self.parse_specifier_qualifier_list()?;
+            let declarators = self.parse_struct_declarator_lsit()?;
+            self.expect_token(Token::Punctuator(Punctuator::Semicolon))?;
+            struct_declarations.push(StructDeclaration { declarators, specifier_qualifiers });
+        }
+
+        Ok(struct_declarations)
     }
-    pub fn parse_specifier_qualifier_list(&mut self) -> PResult<SpecifierQualifier> {
+    pub fn parse_specifier_qualifier_list(&mut self) -> PResult<Vec<SpecifierQualifier>> {
         let mut specifier_qualifiers = vec![];
         while self.can_parse_type_qualifier() || self.can_parse_type_specifier() {
-            match self.next_token()? {
-                span!(kw @ Token::Keyword(type_specifier!())) => {
-                    specifier_qualifiers.push(TypeSpecifier::from(kw));
+            specifier_qualifiers.push(match self.next_token()? {
+                span!(Token::Keyword(Keyword::Void)) => SpecifierQualifier::Specifier(TypeSpecifier::Void),
+                span!(Token::Keyword(Keyword::Char)) => SpecifierQualifier::Specifier(TypeSpecifier::Char),
+                span!(Token::Keyword(Keyword::Short)) => SpecifierQualifier::Specifier(TypeSpecifier::Short),
+                span!(Token::Keyword(Keyword::Int)) => SpecifierQualifier::Specifier(TypeSpecifier::Int),
+                span!(Token::Keyword(Keyword::Long)) => SpecifierQualifier::Specifier(TypeSpecifier::Long),
+                span!(Token::Keyword(Keyword::Float)) => SpecifierQualifier::Specifier(TypeSpecifier::Float),
+                span!(Token::Keyword(Keyword::Double)) => SpecifierQualifier::Specifier(TypeSpecifier::Double),
+                span!(Token::Keyword(Keyword::Signed)) => SpecifierQualifier::Specifier(TypeSpecifier::Signed),
+                span!(Token::Keyword(Keyword::Unsigned)) => SpecifierQualifier::Specifier(TypeSpecifier::Unsigned),
+                span!(Token::Keyword(Keyword::Bool)) => SpecifierQualifier::Specifier(TypeSpecifier::Bool),
+                span!(Token::Keyword(Keyword::Complex)) => SpecifierQualifier::Specifier(TypeSpecifier::Complex),
+                span!(Token::Keyword(Keyword::Struct)) => SpecifierQualifier::Specifier(self.parse_struct_type_specifier()?),
 
-                },
-                span!(kw @ Token::Keyword(type_qualifier!())) => {
-                    self.parse_declaration_specifier()
-                    // specifier_qualifiers.push(TypeQualifier::from(kw));
-
-                },
-                _ => unreachable!()
-            }
+                span!(Token::Keyword(kw @ type_qualifier!())) => SpecifierQualifier::Qualifier(kw.into()),
+                _ => unreachable!(),
+            });
         }
         Ok(specifier_qualifiers)
+    }
+    pub fn parse_struct_declarator_lsit(&mut self) -> PResult<Vec<StructDeclarator>> {
+        let mut declarators = vec![];
+        while self.can_start_declarator() || self.consider_comma(&declarators)? {
+            if declarators.len() > 0 {
+                self.expect_token(Token::Punctuator(Punctuator::Comma))?;
+            }
+            let declarator = self.parse_declarator()?;
+            declarators.push(StructDeclarator { declarator: Some(declarator) });
+        }
+        Ok(declarators)
     }
     fn consider_comma<T>(&mut self, v: &Vec<T>) -> PResult<bool> {
         Ok(v.len() >= 1 && matches!(self.peek_token()?, span!(Token::Punctuator(Punctuator::Comma))))

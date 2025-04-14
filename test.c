@@ -1,5 +1,8 @@
 struct test {
     int a;
     int *b, c;
-    int :5
+    struct test2 {
+        int a2,b2;
+        c2;
+    };
 } s;

@@ -61,7 +61,7 @@ pub struct StructDeclaration {
 }
 #[derive(Debug)]
 pub struct StructDeclarator {
-    pub declarator: Option<Declarator>,
+    pub declarator: Option<Spanned<Declarator>>,
     // bitfield: Expression
 }
 #[derive(Debug)]
