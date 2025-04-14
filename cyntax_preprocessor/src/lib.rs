@@ -1,6 +1,6 @@
 #![feature(iter_chain)]
 #![feature(iter_intersperse)]
-use cyntax_common::{ast::Token, spanned::Spanned};
+use cyntax_common::{ast::PreprocessingToken, spanned::Spanned};
 use cyntax_errors::UnwrapDiagnostic;
 use expand::Expander;
 use prepend::PrependingPeekableIterator;
@@ -21,7 +21,7 @@ pub struct Preprocessor<'src> {
 }
 
 impl<'src> Preprocessor<'src> {
-    pub fn new(file_name: &'src str, file_source: &'src str, tokens: &'src [Spanned<Token>]) -> Preprocessor<'src> {
+    pub fn new(file_name: &'src str, file_source: &'src str, tokens: &'src [Spanned<PreprocessingToken>]) -> Preprocessor<'src> {
         let itt = IntoTokenTree {
             source: file_source,
             tokens: tokens.iter().peekable(),
@@ -31,7 +31,7 @@ impl<'src> Preprocessor<'src> {
 
         Self { file_source, file_name, token_trees: itt }
     }
-    pub fn expand(self) -> Vec<Spanned<Token>> {
+    pub fn expand(self) -> Vec<Spanned<PreprocessingToken>> {
         let mut expander = Expander::new(self.file_name, self.file_source, PrependingPeekableIterator::new(self.token_trees.into_iter()));
         expander.expand().unwrap_diagnostic("test.c", self.file_source);
         dbg!(&expander.expanding);

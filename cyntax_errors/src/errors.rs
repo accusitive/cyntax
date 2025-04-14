@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use cyntax_common::{ast::Token, spanned::Spanned};
+use cyntax_common::{ast::PreprocessingToken, spanned::Spanned};
 
 use crate::{Diagnostic, DiagnosticSeverity, Label};
 #[derive(Debug)]
@@ -116,7 +116,7 @@ impl Diagnostic for ExpectedButFound {
     }
 }
 
-pub struct ErrorDirective(pub Range<usize>, pub Option<Spanned<Token>>);
+pub struct ErrorDirective(pub Range<usize>, pub Option<Spanned<PreprocessingToken>>);
 
 impl Diagnostic for ErrorDirective {
     fn title<'a>(&self) -> &'a str {

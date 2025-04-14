@@ -16,13 +16,13 @@ use std::{
 pub mod patterns;
 pub mod ast;
 pub mod decl;
-pub mod stmt;
 pub mod expr;
+pub mod stmt;
 pub type PResult<T> = Result<T, cyntax_errors::why::Report>;
 
 #[derive(Debug)]
 struct TokenStream {
-    iter: std::vec::IntoIter<Spanned<Token>>,
+    iter: std::vec::IntoIter<Spanned<PreprocessingToken>>,
 }
 impl Iterator for TokenStream {
     type Item = Spanned<Token>;
@@ -30,10 +30,15 @@ impl Iterator for TokenStream {
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             match self.iter.next()? {
-                span!(span, Token::Identifier(identifier)) if Keyword::from_str(&identifier).is_ok() => return Some(Spanned::new(span, Token::Keyword(Keyword::from_str(&identifier).unwrap()))),
-                span!(span, Token::BlueIdentifier(identifier)) => return Some(Spanned::new(span, Token::Identifier(identifier.to_string()))),
-                span!(Token::Whitespace(_)) => continue,
-                spanned_token => return Some(spanned_token),
+                span!(span, PreprocessingToken::Identifier(identifier)) if Keyword::from_str(&identifier).is_ok() => return Some(Spanned::new(span, Token::Keyword(Keyword::from_str(&identifier).unwrap()))),
+                span!(span, PreprocessingToken::Identifier(identifier)) => return Some(Spanned::new(span, Token::Identifier(identifier))),
+                span!(span, PreprocessingToken::BlueIdentifier(identifier)) => return Some(Spanned::new(span, Token::Identifier(identifier))),
+                span!(span, PreprocessingToken::StringLiteral(string)) => return Some(Spanned::new(span, Token::StringLiteral(string))),
+                span!(span, PreprocessingToken::CharLiteral(string)) => return Some(Spanned::new(span, Token::CharLiteral(string))),
+                span!(span, PreprocessingToken::PPNumber(number)) => todo!(),
+                span!(span, PreprocessingToken::Punctuator(punc)) => return Some(Spanned::new(span, Token::Punctuator(punc))),
+                span!(PreprocessingToken::Whitespace(_)) => continue,
+                _ => unreachable!(), // span!(PreprocessingToken::)
             }
         }
     }
@@ -48,7 +53,7 @@ pub struct Parser {
     scopes: Vec<Scope>,
 }
 impl Parser {
-    pub fn new(tokens: Vec<Spanned<Token>>) -> Self {
+    pub fn new(tokens: Vec<Spanned<PreprocessingToken>>) -> Self {
         Parser {
             token_stream: TokenStream { iter: tokens.into_iter() }.peekmore(),
             last_location: 0..0,

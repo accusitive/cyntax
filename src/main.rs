@@ -1,37 +1,34 @@
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use cyntax_common::{
-    ast::{Keyword, Token, Whitespace},
+    ast::{Keyword, PreprocessingToken, Whitespace},
     spanned::Spanned,
 };
 
 #[cfg(test)]
 mod tests;
-fn print_tokens<'src, I: Iterator<Item = &'src Spanned<Token>>>(source: &'src str, tokens: I) {
+fn print_tokens<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>>(source: &'src str, tokens: I) {
     for spanned_token in tokens {
         match &spanned_token.value {
-            Token::Identifier(identifier) => {
+            PreprocessingToken::Identifier(identifier) => {
                 print!("{}", identifier);
             }
-            Token::BlueIdentifier(identifier) => {
+            PreprocessingToken::BlueIdentifier(identifier) => {
                 print!("{}", identifier);
             }
-            Token::Keyword(kw) => {
-                print!("{}", kw.to_string())
-            }
-            Token::StringLiteral(string) => {
+            PreprocessingToken::StringLiteral(string) => {
                 print!("\"");
                 print!("{}", string);
                 print!("\"");
             }
-            Token::CharLiteral(chars) => {
+            PreprocessingToken::CharLiteral(chars) => {
                 print!("\'");
                 print!("{}", chars);
                 print!("\'");
             }
-            Token::PPNumber(number) => {
+            PreprocessingToken::PPNumber(number) => {
                 print!("{}", number);
             }
-            Token::Delimited {
+            PreprocessingToken::Delimited {
                 opener: opening,
                 closer: closing,
                 inner_tokens: tokens,
@@ -40,20 +37,20 @@ fn print_tokens<'src, I: Iterator<Item = &'src Spanned<Token>>>(source: &'src st
                 print_tokens(source, tokens.iter());
                 print!("{}", closing.value);
             }
-            Token::ControlLine(inner) => {
+            PreprocessingToken::ControlLine(inner) => {
                 print!("#");
                 print_tokens(source, inner.iter());
             }
-            Token::Whitespace(whitespace) => match whitespace {
+            PreprocessingToken::Whitespace(whitespace) => match whitespace {
                 Whitespace::Space => print!(" "),
                 Whitespace::Newline => print!("\n"),
                 Whitespace::Tab => print!("\t"),
             },
-            Token::Punctuator(punctuator) => print!("{}", punctuator.to_string()),
+            PreprocessingToken::Punctuator(punctuator) => print!("{}", punctuator.to_string()),
         }
     }
 }
-fn debug_spans(source: &str, tokens: &[Spanned<Token>]) {
+fn debug_spans(source: &str, tokens: &[Spanned<PreprocessingToken>]) {
     for token in tokens {
         let diag = Diagnostic::new(codespan_reporting::diagnostic::Severity::Note).with_label(Label {
             file_id: 0,

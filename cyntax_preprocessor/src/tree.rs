@@ -1,24 +1,24 @@
 use std::{iter::Peekable, ops::Range};
 
 use cyntax_common::{
-    ast::{Punctuator, Token, Whitespace},
+    ast::{PreprocessingToken, Punctuator, Whitespace},
     spanned::Spanned,
 };
 use cyntax_errors::{Diagnostic, errors::UnterminatedTreeNode};
 use cyntax_lexer::span;
-pub struct IntoTokenTree<'src, I: Iterator<Item = &'src Spanned<Token>>> {
+pub struct IntoTokenTree<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>> {
     pub(crate) source: &'src str,
     pub(crate) tokens: Peekable<I>,
     pub(crate) expecting_opposition: bool,
 }
-impl<'src, I: Iterator<Item = &'src Spanned<Token>>> Iterator for IntoTokenTree<'src, I> {
+impl<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>> Iterator for IntoTokenTree<'src, I> {
     type Item = TokenTree;
 
     fn next(&mut self) -> Option<Self::Item> {
         let token = self.tokens.next()?;
 
         match token {
-            span!(Token::ControlLine(inner)) => {
+            span!(PreprocessingToken::ControlLine(inner)) => {
                 let control_line = self.parse_control_line(inner.to_vec());
                 match control_line {
                     ControlLine::DefineObject { .. } | ControlLine::DefineFunction { .. } | ControlLine::Error(..) | ControlLine::Warning(..) | ControlLine::Undefine(..) | ControlLine::Include(..) => {
@@ -64,13 +64,13 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> Iterator for IntoTokenTree<
         }
     }
 }
-impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
-    pub fn until_closer(&mut self, opener: &Spanned<Token>) -> Result<Vec<TokenTree>, UnterminatedTreeNode> {
+impl<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>> IntoTokenTree<'src, I> {
+    pub fn until_closer(&mut self, opener: &Spanned<PreprocessingToken>) -> Result<Vec<TokenTree>, UnterminatedTreeNode> {
         let mut body = vec![];
 
         while let Some(token) = self.tokens.peek() {
             match token {
-                span!(Token::ControlLine(control_line)) => {
+                span!(PreprocessingToken::ControlLine(control_line)) => {
                     let inner = self.parse_control_line(control_line.to_vec());
                     match inner {
                         ControlLine::EndIf | ControlLine::Elif { .. } | ControlLine::Else => {
@@ -95,7 +95,7 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
     }
     pub fn maybe_opposition(&mut self) -> TokenTree {
         match self.tokens.peek() {
-            Some(span!(Token::ControlLine(control_line))) => {
+            Some(span!(PreprocessingToken::ControlLine(control_line))) => {
                 let control_line = self.parse_control_line(control_line.to_vec());
                 match control_line {
                     ControlLine::Elif { .. } | ControlLine::Else => {
@@ -117,7 +117,7 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
         }
     }
     // Parse the inside of control line into a usable value
-    pub fn parse_control_line(&mut self, tokens: Vec<Spanned<Token>>) -> ControlLine {
+    pub fn parse_control_line(&mut self, tokens: Vec<Spanned<PreprocessingToken>>) -> ControlLine {
         // Handle empty directive
         if tokens.len() == 0 {
             return ControlLine::Empty;
@@ -125,9 +125,9 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
 
         let mut tokens_iter = tokens.clone().into_iter().peekable();
         // utility function to strip all preceeding whitespace
-        let skip_whitespace = |tokens_iter: &mut Peekable<std::vec::IntoIter<Spanned<Token>>>| {
+        let skip_whitespace = |tokens_iter: &mut Peekable<std::vec::IntoIter<Spanned<PreprocessingToken>>>| {
             while let Some(token) = tokens_iter.peek() {
-                if matches!(token, span!(Token::Whitespace(_))) {
+                if matches!(token, span!(PreprocessingToken::Whitespace(_))) {
                     tokens_iter.next().unwrap();
                 } else {
                     break;
@@ -170,14 +170,14 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
                 skip_whitespace(&mut tokens_iter);
 
                 let macro_name = self.expect_identifier(&mut tokens_iter).expect("expected macro_name in ifdef directive");
-                if matches!(tokens_iter.peek(), Some(span!(Token::Punctuator(Punctuator::LeftParen)))) {
+                if matches!(tokens_iter.peek(), Some(span!(PreprocessingToken::Punctuator(Punctuator::LeftParen)))) {
                     let opener = tokens_iter.next().unwrap();
                     let mut parameters = vec![];
 
                     while let Some(token) = tokens_iter.next() {
-                        if matches!(token, span!(Token::Punctuator(Punctuator::RightParen))) {
+                        if matches!(token, span!(PreprocessingToken::Punctuator(Punctuator::RightParen))) {
                             let end = parameters.last().map(|param: &Spanned<_>| param.range.end).unwrap_or(opener.range.end);
-                            let parameters_token = Token::Delimited {
+                            let parameters_token = PreprocessingToken::Delimited {
                                 opener: opener.map_ref(|_| '('),
                                 closer: token.map_ref(|_| ')'),
                                 inner_tokens: parameters,
@@ -195,7 +195,7 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
                     }
                     panic!("todo: error message for unmatched parenthesis in ");
                 } else {
-                    if matches!(tokens_iter.peek(), Some(span!(Token::Whitespace(Whitespace::Space)))) {
+                    if matches!(tokens_iter.peek(), Some(span!(PreprocessingToken::Whitespace(Whitespace::Space)))) {
                         tokens_iter.next().unwrap();
                     }
                     skip_whitespace(&mut tokens_iter);
@@ -222,11 +222,11 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
             _ if directive_name == "include" => {
                 skip_whitespace(&mut tokens_iter);
                 match tokens_iter.next() {
-                    Some(span!(Token::Punctuator(Punctuator::LessThan))) => {
-                        let inner = tokens_iter.take_while(|tok| !matches!(tok, span!(Token::Punctuator(Punctuator::GreaterThan)))).collect::<Vec<_>>();
+                    Some(span!(PreprocessingToken::Punctuator(Punctuator::LessThan))) => {
+                        let inner = tokens_iter.take_while(|tok| !matches!(tok, span!(PreprocessingToken::Punctuator(Punctuator::GreaterThan)))).collect::<Vec<_>>();
                         return ControlLine::Include(HeaderName::H(inner));
                     }
-                    Some(span!(Token::StringLiteral(string))) => return ControlLine::Include(HeaderName::Q(string)),
+                    Some(span!(PreprocessingToken::StringLiteral(string))) => return ControlLine::Include(HeaderName::Q(string)),
                     // TODO: error
                     _ => todo!(),
                 }
@@ -238,9 +238,9 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
             }
         };
     }
-    pub fn expect_identifier<'b, I2: Iterator<Item = Spanned<Token>>>(&mut self, iter: &mut I2) -> Option<Spanned<String>> {
+    pub fn expect_identifier<'b, I2: Iterator<Item = Spanned<PreprocessingToken>>>(&mut self, iter: &mut I2) -> Option<Spanned<String>> {
         match iter.next()? {
-            span!(range, Token::Identifier(i)) => Some(Spanned::new(range.clone(), i.clone())),
+            span!(range, PreprocessingToken::Identifier(i)) => Some(Spanned::new(range.clone(), i.clone())),
             _ => None,
         }
     }
@@ -249,19 +249,34 @@ impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub enum ControlLine {
-    IfDef { macro_name: String },
-    IfNDef { macro_name: String },
+    IfDef {
+        macro_name: String,
+    },
+    IfNDef {
+        macro_name: String,
+    },
 
-    If { condition: Vec<Spanned<Token>> },
-    Elif { condition: Vec<Spanned<Token>> },
+    If {
+        condition: Vec<Spanned<PreprocessingToken>>,
+    },
+    Elif {
+        condition: Vec<Spanned<PreprocessingToken>>,
+    },
     Else,
     EndIf,
-    DefineFunction { macro_name: String, parameters: Spanned<Token>, replacement_list: Vec<Spanned<Token>> },
-    DefineObject { macro_name: String, replacement_list: Vec<Spanned<Token>> },
+    DefineFunction {
+        macro_name: String,
+        parameters: Spanned<PreprocessingToken>,
+        replacement_list: Vec<Spanned<PreprocessingToken>>,
+    },
+    DefineObject {
+        macro_name: String,
+        replacement_list: Vec<Spanned<PreprocessingToken>>,
+    },
     Undefine(String),
     Include(HeaderName),
-    Error(Range<usize>, Option<Spanned<Token>>),
-    Warning(Range<usize>, Option<Spanned<Token>>),
+    Error(Range<usize>, Option<Spanned<PreprocessingToken>>),
+    Warning(Range<usize>, Option<Spanned<PreprocessingToken>>),
 
     Empty,
 }
@@ -270,9 +285,9 @@ pub enum HeaderName {
     /// "header-name.h"
     Q(String),
     /// <header-name.h>
-    H(Vec<Spanned<Token>>),
+    H(Vec<Spanned<PreprocessingToken>>),
 }
-impl<'src, I: Iterator<Item = &'src Spanned<Token>>> IntoTokenTree<'src, I> {
+impl<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>> IntoTokenTree<'src, I> {
     pub fn unwrap_diagnostic<T, E: Diagnostic, F: FnOnce(&mut Self) -> Result<T, E>>(&mut self, value: F) -> T {
         match value(self) {
             Ok(value) => value,
@@ -299,12 +314,12 @@ pub enum TokenTree {
         opposition: Box<TokenTree>,
     },
     If {
-        condition: Vec<Spanned<Token>>,
+        condition: Vec<Spanned<PreprocessingToken>>,
         body: Vec<TokenTree>,
         opposition: Box<TokenTree>,
     },
     Elif {
-        condition: Vec<Spanned<Token>>,
+        condition: Vec<Spanned<PreprocessingToken>>,
         body: Vec<TokenTree>,
         opposition: Box<TokenTree>,
     },
@@ -315,20 +330,20 @@ pub enum TokenTree {
     },
     Endif,
 
-    PreprocessorToken(Spanned<Token>),
+    PreprocessorToken(Spanned<PreprocessingToken>),
 
     Internal(InternalLeaf),
 }
 #[derive(Debug, Clone)]
 pub enum InternalLeaf {
     // Delimited(Spanned<char>, Spanned<char>, Vec<TokenTree<'src>>),
-    MacroExpansion(String, Vec<Spanned<Token>>),
+    MacroExpansion(String, Vec<Spanned<PreprocessingToken>>),
 
     BeginExpandingMacro(String),
     FinishExpandingMacro(String),
 }
 impl TokenTree {
-    pub fn as_token(&self) -> Spanned<Token> {
+    pub fn as_token(&self) -> Spanned<PreprocessingToken> {
         match self {
             TokenTree::PreprocessorToken(spanned) => spanned.clone(),
             this => panic!("tried to assume {:?} was a token!", this),

@@ -1,5 +1,5 @@
 use cyntax_common::{
-    ast::{Punctuator, Token},
+    ast::{PreprocessingToken, Punctuator},
     spanned::Spanned,
 };
 use cyntax_errors::{Diagnostic, errors::UnmatchedDelimiter};
@@ -17,7 +17,7 @@ use crate::{
     substitute::ArgumentSubstitutionIterator,
     tree::{ControlLine, InternalLeaf, IntoTokenTree, TokenTree},
 };
-pub type ReplacementList = Vec<Spanned<Token>>;
+pub type ReplacementList = Vec<Spanned<PreprocessingToken>>;
 pub type PResult<T> = Result<T, Report>;
 
 #[derive(Debug)]
@@ -26,7 +26,7 @@ pub struct Expander<'src, I: Debug + Iterator<Item = TokenTree>> {
     pub file_source: &'src str,
     // pub files: Vec<String>,
     pub token_trees: PrependingPeekableIterator<I>,
-    pub output: Vec<Spanned<Token>>,
+    pub output: Vec<Spanned<PreprocessingToken>>,
     pub macros: HashMap<String, MacroDefinition>,
     pub expanding: HashSet<String>, // pub expanding: HashMap<String, bool>
 }
@@ -36,14 +36,14 @@ pub enum MacroDefinition {
     Function { parameter_list: MacroParameterList, replacement_list: ReplacementList },
 }
 pub enum ExpandControlFlow {
-    Return(Vec<Spanned<Token>>),
+    Return(Vec<Spanned<PreprocessingToken>>),
     Rescan(TokenTree),
     RescanMany(Vec<TokenTree>),
 }
 #[derive(Debug)]
 pub struct MacroArgument {
-    pub unexpanded: Vec<Spanned<Token>>,
-    pub expanded: Vec<Spanned<Token>>,
+    pub unexpanded: Vec<Spanned<PreprocessingToken>>,
+    pub expanded: Vec<Spanned<PreprocessingToken>>,
 }
 impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
     pub fn new(name: &'src str, source: &'src str, token_trees: PrependingPeekableIterator<I>) -> Self {
@@ -78,7 +78,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
         }
         Ok(())
     }
-    pub fn expand_next(&mut self, skip_macro_replacement: bool) -> PResult<Option<Vec<Spanned<Token>>>> {
+    pub fn expand_next(&mut self, skip_macro_replacement: bool) -> PResult<Option<Vec<Spanned<PreprocessingToken>>>> {
         match self.next_token_tree() {
             Some(tt) => {
                 let expanded = self.fully_expand_token_tree(tt, skip_macro_replacement)?;
@@ -87,7 +87,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
             None => Ok(None),
         }
     }
-    pub fn fully_expand_token_tree(&mut self, tt: TokenTree, skip_macro_replacement: bool) -> PResult<Vec<Spanned<Token>>> {
+    pub fn fully_expand_token_tree(&mut self, tt: TokenTree, skip_macro_replacement: bool) -> PResult<Vec<Spanned<PreprocessingToken>>> {
         match self.expand_token_tree(tt, skip_macro_replacement)? {
             ExpandControlFlow::Return(spanneds) => return Ok(spanneds),
             ExpandControlFlow::Rescan(token_tree) => {
@@ -155,11 +155,11 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                 f.push(TokenTree::Internal(InternalLeaf::FinishExpandingMacro(macro_name.clone())));
                 return Ok(ExpandControlFlow::RescanMany(f));
             }
-            TokenTree::PreprocessorToken(span!(span, Token::Identifier(identifier))) if self.expanding.contains(&identifier) => {
+            TokenTree::PreprocessorToken(span!(span, PreprocessingToken::Identifier(identifier))) if self.expanding.contains(&identifier) => {
                 dbg!(&identifier, &self.expanding);
-                return Ok(ExpandControlFlow::Return(vec![Spanned::new(span.clone(), Token::BlueIdentifier(identifier.clone()))]));
+                return Ok(ExpandControlFlow::Return(vec![Spanned::new(span.clone(), PreprocessingToken::BlueIdentifier(identifier.clone()))]));
             }
-            TokenTree::PreprocessorToken(span!(span, Token::Identifier(identifier))) if !skip_macro_replacement => {
+            TokenTree::PreprocessorToken(span!(span, PreprocessingToken::Identifier(identifier))) if !skip_macro_replacement => {
                 return self.handle_identifier(&span, &identifier);
             }
             TokenTree::PreprocessorToken(spanned) => {
@@ -195,7 +195,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
         match self.macros.get(identifier).cloned() {
             Some(MacroDefinition::Object(replacement_list)) => {
                 let output = ArgumentSubstitutionIterator {
-                    replacements: PrependingPeekableIterator::new(replacement_list.into_iter().filter(|a| !matches!(a, span!(Token::Whitespace(_))))),
+                    replacements: PrependingPeekableIterator::new(replacement_list.into_iter().filter(|a| !matches!(a, span!(PreprocessingToken::Whitespace(_))))),
                     map: HashMap::new(),
                     variadic_args: vec![],
                     is_variadic: false,
@@ -211,7 +211,10 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
             }
             Some(MacroDefinition::Function { parameter_list, replacement_list }) => {
                 let nws = self.peek_non_whitespace();
-                if matches!(nws, Some(TokenTree::PreprocessorToken(span!(Token::Punctuator(Punctuator::LeftParen) | Token::Delimited { opener: span!('('), .. })))) {
+                if matches!(
+                    nws,
+                    Some(TokenTree::PreprocessorToken(span!(PreprocessingToken::Punctuator(Punctuator::LeftParen) | PreprocessingToken::Delimited { opener: span!('('), .. })))
+                ) {
                     let (opener, closer, tokens) = self.next_delimited();
                     let arguments = self.split_delimited(tokens.iter());
                     if (arguments.len() < parameter_list.parameters.len()) || (!parameter_list.variadic && (arguments.len() > parameter_list.parameters.len())) {
@@ -234,7 +237,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                     let extras = eai.collect::<Vec<_>>();
 
                     let output = ArgumentSubstitutionIterator {
-                        replacements: PrependingPeekableIterator::new(replacement_list.into_iter().filter(|a| !matches!(a, span!(Token::Whitespace(_))))),
+                        replacements: PrependingPeekableIterator::new(replacement_list.into_iter().filter(|a| !matches!(a, span!(PreprocessingToken::Whitespace(_))))),
                         map,
                         variadic_args: extras,
                         is_variadic: parameter_list.variadic,
@@ -248,26 +251,26 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
 
                     return Ok(ExpandControlFlow::RescanMany(vec![TokenTree::Internal(InternalLeaf::MacroExpansion(identifier.to_owned(), output))]));
                 } else {
-                    return Ok(ExpandControlFlow::Return(vec![Spanned::new(span.clone(), Token::Identifier(identifier.to_string()))]));
+                    return Ok(ExpandControlFlow::Return(vec![Spanned::new(span.clone(), PreprocessingToken::Identifier(identifier.to_string()))]));
                 }
             }
-            None => Ok(ExpandControlFlow::Return(vec![Spanned::new(span.clone(), Token::Identifier(identifier.to_string()))])),
+            None => Ok(ExpandControlFlow::Return(vec![Spanned::new(span.clone(), PreprocessingToken::Identifier(identifier.to_string()))])),
         }
     }
 
-    pub fn next_delimited(&mut self) -> (Spanned<char>, Spanned<char>, Vec<Spanned<Token>>) {
+    pub fn next_delimited(&mut self) -> (Spanned<char>, Spanned<char>, Vec<Spanned<PreprocessingToken>>) {
         let paren = self.next_non_whitespace().unwrap();
         match paren {
-            TokenTree::PreprocessorToken(ref t @ span!(Token::Punctuator(Punctuator::LeftParen))) => {
+            TokenTree::PreprocessorToken(ref t @ span!(PreprocessingToken::Punctuator(Punctuator::LeftParen))) => {
                 let (opener, closer, tokens) = self.collect_until_closing_delimiter(t, true).unwrap().value.as_delimited();
                 (opener, closer, tokens)
             }
             // TokenTree::LexerToken(span!(Token::Delimited { opener, closer, inner_tokens })) => (opener.clone(), closer.clone(), inner_tokens.to_vec()),
-            TokenTree::PreprocessorToken(span!(Token::Delimited { opener, closer, inner_tokens })) => (opener.clone(), closer.clone(), inner_tokens.to_vec()),
+            TokenTree::PreprocessorToken(span!(PreprocessingToken::Delimited { opener, closer, inner_tokens })) => (opener.clone(), closer.clone(), inner_tokens.to_vec()),
             t => panic!("ooking for delimited but found {:#?}", t),
         }
     }
-    pub fn expand_arg<'a, J: Iterator<Item = &'a Spanned<Token>>>(&mut self, arg: J) -> Vec<Spanned<Token>> {
+    pub fn expand_arg<'a, J: Iterator<Item = &'a Spanned<PreprocessingToken>>>(&mut self, arg: J) -> Vec<Spanned<PreprocessingToken>> {
         let mut expander = Expander {
             file_name: self.file_name,
             file_source: self.file_source,
@@ -297,7 +300,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
         }
         Ok(())
     }
-    pub fn handle_define_function<'func>(&mut self, macro_name: String, parameters: Spanned<Token>, replacment_list: &'func Vec<Spanned<Token>>) -> PResult<()> {
+    pub fn handle_define_function<'func>(&mut self, macro_name: String, parameters: Spanned<PreprocessingToken>, replacment_list: &'func Vec<Spanned<PreprocessingToken>>) -> PResult<()> {
         let parameters = self.parse_parameters(parameters)?;
         self.macros.insert(
             macro_name,
@@ -308,15 +311,15 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
         );
         Ok(())
     }
-    pub fn handle_define_object<'func>(&mut self, macro_name: String, replacment_list: &'func Vec<Spanned<Token>>) {
+    pub fn handle_define_object<'func>(&mut self, macro_name: String, replacment_list: &'func Vec<Spanned<PreprocessingToken>>) {
         self.macros.insert(macro_name, MacroDefinition::Object(replacment_list.to_vec()));
     }
 
-    pub fn collect_until_closing_delimiter(&mut self, opening_token: &Spanned<Token>, skip_macro_replacement: bool) -> PResult<Spanned<Token>> {
+    pub fn collect_until_closing_delimiter(&mut self, opening_token: &Spanned<PreprocessingToken>, skip_macro_replacement: bool) -> PResult<Spanned<PreprocessingToken>> {
         let opening_char = opening_token.map_ref(|tok| match tok {
-            Token::Punctuator(Punctuator::LeftParen) => '(',
-            Token::Punctuator(Punctuator::LeftBracket) => '[',
-            Token::Punctuator(Punctuator::LeftBrace) => '{',
+            PreprocessingToken::Punctuator(Punctuator::LeftParen) => '(',
+            PreprocessingToken::Punctuator(Punctuator::LeftBracket) => '[',
+            PreprocessingToken::Punctuator(Punctuator::LeftBrace) => '{',
             c => unreachable!("{c:?} is not a valid opening char"),
         });
         let expected_closer: char = match opening_char.value {
@@ -335,10 +338,10 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
             let token = token.as_token();
             end = token.range.end;
             match token {
-                span!(rp, Token::Punctuator(ref punc @ (Punctuator::RightParen | Punctuator::RightBracket | Punctuator::RightBrace))) if *punc == valid_closer => {
+                span!(rp, PreprocessingToken::Punctuator(ref punc @ (Punctuator::RightParen | Punctuator::RightBracket | Punctuator::RightBrace))) if *punc == valid_closer => {
                     return Ok(Spanned::new(
                         opening_char.range.start..end,
-                        Token::Delimited {
+                        PreprocessingToken::Delimited {
                             opener: opening_char,
                             closer: Spanned::new(rp.clone(), expected_closer),
                             inner_tokens: inner,
@@ -371,7 +374,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
         match tt {
             Some(TokenTree::Internal(InternalLeaf::BeginExpandingMacro(_))) => self.peek_non_whitespace_nth(n + 1),
             Some(TokenTree::Internal(InternalLeaf::FinishExpandingMacro(_))) => self.peek_non_whitespace_nth(n + 1),
-            Some(TokenTree::PreprocessorToken(span!(Token::Whitespace(_)))) => self.peek_non_whitespace_nth(n + 1),
+            Some(TokenTree::PreprocessorToken(span!(PreprocessingToken::Whitespace(_)))) => self.peek_non_whitespace_nth(n + 1),
             Some(_) => tt,
             None => None,
         }
@@ -380,7 +383,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
         let tt = self.next_token_tree()?;
 
         match tt {
-            TokenTree::PreprocessorToken(span!(Token::Whitespace(_))) => self.next_non_whitespace(),
+            TokenTree::PreprocessorToken(span!(PreprocessingToken::Whitespace(_))) => self.next_non_whitespace(),
 
             tt => Some(tt),
         }

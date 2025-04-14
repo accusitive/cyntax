@@ -1,13 +1,13 @@
 #[cfg(test)]
 mod tests {
-    use cyntax_common::ast::{Punctuator, Token};
+    use cyntax_common::ast::{PreprocessingToken, Punctuator};
     use cyntax_lexer::lexer::Lexer;
 
     use crate::Preprocessor;
-    fn test_helper(source: &str) -> Vec<Token> {
+    fn test_helper(source: &str) -> Vec<PreprocessingToken> {
         let tokens = Lexer::new("test.c", source).collect::<Vec<_>>();
         let pp = Preprocessor::new("test.c", source, &tokens).expand();
-        let despanned = pp.into_iter().map(|token| token.value).filter(|token| !matches!(token, Token::Whitespace(_))).collect::<Vec<_>>();
+        let despanned = pp.into_iter().map(|token| token.value).filter(|token| !matches!(token, PreprocessingToken::Whitespace(_))).collect::<Vec<_>>();
 
         despanned
     }

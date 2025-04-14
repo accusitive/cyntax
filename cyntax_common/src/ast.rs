@@ -3,29 +3,28 @@ use strum_macros::EnumString;
 use crate::spanned::Spanned;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Token {
+pub enum PreprocessingToken {
     Identifier(String),
     /// An identifier that should not be considered for a potential macro invocation
     BlueIdentifier(String),
     StringLiteral(String),
     CharLiteral(String),
     PPNumber(String),
-    ControlLine(Vec<Spanned<Token>>),
+    ControlLine(Vec<Spanned<PreprocessingToken>>),
     Whitespace(Whitespace),
     Punctuator(Punctuator),
     /// closer being None is valid in control lines
     Delimited {
         opener: Spanned<char>,
         closer: Spanned<char>,
-        inner_tokens: Vec<Spanned<Token>>,
+        inner_tokens: Vec<Spanned<PreprocessingToken>>,
     },
-    Keyword(Keyword)
 }
 
-impl Token {
-    pub fn as_delimited(self) -> (Spanned<char>, Spanned<char>, Vec<Spanned<Token>>) {
+impl PreprocessingToken {
+    pub fn as_delimited(self) -> (Spanned<char>, Spanned<char>, Vec<Spanned<PreprocessingToken>>) {
         match self {
-            Token::Delimited { opener, closer, inner_tokens } => (opener, closer, inner_tokens),
+            PreprocessingToken::Delimited { opener, closer, inner_tokens } => (opener, closer, inner_tokens),
             _ => panic!(),
         }
     }
@@ -33,8 +32,8 @@ impl Token {
 
 #[derive(Debug)]
 pub enum Directive {
-    DefineObject(Spanned<String>, Vec<Spanned<Token>>),
-    DefineFunction(Spanned<String>, Spanned<Vec<Spanned<Token>>>, Vec<Spanned<Token>>),
+    DefineObject(Spanned<String>, Vec<Spanned<PreprocessingToken>>),
+    DefineFunction(Spanned<String>, Spanned<Vec<Spanned<PreprocessingToken>>>, Vec<Spanned<PreprocessingToken>>),
     Undefine(Spanned<String>),
 }
 #[derive(Debug, PartialEq, Clone)]

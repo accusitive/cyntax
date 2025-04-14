@@ -1,5 +1,5 @@
+use cyntax_common::ast::PreprocessingToken;
 use cyntax_common::ast::Punctuator;
-use cyntax_common::ast::Token;
 use cyntax_common::ast::Whitespace;
 use cyntax_common::spanned::Spanned;
 use peekmore::PeekMore;
@@ -62,7 +62,7 @@ pub struct Lexer<'src> {
 }
 
 impl<'src> Iterator for Lexer<'src> {
-    type Item = Spanned<Token>;
+    type Item = Spanned<PreprocessingToken>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let next = self.chars.next()?;
@@ -71,27 +71,27 @@ impl<'src> Iterator for Lexer<'src> {
         let token = match next {
             first_character @ span!(nondigit!()) => {
                 let identifier = self.lex_identifier(&first_character);
-                Some(identifier.map(|identifier| Token::Identifier(identifier)))
+                Some(identifier.map(|identifier| PreprocessingToken::Identifier(identifier)))
             }
 
             // Literals
             span!(range, '"') => {
                 let string = self.lex_string_literal(range);
-                Some(string.map(|string| Token::StringLiteral(string)))
+                Some(string.map(|string| PreprocessingToken::StringLiteral(string)))
             }
             span!(range, '\'') => {
                 let string = self.lex_char_literal(range);
-                Some(string.map(|string| Token::CharLiteral(string)))
+                Some(string.map(|string| PreprocessingToken::CharLiteral(string)))
             }
             first_character @ span!(digit!()) => {
                 let number = self.lex_number(&first_character);
-                Some(number.map(|num| Token::PPNumber(num)))
+                Some(number.map(|num| PreprocessingToken::PPNumber(num)))
             }
             // Digits can start with 0
             first_character @ span!('.') if matches!(self.chars.peek(), Some(span!(digit!()))) => {
                 let number = self.lex_number(&first_character);
 
-                Some(number.map(|num| Token::PPNumber(num)))
+                Some(number.map(|num| PreprocessingToken::PPNumber(num)))
             }
             // span!(range, c@ ('(' | ')' | '{' | '}' | '[' | ']')) if self.ignore_delimiters => Some(
             //     Spanned::new(range, Token::Punctuator(Punctuator::from_char(c).unwrap())),
@@ -100,7 +100,7 @@ impl<'src> Iterator for Lexer<'src> {
             span!('/') if matches!(self.chars.peek(), Some(span!('/'))) => {
                 while let Some(span!(char_span, char)) = self.chars.next() {
                     if char == '\n' {
-                        return Some(Spanned::new(char_span, Token::Whitespace(Whitespace::Newline)));
+                        return Some(Spanned::new(char_span, PreprocessingToken::Whitespace(Whitespace::Newline)));
                     }
                 }
                 self.next()
@@ -109,7 +109,7 @@ impl<'src> Iterator for Lexer<'src> {
             span!('/') if matches!(self.chars.peek(), Some(span!('*'))) => {
                 while let Some(span!(char_span, char)) = self.chars.next() {
                     if char == '*' && matches!(self.chars.peek(), Some(span!('/'))) {
-                        return Some(Spanned::new(char_span, Token::Whitespace(Whitespace::Newline)));
+                        return Some(Spanned::new(char_span, PreprocessingToken::Whitespace(Whitespace::Newline)));
                     }
                 }
                 self.next()
@@ -136,23 +136,23 @@ impl<'src> Iterator for Lexer<'src> {
                     }
                 }
                 Some(Spanned {
-                    value: Token::ControlLine(tokens),
+                    value: PreprocessingToken::ControlLine(tokens),
                     range: range.start..end,
                 })
             }
             span!(range, '#') if matches!(self.chars.peek(), Some(span!('#'))) => {
                 self.chars.next().unwrap();
-                Some(Spanned::new(range, Token::Punctuator(Punctuator::HashHash)))
+                Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::HashHash)))
             }
             span!(range, '.') if matches!(self.chars.peek_nth(0), Some(span!('.'))) && matches!(self.chars.peek_nth(1), Some(span!('.'))) => {
                 self.chars.next().unwrap();
                 let last_dot = self.chars.next().unwrap();
-                Some(Spanned::new(range.start..last_dot.range.end, Token::Punctuator(Punctuator::DotDotDot)))
+                Some(Spanned::new(range.start..last_dot.range.end, PreprocessingToken::Punctuator(Punctuator::DotDotDot)))
             }
-            span!(range, punctuator) if Punctuator::is_punctuation(punctuator) => Some(Spanned::new(range, Token::Punctuator(Punctuator::from_char(punctuator).unwrap()))),
-            span!(range, ' ') => Some(Spanned::new(range, Token::Whitespace(Whitespace::Space))),
-            span!(range, '\t') => Some(Spanned::new(range, Token::Whitespace(Whitespace::Tab))),
-            span!(range, '\n') => Some(Spanned::new(range, Token::Whitespace(Whitespace::Newline))),
+            span!(range, punctuator) if Punctuator::is_punctuation(punctuator) => Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::from_char(punctuator).unwrap()))),
+            span!(range, ' ') => Some(Spanned::new(range, PreprocessingToken::Whitespace(Whitespace::Space))),
+            span!(range, '\t') => Some(Spanned::new(range, PreprocessingToken::Whitespace(Whitespace::Tab))),
+            span!(range, '\n') => Some(Spanned::new(range, PreprocessingToken::Whitespace(Whitespace::Newline))),
             ch => self.fatal_diagnostic(cyntax_errors::errors::SimpleError(ch.range, format!("unimplemented character {}", ch.value))),
         };
 

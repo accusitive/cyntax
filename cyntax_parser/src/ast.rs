@@ -1,4 +1,7 @@
-use cyntax_common::{ast::Keyword, spanned::Spanned};
+use cyntax_common::{
+    ast::{Keyword, Punctuator},
+    spanned::Spanned,
+};
 
 #[derive(Debug)]
 pub struct TranslationUnit {
@@ -81,7 +84,7 @@ impl From<Keyword> for TypeQualifier {
             Keyword::Const => Self::Const,
             Keyword::Restrict => Self::Restrict,
             Keyword::Volatile => Self::Volatile,
-            _ => panic!()
+            _ => panic!(),
         }
     }
 }
@@ -160,5 +163,13 @@ pub enum Designator {
 }
 #[derive(Debug)]
 pub enum Expression {
-    Identifier(String)
+    Identifier(String),
+}
+#[derive(Debug, PartialEq, Clone)]
+pub enum Token {
+    Keyword(Keyword),
+    Identifier(String),
+    StringLiteral(String),
+    CharLiteral(String),
+    Punctuator(Punctuator),
 }

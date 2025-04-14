@@ -26,7 +26,6 @@ impl Parser {
             }
         }
 
-
         // dbg!(&self.peek_token());
 
         // int a;
