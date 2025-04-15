@@ -1,12 +1,16 @@
 use std::{collections::HashMap, str::FromStr};
 
-use codespan_reporting::diagnostic::{Diagnostic, Label};
+use codespan_reporting::{
+    diagnostic::{Diagnostic, Label},
+    files::{SimpleFile, SimpleFiles},
+};
 use colored::{ColoredString, Colorize};
 use cyntax_common::{
     ast::{Keyword, PreprocessingToken, Whitespace},
-    ctx::{Context, File, string_interner::StringInterner},
+    ctx::{Context, File, HasContext, string_interner::StringInterner},
     spanned::Spanned,
 };
+use cyntax_errors::UnwrapDiagnostic;
 
 #[cfg(test)]
 mod tests;
@@ -68,52 +72,51 @@ fn print_tokens<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>>(ctx
 //         println!("{}", cyntax_errors::write_codespan_report(diag, "test.c", source));
 //     }
 // }
+struct WithContext<'src> {
+    context: &'src mut Context,
+}
+impl<'src> WithContext<'src> {
+    pub fn with_context<F: FnOnce(Self)>(self, f: F) {
+        f(self)
+    }
+}
+impl<'src> HasContext for WithContext<'src> {
+    fn ctx(&self) -> &Context {
+        &self.context
+    }
+}
 fn main() {
+    let mut files = SimpleFiles::new();
     let source = include_str!("../test.c");
-    let mut files = HashMap::new();
-    files.insert(
-        0,
-        File {
-            name: "test.c".to_owned(),
-            source: source.to_owned(),
-        },
-    );
+    let file = files.add("test.c".to_owned(), source.to_owned());
+
     let mut ctx = Context {
         files,
         strings: StringInterner::new(),
-        current_file: 0,
+        current_file: file,
     };
 
     let lexer = cyntax_lexer::lexer::Lexer::new(&mut ctx, source);
     let tokens: Vec<_> = lexer.collect();
-    dbg!(&tokens);
-    print_tokens(&ctx, source, tokens.iter());
-    println!();
-    let pp = cyntax_preprocessor::Preprocessor::new(&mut ctx, "test.c", source, &tokens);
-    let expanded = pp.expand();
+
+    {
+        dbg!(&tokens);
+        print_tokens(&ctx, source, tokens.iter());
+        println!();
+    }
+
+    let pre_processor = cyntax_preprocessor::Preprocessor::new(&mut ctx, "test.c", source, &tokens);
+    let pre_processor_result = pre_processor.expand();
+
+    let expanded = WithContext { context: &mut ctx }.unwrap_diagnostic(pre_processor_result);
     {
         println!("========================================================");
-        // dbg!(&expanded);
         print_tokens(&mut ctx, source, expanded.iter());
-        println!();
-        // debug_spans(source, &expanded);
+        println!("========================================================");
     }
 
     let mut parser = cyntax_parser::Parser::new(&mut ctx, expanded);
-    let tu = parser.parse_translation_unit();
-
-    match tu {
-        Ok(tu) => {
-            dbg!(&tu);
-            if parser.diagnostics.len() > 0 {
-                for diag in &parser.diagnostics {
-                    println!("recovered: {}", diag.clone().with("test.c", source));
-                }
-                println!("compilation failed!");
-            }
-        }
-        Err(e) => {
-            print!("{}", e.with("test.c", source));
-        }
-    }
+    let parse_result = parser.parse_translation_unit();
+    let tu = WithContext { context: &mut ctx }.unwrap_diagnostic(parse_result);
+    dbg!(&tu);
 }

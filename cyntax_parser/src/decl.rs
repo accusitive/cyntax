@@ -1,7 +1,7 @@
 use crate::ast::*;
 use crate::{PResult, Parser};
 use cyntax_common::ast::*;
-use cyntax_common::spanned::{Span, Spanned};
+use cyntax_common::spanned::{Spanned};
 use cyntax_errors::Diagnostic;
 use cyntax_errors::errors::SimpleError;
 use cyntax_lexer::span;
@@ -41,8 +41,9 @@ impl<'src> Parser<'src> {
         }
         // int a,b() {}
         if init_declarators.len() > 1 && self.peek_matches(Token::Punctuator(Punctuator::LeftBrace))? {
-            let range = specifiers.span_fallback(self.last_location.clone()).start..self.last_location.end;
-            return Err(SimpleError(range, "Declarations with more than 1 declarator cannot have a function body".to_string()).into_why_report());
+            let range = self.last_location.as_fallback_for_vec(&specifiers).until(&self.last_location);
+            // let range = specifiers.span_fallback(self.last_location.clone()).start..self.last_location.end;
+            return Err(SimpleError(range, "Declarations with more than 1 declarator cannot have a function body".to_string()).into_codespan_report());
         }
 
         dbg!(&self.peek_token());
@@ -84,9 +85,9 @@ impl<'src> Parser<'src> {
         }
     }
     pub fn parse_declaration_specifier(&mut self) -> PResult<Spanned<DeclarationSpecifier>> {
-        let Spanned { value, range } = self.next_token()?;
+        let Spanned { value, location } = self.next_token()?;
         Ok(Spanned::new(
-            range,
+            location,
             match value {
                 // Storage-class specifiers
                 Token::Keyword(Keyword::Typedef) => DeclarationSpecifier::StorageClass(StorageClassSpecifier::Typedef),
@@ -153,7 +154,7 @@ impl<'src> Parser<'src> {
             let ptr = self.parse_pointer()?;
             let declarator = self.parse_direct_declarator()?;
 
-            Ok(Spanned::new(ptr.range.start..declarator.range.end, Declarator::Pointer(ptr, Box::new(declarator))))
+            Ok(Spanned::new(ptr.location.until(&declarator.location), Declarator::Pointer(ptr, Box::new(declarator))))
         } else {
             let declarator = self.parse_direct_declarator()?;
             Ok(declarator)
@@ -167,14 +168,14 @@ impl<'src> Parser<'src> {
                 self.expect_token(Token::Punctuator(Punctuator::RightParen))?;
                 Spanned::new(span, Declarator::Parenthesized(Box::new(d)))
             }
-            x => return Err(SimpleError(x.range, format!("Expected direct declarator, found {:#?}", x.value)).into_why_report()),
+            x => return Err(SimpleError(x.location, format!("Expected direct declarator, found {:#?}", x.value)).into_codespan_report()),
         };
         // Function stuff
         if self.eat_if_next(Token::Punctuator(Punctuator::LeftParen))? {
             let params = self.parse_parameter_list()?;
             let rp = self.expect_token(Token::Punctuator(Punctuator::RightParen))?;
 
-            let span = base.range.start..rp.range.end;
+            let span = base.location.until(&rp.location);
 
             return Ok(Spanned::new(span, Declarator::Function(Box::new(base), params)));
         }

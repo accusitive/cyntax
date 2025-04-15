@@ -3,11 +3,11 @@ use crate::{
     tree::TokenTree,
 };
 use cyntax_common::{
-    ast::{Delimited, PreprocessingToken, Punctuator}, ctx::string_interner::symbol::SymbolU32, spanned::Spanned
+    ast::{Delimited, PreprocessingToken, Punctuator}, ctx::string_interner::symbol::SymbolU32, spanned::{Location, Spanned}
 };
 use cyntax_errors::{Diagnostic, errors::SimpleError};
 use cyntax_lexer::span;
-use std::fmt::Debug;
+use std::{fmt::Debug, mem::replace};
 #[derive(Debug, Clone)]
 pub struct MacroParameterList {
     pub parameters: Vec<SymbolU32>,
@@ -34,7 +34,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                         };
                     }
                     if p!().value.len() == 0 {
-                        return Err(SimpleError(p!().range.clone(), format!("empty parameter?")).into_why_report());
+                        return Err(SimpleError(p!().location.clone(), format!("empty parameter?")).into_codespan_report());
                     }
                     // If the `...` is attached to a parameter, remove it and set the parameter list as variadic
                     if idx == parameters.len() - 1 && p!().value.len() == 2 {
@@ -44,12 +44,12 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                         }
                     }
                     if p!().value.len() > 1 {
-                        return Err(SimpleError(p!().range.clone(), format!("Parameters must be either an identifier, or `...`.")).into_why_report());
+                        return Err(SimpleError(p!().location.clone(), format!("Parameters must be either an identifier, or `...`.")).into_codespan_report());
                     }
                     if matches!(p!().value.first(), Some(span!(PreprocessingToken::Punctuator(Punctuator::DotDotDot)))) {
                         //if ... is not the last parameter, raise an error
                         if idx != parameters.len() - 1 {
-                            return Err(SimpleError(p!().range.clone(), format!("Variadic arguments must be the final argument.")).into_why_report());
+                            return Err(SimpleError(p!().location.clone(), format!("Variadic arguments must be the final argument.")).into_codespan_report());
                         }
                         is_variadic = true;
                         parameters.pop();
@@ -68,10 +68,10 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                     variadic: is_variadic,
                 })
             } else {
-                Err(SimpleError(parameter_token.range, "internal compiler error: tried to parse parameters but its opener is not (".to_string()).into_why_report())
+                Err(SimpleError(parameter_token.location, "internal compiler error: tried to parse parameters but its opener is not (".to_string()).into_codespan_report())
             }
         } else {
-            Err(SimpleError(parameter_token.range, "internal compiler error: tried to parse parameters but its not a delimited".to_string()).into_why_report())
+            Err(SimpleError(parameter_token.location, "internal compiler error: tried to parse parameters but its not a delimited".to_string()).into_codespan_report())
         }
     }
     /// Splits a comma-delimited sequence of tokens into groups.
@@ -84,25 +84,27 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
         let mut elements = vec![];
         let mut current_element = vec![];
 
-        let mut current_element_end = 0;
-        let mut current_element_start = 0;
+        let mut current_element_end = Location::new();
+        let mut current_element_start = Location::new();
         while let Some(token) = tokens.next() {
-            if current_element_start == 0 {
-                current_element_start = token.range.start;
+            if current_element_start == Location::new() {
+                current_element_start = token.location.clone();
             }
             match token {
                 span!(comma, PreprocessingToken::Punctuator(Punctuator::Comma)) => {
-                    elements.push(Spanned::new(current_element_start..current_element_end, std::mem::replace(&mut current_element, Vec::new())));
-                    current_element_start = comma.end;
+                    elements.push(Spanned::new(current_element_start.until(&current_element_end), std::mem::replace(&mut current_element, Vec::new())));
+                    current_element_start = comma.clone();
                 }
                 _ => {
-                    current_element_end = token.range.end;
+                    current_element_end = token.location.clone();
                     current_element.push(token);
                 }
             }
         }
         // todo: figure out correct spans for this, adding like this is a terrible idea
-        elements.push(Spanned::new(current_element_start.min(current_element_end) + 1..current_element_end + 1, std::mem::replace(&mut current_element, Vec::new())));
+        elements.push(Spanned::new(current_element_start.until(&current_element_end), std::mem::replace(&mut current_element, Vec::new())));
+
+        // elements.push(Spanned::new(current_element_start.min(current_element_end) + 1..current_element_end + 1, std::mem::replace(&mut current_element, Vec::new())));
 
         // manual override for `[]` -> `[]`
         // this can probably be fixed algorithmically

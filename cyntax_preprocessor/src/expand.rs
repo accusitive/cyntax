@@ -1,10 +1,10 @@
 use cyntax_common::{
     ast::{Delimited, PreprocessingToken, Punctuator},
-    ctx::{Context, string_interner::symbol::SymbolU32},
-    spanned::Spanned,
+    ctx::{Context, HasContext, string_interner::symbol::SymbolU32},
+    spanned::{Location, Spanned},
 };
+use cyntax_errors::errors::SimpleError;
 use cyntax_errors::{Diagnostic, errors::UnmatchedDelimiter};
-use cyntax_errors::{errors::SimpleError, why::Report};
 use cyntax_lexer::span;
 use std::{
     collections::{HashMap, HashSet},
@@ -19,7 +19,7 @@ use crate::{
     tree::{ControlLine, InternalLeaf, IntoTokenTree, TokenTree},
 };
 pub type ReplacementList = Vec<Spanned<PreprocessingToken>>;
-pub type PResult<T> = Result<T, Report>;
+pub type PResult<T> = Result<T, cyntax_errors::codespan_reporting::diagnostic::Diagnostic<usize>>;
 
 #[derive(Debug)]
 pub struct Expander<'src, I: Debug + Iterator<Item = TokenTree>> {
@@ -43,6 +43,11 @@ pub enum ExpandControlFlow {
 pub struct MacroArgument {
     pub unexpanded: Vec<Spanned<PreprocessingToken>>,
     pub expanded: Vec<Spanned<PreprocessingToken>>,
+}
+impl<'src, I: Debug + Iterator<Item = TokenTree>> HasContext for Expander<'src, I> {
+    fn ctx(&self) -> &Context {
+        &self.ctx
+    }
 }
 impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
     pub fn new(ctx: &'src mut Context, name: &'src str, source: &'src str, token_trees: PrependingPeekableIterator<I>) -> Self {
@@ -107,11 +112,15 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
         let mut output = vec![];
         match tt {
             TokenTree::Directive(ControlLine::Error(range, message)) => {
-                return Err(cyntax_errors::errors::ErrorDirective(range, message).into_why_report());
+                return Err(cyntax_errors::errors::ErrorDirective(range, message).into_codespan_report());
             }
             TokenTree::Directive(ControlLine::Include(header_name)) => match header_name {
                 crate::tree::HeaderName::Q(file_name) => {
                     let content = std::fs::read_to_string(self.ctx.strings.resolve(file_name).unwrap()).unwrap();
+                    let file = self.ctx.files.add(self.ctx.strings.resolve(file_name).unwrap().to_owned(), content.clone());
+                    let current_file = self.ctx.current_file;
+                    
+                    self.ctx.current_file = file;
                     let lexer = cyntax_lexer::lexer::Lexer::new(self.ctx, &content);
                     let toks = lexer.collect::<Vec<_>>();
                     let trees = IntoTokenTree {
@@ -121,7 +130,8 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                         expecting_opposition: false,
                     }
                     .collect::<Vec<TokenTree>>();
-
+                    self.ctx.current_file = current_file;
+                    
                     return Ok(ExpandControlFlow::RescanMany(trees));
                 }
                 crate::tree::HeaderName::H(tokens) => {
@@ -191,7 +201,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
         Ok(ExpandControlFlow::Return(output))
         // Ok(output)
     }
-    pub fn handle_identifier(&mut self, span: &Range<usize>, identifier: &SymbolU32) -> PResult<ExpandControlFlow> {
+    pub fn handle_identifier(&mut self, span: &Location, identifier: &SymbolU32) -> PResult<ExpandControlFlow> {
         match self.macros.get(identifier).cloned() {
             Some(MacroDefinition::Object(replacement_list)) => {
                 let output = ArgumentSubstitutionIterator {
@@ -223,7 +233,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                     let (opener, closer, tokens) = self.next_delimited();
                     let arguments = self.split_delimited(tokens.iter());
                     if (arguments.len() < parameter_list.parameters.len()) || (!parameter_list.variadic && (arguments.len() > parameter_list.parameters.len())) {
-                        return Err(SimpleError(opener.range.start..closer.range.end, format!("Expected {} parameters, found {}", parameter_list.parameters.len(), arguments.len())).into_why_report());
+                        return Err(SimpleError(opener.location.until(&closer.location), format!("Expected {} parameters, found {}", parameter_list.parameters.len(), arguments.len())).into_codespan_report());
                     }
                     dbg!(&arguments);
 
@@ -337,17 +347,17 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
         };
         let valid_closer = Punctuator::from_char(expected_closer).unwrap();
         let mut inner = vec![];
-        let mut end = opening_char.range.end;
+        let mut end = opening_char.end();
         while let Some(token) = self.next_token_tree() {
             if !matches!(token, TokenTree::PreprocessorToken(_)) {
                 continue;
             }
             let token = token.as_token();
-            end = token.range.end;
+            end = token.end();
             match token {
                 span!(rp, PreprocessingToken::Punctuator(ref punc @ (Punctuator::RightParen | Punctuator::RightBracket | Punctuator::RightBrace))) if *punc == valid_closer => {
                     return Ok(Spanned::new(
-                        opening_char.range.start..end,
+                        opening_char.location.clone(),
                         PreprocessingToken::Delimited(Box::new(Delimited {
                             opener: opening_char,
                             closer: Spanned::new(rp.clone(), expected_closer),
@@ -366,11 +376,14 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
         }
         dbg!(&inner);
         Err(UnmatchedDelimiter {
-            opening_delimiter_location: opening_token.range.clone(),
-            potential_closing_delimiter_location: end,
+            opening_delimiter_location: opening_token.location.clone(),
+            potential_closing_delimiter_location: Location {
+                range: end..end,
+                file_id: opening_token.location.file_id,
+            },
             closing_delimiter: valid_closer.to_string(),
         }
-        .into_why_report())
+        .into_codespan_report())
     }
     pub fn peek_non_whitespace(&mut self) -> Option<TokenTree> {
         self.peek_non_whitespace_nth(0)

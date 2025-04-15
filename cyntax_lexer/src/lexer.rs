@@ -2,7 +2,12 @@ use cyntax_common::ast::PreprocessingToken;
 use cyntax_common::ast::Punctuator;
 use cyntax_common::ast::Whitespace;
 use cyntax_common::ctx::Context;
+use cyntax_common::ctx::HasContext;
+use cyntax_common::ctx::HasMutContext;
+use cyntax_common::spanned::Location;
 use cyntax_common::spanned::Spanned;
+use cyntax_errors::Diagnostic;
+use cyntax_errors::UnwrapDiagnostic;
 use peekmore::PeekMore;
 use peekmore::PeekMoreIterator;
 
@@ -37,8 +42,8 @@ macro_rules! opening_delimiter {
 
 #[macro_export]
 macro_rules! span {
-    ($r: pat, $p: pat) => {
-        Spanned { value: $p, range: $r }
+    ($l: pat, $p: pat) => {
+        Spanned { value: $p, location: $l }
     };
     ($p: pat) => {
         Spanned { value: $p, .. }
@@ -114,9 +119,9 @@ impl<'src> Iterator for Lexer<'src> {
                 }
                 self.next()
             }
-            span!(range, '#') if self.at_start_of_line => {
+            span!(location, '#') if self.at_start_of_line => {
                 let mut tokens = vec![];
-                let mut end = range.end;
+                let mut end = location.range.end;
                 let mut add = true;
                 while let Some(span!(token)) = self.chars.peek() {
                     if matches!(token, '\n') {
@@ -130,30 +135,27 @@ impl<'src> Iterator for Lexer<'src> {
                         let n = self.next().unwrap();
                         self.inside_control_line = false;
                         if add {
-                            end = n.range.end;
+                            end = n.location.range.end;
                             tokens.push(n);
                         }
                     }
                 }
-                Some(Spanned {
-                    value: PreprocessingToken::ControlLine(tokens),
-                    range: range.start..end,
-                })
+                Some(Spanned::new(location, PreprocessingToken::ControlLine(tokens)))
             }
             span!(range, '#') if matches!(self.chars.peek(), Some(span!('#'))) => {
                 self.chars.next().unwrap();
                 Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::HashHash)))
             }
-            span!(range, '.') if matches!(self.chars.peek_nth(0), Some(span!('.'))) && matches!(self.chars.peek_nth(1), Some(span!('.'))) => {
+            span!(location, '.') if matches!(self.chars.peek_nth(0), Some(span!('.'))) && matches!(self.chars.peek_nth(1), Some(span!('.'))) => {
                 self.chars.next().unwrap();
                 let last_dot = self.chars.next().unwrap();
-                Some(Spanned::new(range.start..last_dot.range.end, PreprocessingToken::Punctuator(Punctuator::DotDotDot)))
+                Some(self.span(location.range.start..last_dot.end(), PreprocessingToken::Punctuator(Punctuator::DotDotDot)))
             }
             span!(range, punctuator) if Punctuator::is_punctuation(punctuator) => Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::from_char(punctuator).unwrap()))),
             span!(range, ' ') => Some(Spanned::new(range, PreprocessingToken::Whitespace(Whitespace::Space))),
             span!(range, '\t') => Some(Spanned::new(range, PreprocessingToken::Whitespace(Whitespace::Tab))),
             span!(range, '\n') => Some(Spanned::new(range, PreprocessingToken::Whitespace(Whitespace::Newline))),
-            ch => self.fatal_diagnostic(cyntax_errors::errors::SimpleError(ch.range, format!("unimplemented character {}", ch.value))),
+            ch => self.unwrap_diagnostic(Err(cyntax_errors::errors::SimpleError(ch.location, format!("unimplemented character {}", ch.value)).into_codespan_report())),
         };
 
         // Set this after lexing the token, otherwise it would always be false for non-newline tokens
@@ -165,32 +167,35 @@ impl<'src> Iterator for Lexer<'src> {
 impl<'src> Lexer<'src> {
     pub fn new(ctx: &'src mut Context, source: &'src str) -> Lexer<'src> {
         Lexer {
-            chars: PrelexerIter::new(source).peekmore(),
+            chars: PrelexerIter::new(ctx.current_file, source).peekmore(),
             at_start_of_line: true,
             inside_control_line: false,
-            ctx
+            ctx,
         }
+    }
+    fn span<T>(&self, range: Range<usize>, value: T) -> Spanned<T> {
+        Spanned::new(Location { range, file_id: self.ctx.current_file }, value)
     }
     pub fn lex_identifier(&mut self, first_character: &Spanned<char>) -> Spanned<String> {
         // let mut ranges = vec![first_character.start..first_character.end];
         let mut identifier = String::from(first_character.value);
-        let mut previous_end = first_character.range.end;
+        let mut previous_end = first_character.end();
 
         while let Some(span!(identifier!())) = self.chars.peek() {
             let next = self.chars.next().unwrap();
-            previous_end = next.range.end;
+            previous_end = next.end();
             identifier.push(next.value);
         }
-        Spanned::new(first_character.range.start..previous_end, identifier)
+        self.span(first_character.start()..previous_end, identifier)
     }
-    pub fn lex_string_literal(&mut self, range: CharLocation) -> Spanned<String> {
+    pub fn lex_string_literal(&mut self, location: Location) -> Spanned<String> {
         let mut ranges = String::new();
-        let mut end = range.end;
+        let mut end = location.range.end;
 
         while let Some(span!(c)) = self.chars.peek() {
             if *c == '"' {
                 let end_quote = self.chars.next().unwrap();
-                end = end_quote.range.end;
+                end = end_quote.end();
                 break;
             }
             // Handle escaped characters within string literal
@@ -200,20 +205,20 @@ impl<'src> Lexer<'src> {
             }
 
             let next = self.chars.next().unwrap();
-            end = next.range.end;
+            end = next.end();
             ranges.push(next.value);
         }
 
-        Spanned::new(range.start..end, ranges)
+        self.span(location.range.start..end, ranges)
     }
-    pub fn lex_char_literal(&mut self, range: CharLocation) -> Spanned<String> {
+    pub fn lex_char_literal(&mut self, location: Location) -> Spanned<String> {
         let mut ranges = String::new();
-        let mut end = range.end;
+        let mut end = location.range.end;
 
         while let Some(span!(c)) = self.chars.peek() {
             if *c == '\'' {
                 let end_quote = self.chars.next().unwrap();
-                end = end_quote.range.end;
+                end = end_quote.end();
                 break;
             }
             // Handle escaped characters within string literal
@@ -223,15 +228,15 @@ impl<'src> Lexer<'src> {
             }
 
             let next = self.chars.next().unwrap();
-            end = next.range.end;
+            end = next.end();
             ranges.push(next.value);
         }
 
-        Spanned::new(range.start..end, ranges)
+        self.span(location.range.start..end, ranges)
     }
     pub fn lex_number(&mut self, first_character: &Spanned<char>) -> Spanned<String> {
-        let start = first_character.range.start;
-        let mut end = first_character.range.end;
+        let start = first_character.start();
+        let mut end = first_character.end();
         let mut number = String::from(first_character.value);
 
         let mut expecting_exponent = false;
@@ -241,40 +246,41 @@ impl<'src> Lexer<'src> {
                     expecting_exponent = true;
                     // e / E / p / P
                     let c = self.chars.next().unwrap();
-                    end = c.range.end;
+                    end = c.end();
                     number.push(c.value);
                 }
                 '+' | '-' if expecting_exponent => {
                     expecting_exponent = false;
                     let sign = self.chars.next().unwrap();
-                    end = sign.range.end;
+                    end = sign.end();
                     number.push(sign.value);
                 }
                 '.' | digit!() => {
                     let dot_or_digit = self.chars.next().unwrap();
-                    end = dot_or_digit.range.end;
+                    end = dot_or_digit.end();
                     number.push(dot_or_digit.value);
                 }
 
                 // Identifier parts must start with a nondigit, otherwise it would just... be a part of the preceeding number
                 nondigit!() => {
                     let nondigit = self.chars.next().unwrap();
-                    end = nondigit.range.end;
+                    end = nondigit.end();
                     number.push(nondigit.value);
                 }
                 _ => break,
             }
         }
 
-        Spanned::new(start..end, number)
+        self.span(start..end, number)
     }
 }
 // Util functions
 impl<'src> Lexer<'src> {
-    pub fn fatal_diagnostic<E: cyntax_errors::Diagnostic>(&mut self, diagnostic: E) -> ! {
-        let f = self.ctx.current_file();
-        panic!("{}", diagnostic.into_why_report().with(&f.name, &f.source))
-    }
+    // pub fn fatal_diagnostic<E: cyntax_errors::Diagnostic>(&mut self, diagnostic: E) -> ! {
+    //     let f = self.ctx.current_file();
+    //     cyntax_errors::write_codespan_report(diagnostic.into_codespan_report(), &self.ctx.current_file().name, file_source)
+    //     panic!("{}", )
+    // }
     pub fn ignore_preceeding_whitespace<T, F>(&mut self, mut f: F) -> T
     where
         F: FnMut(&mut Self) -> T,
@@ -283,5 +289,15 @@ impl<'src> Lexer<'src> {
             self.chars.next().unwrap();
         }
         f(self)
+    }
+}
+impl<'a> HasContext for Lexer<'a> {
+    fn ctx(&self) -> &Context {
+        &self.ctx
+    }
+}
+impl<'a> HasMutContext for Lexer<'a> {
+    fn ctx_mut(&mut self) -> &mut Context {
+        &mut self.ctx
     }
 }

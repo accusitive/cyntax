@@ -3,10 +3,9 @@ use std::{collections::HashMap, fmt::Debug};
 use cyntax_common::{
     ast::{PreprocessingToken, Punctuator},
     ctx::{
-        Context,
-        string_interner::{backend::StringBackend, symbol::SymbolU32},
+        string_interner::{backend::StringBackend, symbol::SymbolU32}, Context
     },
-    spanned::Spanned,
+    spanned::{Location, Spanned},
 };
 use cyntax_lexer::{lexer::Lexer, span};
 
@@ -45,7 +44,7 @@ impl<'a, I: Debug + Iterator<Item = Spanned<PreprocessingToken>>> Iterator for A
                 if !matches!(self.replacements.peek(), Some(span!(PreprocessingToken::Punctuator(Punctuator::HashHash)))) {
                     let src = format!("{}", self.glue_string);
 
-                    let tokens = Lexer::new(self.ctx, &src).map(|span| Spanned::new(token.range.clone(), span.value)).collect::<Vec<_>>();
+                    let tokens = Lexer::new(self.ctx, &src).map(|span| Spanned::new(token.location.clone(), span.value)).collect::<Vec<_>>();
 
                     self.glue_next_token = false;
                     self.glue_string.clear();
@@ -59,7 +58,7 @@ impl<'a, I: Debug + Iterator<Item = Spanned<PreprocessingToken>>> Iterator for A
                 dbg!(&token);
                 let a = self.maybe_substitute_arg(token.clone(), false);
                 Self::stringify_tokens(&self.ctx.strings, a.iter(), &mut self.stringify_string);
-                self.replacements.prepend(Spanned::new(token.range.clone(), PreprocessingToken::StringLiteral(self.ctx.strings.get_or_intern(&self.stringify_string))));
+                self.replacements.prepend(Spanned::new(token.location.clone(), PreprocessingToken::StringLiteral(self.ctx.strings.get_or_intern(&self.stringify_string))));
                 self.stringify_next_token = false;
                 self.stringify_string.clear();
                 Some(vec![])
@@ -85,7 +84,7 @@ impl<'a, I: Debug + Iterator<Item = Spanned<PreprocessingToken>>> Iterator for A
                     .iter()
                     .map(|arg| arg.expanded.clone())
                     .flatten()
-                    .intersperse(Spanned::new(0..0, PreprocessingToken::Punctuator(Punctuator::Comma)))
+                    .intersperse(Spanned::new(Location::new(), PreprocessingToken::Punctuator(Punctuator::Comma)))
                     .collect::<Vec<_>>(),
             ),
             _ => Some(vec![token]),

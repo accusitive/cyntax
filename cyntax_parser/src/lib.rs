@@ -2,10 +2,10 @@ use crate::ast::*;
 use constant::{ConstantLexer, IntConstant};
 use cyntax_common::{
     ast::*,
-    ctx::{Context, string_interner::symbol::SymbolU32},
-    spanned::{Span, Spanned},
+    ctx::{string_interner::symbol::SymbolU32, Context},
+    spanned::{Location, Spanned},
 };
-use cyntax_errors::{Diagnostic, errors::SimpleError, why::Report};
+use cyntax_errors::{Diagnostic, errors::SimpleError};
 use cyntax_lexer::span;
 use peekmore::{PeekMore, PeekMoreIterator};
 use std::{
@@ -22,7 +22,7 @@ pub mod constant;
 pub mod decl;
 pub mod expr;
 pub mod stmt;
-pub type PResult<T> = Result<T, cyntax_errors::why::Report>;
+pub type PResult<T> = Result<T, cyntax_errors::codespan_reporting::diagnostic::Diagnostic<usize>>;
 
 #[derive(Debug)]
 struct TokenStream<'src> {
@@ -53,17 +53,17 @@ impl<'src> Iterator for TokenStream<'src> {
 }
 
 impl<'src> TokenStream<'src> {
-    pub fn parse_pp_number(&mut self, span: &Range<usize>, number: SymbolU32) -> PResult<IntConstant> {
-        ConstantLexer::new(span.clone(), self.ctx.strings.resolve(number).unwrap()).lex()
+    pub fn parse_pp_number(&mut self, location: &Location, number: SymbolU32) -> PResult<IntConstant> {
+        ConstantLexer::new(location.clone(), self.ctx.strings.resolve(number).unwrap()).lex()
     }
 }
 type Scope = HashSet<Identifier>;
 #[derive(Debug)]
 pub struct Parser<'src> {
     pub ctx: &'src mut Context,
-    pub diagnostics: Vec<Report>,
+    pub diagnostics: Vec<cyntax_errors::codespan_reporting::diagnostic::Diagnostic<usize>>,
     token_stream: peekmore::PeekMoreIterator<IntoIter<PResult<Spanned<Token>>>>,
-    last_location: Range<usize>,
+    last_location: Location,
     scopes: Vec<Scope>,
 }
 impl<'src> Parser<'src> {
@@ -73,7 +73,7 @@ impl<'src> Parser<'src> {
         Parser {
             ctx: ctx,
             token_stream: i.peekmore(),
-            last_location: 0..0,
+            last_location: Location::new(),
             diagnostics: vec![],
             scopes: vec![],
         }
@@ -81,7 +81,7 @@ impl<'src> Parser<'src> {
     pub fn next_token(&mut self) -> PResult<Spanned<Token>> {
         match self.token_stream.next() {
             Some(Ok(token)) => {
-                self.last_location = token.range.clone();
+                self.last_location = token.location.clone();
                 Ok(token)
             }
             Some(Err(e)) => Err(e),
@@ -89,13 +89,13 @@ impl<'src> Parser<'src> {
                 0: self.last_location.clone(),
                 1: "Unexpected EOF!".to_string(),
             }
-            .into_why_report()),
+            .into_codespan_report()),
         }
     }
     pub fn peek_token(&mut self) -> PResult<&Spanned<Token>> {
         match self.token_stream.peek() {
             Some(Ok(token)) => {
-                self.last_location = token.range.clone();
+                self.last_location = token.location.clone();
                 Ok(token)
             }
             Some(Err(e)) => Err(e.clone()),
@@ -103,7 +103,7 @@ impl<'src> Parser<'src> {
                 0: self.last_location.clone(),
                 1: "Unexpected EOF!".to_string(),
             }
-            .into_why_report()),
+            .into_codespan_report()),
         }
     }
     pub fn eat_if_next(&mut self, t: Token) -> PResult<bool> {
@@ -128,7 +128,7 @@ impl<'src> Parser<'src> {
     pub fn expect_token(&mut self, t: Token) -> PResult<Spanned<Token>> {
         match self.next_token()? {
             stoken if stoken.value == t => Ok(stoken),
-            stoken => Err(SimpleError(stoken.range, format!("expected {:?}, found {:?}", t, stoken.value)).into_why_report()),
+            stoken => Err(SimpleError(stoken.location, format!("expected {:?}, found {:?}", t, stoken.value)).into_codespan_report()),
         }
     }
     pub fn maybe_recover<T, F: FnMut(&mut Self) -> PResult<T>, E: FnMut() -> T>(&mut self, mut f: F, mut e: E, recovery_char: Token) -> T {
@@ -184,7 +184,7 @@ impl<'src> Parser<'src> {
     pub fn expect_identifier(&mut self) -> PResult<Spanned<SymbolU32>> {
         match self.next_token()? {
             span!(span, Token::Identifier(identifier)) => Ok(Spanned::new(span, identifier)),
-            stoken => Err(SimpleError(stoken.range, format!("expected identifier, found {:?}", stoken.value)).into_why_report()),
+            stoken => Err(SimpleError(stoken.location, format!("expected identifier, found {:?}", stoken.value)).into_codespan_report()),
         }
     }
     pub fn parse_translation_unit(&mut self) -> PResult<TranslationUnit> {
@@ -283,9 +283,10 @@ impl<'src> Parser<'src> {
 
         if self.can_start_pointer()? {
             let ptr = self.parse_pointer()?;
-            Ok(Spanned::new(asterist.range.start..ptr.range.end, Pointer { type_qualifiers, ptr: Some(Box::new(ptr)) }))
+            Ok(Spanned::new(asterist.location.until(&ptr.location), Pointer { type_qualifiers, ptr: Some(Box::new(ptr)) }))
         } else {
-            Ok(Spanned::new(asterist.range.start..type_qualifiers.span_fallback(self.last_location.clone()).end, Pointer { type_qualifiers, ptr: None }))
+            let range = asterist.location.as_fallback_for_vec(&type_qualifiers);
+            Ok(Spanned::new(range, Pointer { type_qualifiers, ptr: None }))
         }
     }
     pub fn parse_type_qualifiers(&mut self) -> PResult<Vec<Spanned<TypeQualifier>>> {
@@ -307,10 +308,10 @@ impl<'src> Parser<'src> {
         }
     }
     pub fn parse_type_qualifier(&mut self) -> PResult<Spanned<TypeQualifier>> {
-        let Spanned { value, range } = self.next_token()?;
+        let Spanned { value, location } = self.next_token()?;
 
         Ok(Spanned::new(
-            range,
+            location,
             match value {
                 Token::Keyword(Keyword::Const) => ast::TypeQualifier::Const,
                 Token::Keyword(Keyword::Restrict) => ast::TypeQualifier::Restrict,
@@ -339,7 +340,8 @@ impl<'src> Parser<'src> {
         let start = self.last_location.clone();
         let specifiers = self.parse_declaration_specifiers()?;
         let declarator = self.parse_declarator()?;
-        let range = specifiers.span_fallback(start).start..declarator.range.end;
+        let range = start.as_fallback_for_vec(&specifiers);
+        // let range = specifiers.span_fallback(start).start..declarator.range.end;
         Ok(Spanned::new(range, ParameterDeclaration { specifiers, declarator }))
     }
 }

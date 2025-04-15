@@ -4,7 +4,5 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-# Use my own fork of cab-why for faster iteration times
-cab-why = {git = "https://github.com/accusitive/carcass/", rev="87c3d2a806f20fa2e1c2d8633815e1f64579e703", default-features = false}
 codespan-reporting = "0.12.0"
 cyntax_common = {path="../cyntax_common"}

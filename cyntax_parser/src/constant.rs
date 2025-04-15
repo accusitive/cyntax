@@ -1,6 +1,6 @@
 use std::{ops::Range, str::Chars};
 
-use cyntax_common::spanned::Spanned;
+use cyntax_common::spanned::{Location, Spanned};
 use cyntax_errors::{Diagnostic, errors::SimpleError};
 use cyntax_lexer::span;
 use peekmore::{PeekMore, PeekMoreIterator};
@@ -35,7 +35,7 @@ pub struct IntConstant {
     suffix: Suffix,
 }
 pub struct ConstantLexer<'a> {
-    last_location: usize,
+    last_location: Location,
     chars: PeekMoreIterator<Chars<'a>>,
     number_part: String,
     base: u8,
@@ -43,9 +43,9 @@ pub struct ConstantLexer<'a> {
     suffix: Suffix,
 }
 impl<'a> ConstantLexer<'a> {
-    pub fn new(span: Range<usize>, number: &'a str) -> ConstantLexer<'a> {
+    pub fn new(span: Location, number: &'a str) -> ConstantLexer<'a> {
         ConstantLexer {
-            last_location: span.start,
+            last_location: span,
             chars: number.chars().peekmore(),
             number_part: String::new(),
             base: 10,
@@ -61,8 +61,9 @@ impl<'a> ConstantLexer<'a> {
     }
     fn next_char(&mut self) -> Option<Spanned<char>> {
         let value = self.chars.next()?;
-        let range = self.last_location..(self.last_location + value.len_utf8());
-        self.last_location = self.last_location + value.len_utf8();
+        let l = value.len_utf8();
+        let range = self.last_location.until(&Location { range: self.last_location.range.start..self.last_location.range.end+l, file_id: self.last_location.file_id });
+        self.last_location = Location { range: self.last_location.range.start+l..self.last_location.range.end+l, file_id: self.last_location.file_id };
 
         Some(Spanned::new(range, value))
     }
@@ -100,12 +101,12 @@ impl<'a> ConstantLexer<'a> {
                 match self.suffix.width {
                     Width::None => self.suffix.width = Width::Long,
                     Width::Long => self.suffix.width = Width::LongLong,
-                    Width::LongLong => return Err(SimpleError(s, "expected maximum of two suffix width specifiers".to_string()).into_why_report()),
+                    Width::LongLong => return Err(SimpleError(s, "expected maximum of two suffix width specifiers".to_string()).into_codespan_report()),
                 }
             }
 
-            Some(span!(s,  c @('8' | '9'))) if self.base == 8 => return Err(SimpleError(s, format!("invalid character {c} for base {} constant", self.base)).into_why_report()),
-            _ => return Err(SimpleError(self.last_location..self.last_location, "unhandled".to_string()).into_why_report()),
+            Some(span!(s,  c @('8' | '9'))) if self.base == 8 => return Err(SimpleError(s, format!("invalid character {c} for base {} constant", self.base)).into_codespan_report()),
+            _ => return Err(SimpleError(self.last_location.clone(), "unhandled".to_string()).into_codespan_report()),
         };
 
         Ok(())

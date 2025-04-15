@@ -9,7 +9,7 @@ impl<'src> Parser<'src> {
         if self.can_start_primary_expression() {
             self.parse_primary_expression()
         } else {
-            Err(SimpleError(self.last_location.clone(), "expected one of `identifier`, `constant`, `string-literal`, `(`".to_string()).into_why_report())
+            Err(SimpleError(self.last_location.clone(), "expected one of `identifier`, `constant`, `string-literal`, `(`".to_string()).into_codespan_report())
         }
     }
     pub fn parse_primary_expression(&mut self) -> PResult<Expression> {

@@ -1,13 +1,13 @@
 use std::ops::Range;
 
-use cyntax_common::{ast::PreprocessingToken, spanned::Spanned};
+use cyntax_common::{ast::PreprocessingToken, spanned::{Location, Spanned}};
 
 use crate::{Diagnostic, DiagnosticSeverity, Label};
 #[derive(Debug)]
 
 pub struct UnmatchedDelimiter {
-    pub opening_delimiter_location: Range<usize>,
-    pub potential_closing_delimiter_location: usize,
+    pub opening_delimiter_location: Location,
+    pub potential_closing_delimiter_location: Location,
     pub closing_delimiter: String,
 }
 impl Diagnostic for UnmatchedDelimiter {
@@ -21,12 +21,12 @@ impl Diagnostic for UnmatchedDelimiter {
         vec![
             Label {
                 kind: crate::LabelKind::Primary,
-                range: self.opening_delimiter_location.start..self.opening_delimiter_location.end,
+                location: self.opening_delimiter_location.clone(),
                 message: "Unmatched delimiter".to_string(),
             },
             Label {
                 kind: crate::LabelKind::Secondary,
-                range: self.potential_closing_delimiter_location..self.potential_closing_delimiter_location,
+                location: self.potential_closing_delimiter_location.clone(),
                 message: "Potential location for a closing delimiter".to_string(),
             },
         ]
@@ -34,7 +34,7 @@ impl Diagnostic for UnmatchedDelimiter {
 }
 #[derive(Debug)]
 pub struct UnterminatedTreeNode {
-    pub opening_token: Range<usize>,
+    pub opening_token: Location,
 }
 impl Diagnostic for UnterminatedTreeNode {
     fn title<'a>(&self) -> &'a str {
@@ -46,13 +46,13 @@ impl Diagnostic for UnterminatedTreeNode {
     fn labels(&self) -> Vec<crate::Label> {
         vec![Label {
             kind: crate::LabelKind::Primary,
-            range: self.opening_token.start..self.opening_token.end,
+            location: self.opening_token.clone(),
             message: "No closer for this group".to_string(),
         }]
     }
 }
 
-pub struct UnknownDirective(pub Range<usize>);
+pub struct UnknownDirective(pub Location);
 impl Diagnostic for UnknownDirective {
     fn title<'a>(&self) -> &'a str {
         "Unknown directive"
@@ -64,13 +64,13 @@ impl Diagnostic for UnknownDirective {
     fn labels(&self) -> Vec<Label> {
         vec![Label {
             kind: crate::LabelKind::Primary,
-            range: self.0.start..self.0.end,
+            location: self.0.clone(),
             message: "".to_string(),
         }]
     }
 }
 
-pub struct DanglingEndif(pub Range<usize>);
+pub struct DanglingEndif(pub Location);
 impl Diagnostic for DanglingEndif {
     fn title<'a>(&self) -> &'a str {
         "Dangling end if"
@@ -82,13 +82,13 @@ impl Diagnostic for DanglingEndif {
     fn labels(&self) -> Vec<Label> {
         vec![Label {
             kind: crate::LabelKind::Primary,
-            range: self.0.start..self.0.end,
+            location: self.0.clone(),
             message: "This endif directive has no matching opening directive".to_string(),
         }]
     }
 }
 pub struct ExpectedButFound {
-    pub location: Range<usize>,
+    pub location: Location,
     pub expected: String,
     pub found: String,
 }
@@ -104,19 +104,19 @@ impl Diagnostic for ExpectedButFound {
         vec![
             Label {
                 kind: crate::LabelKind::Primary,
-                range: self.location.start..self.location.end,
+                location: self.location.clone(),
                 message: self.expected.clone(),
             },
             Label {
                 kind: crate::LabelKind::Secondary,
-                range: self.location.start..self.location.end,
+                location: self.location.clone(),
                 message: self.found.clone(),
             },
         ]
     }
 }
 
-pub struct ErrorDirective(pub Range<usize>, pub Option<Spanned<PreprocessingToken>>);
+pub struct ErrorDirective(pub Location, pub Option<Spanned<PreprocessingToken>>);
 
 impl Diagnostic for ErrorDirective {
     fn title<'a>(&self) -> &'a str {
@@ -130,7 +130,7 @@ impl Diagnostic for ErrorDirective {
         let msg = match &self.1 {
             Some(msg) => Some(Label {
                 kind: crate::LabelKind::Secondary,
-                range: msg.range.clone(),
+                location: msg.location.clone(),
                 message: "Error message provided".into(),
             }),
             None => None,
@@ -140,7 +140,7 @@ impl Diagnostic for ErrorDirective {
                 vec![
                     Label {
                         kind: crate::LabelKind::Primary,
-                        range: self.0.clone(),
+                        location: self.0.clone(),
                         message: "".into(),
                     },
                     msg_label,
@@ -149,7 +149,7 @@ impl Diagnostic for ErrorDirective {
             None => {
                 vec![Label {
                     kind: crate::LabelKind::Primary,
-                    range: self.0.clone(),
+                    location: self.0.clone(),
                     message: "".into(),
                 }]
             }
@@ -157,7 +157,7 @@ impl Diagnostic for ErrorDirective {
     }
 }
 
-pub struct SimpleError(pub Range<usize>, pub String);
+pub struct SimpleError(pub Location, pub String);
 
 impl Diagnostic for SimpleError {
     fn title<'a>(&self) -> &'a str {
@@ -170,7 +170,7 @@ impl Diagnostic for SimpleError {
     fn labels(&self) -> Vec<Label> {
         vec![Label {
             kind: crate::LabelKind::Primary,
-            range: self.0.clone(),
+            location: self.0.clone(),
             message: self.1.clone(),
         }]
     }
