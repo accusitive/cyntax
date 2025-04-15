@@ -1,6 +1,8 @@
 use cyntax_common::{
     ast::{Keyword, Punctuator}, ctx::string_interner::symbol::SymbolU32, spanned::Spanned
 };
+
+use crate::constant::IntConstant;
 pub type Identifier = SymbolU32;
 
 #[derive(Debug)]
@@ -172,4 +174,5 @@ pub enum Token {
     StringLiteral(SymbolU32),
     CharLiteral(SymbolU32),
     Punctuator(Punctuator),
+    Constant(IntConstant)
 }

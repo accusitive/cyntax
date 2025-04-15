@@ -1,7 +1,9 @@
 use crate::ast::*;
-use constant::ConstantLexer;
+use constant::{ConstantLexer, IntConstant};
 use cyntax_common::{
-    ast::*, ctx::{string_interner::symbol::SymbolU32, Context}, spanned::{Span, Spanned}
+    ast::*,
+    ctx::{Context, string_interner::symbol::SymbolU32},
+    spanned::{Span, Spanned},
 };
 use cyntax_errors::{Diagnostic, errors::SimpleError, why::Report};
 use cyntax_lexer::span;
@@ -9,13 +11,14 @@ use peekmore::{PeekMore, PeekMoreIterator};
 use std::{
     collections::{HashMap, HashSet},
     ops::{Deref, Range},
-    str::{Chars, FromStr}, vec::IntoIter,
+    str::{Chars, FromStr},
+    vec::IntoIter,
 };
 
 #[macro_use]
 pub mod patterns;
-pub mod constant;
 pub mod ast;
+pub mod constant;
 pub mod decl;
 pub mod expr;
 pub mod stmt;
@@ -39,7 +42,7 @@ impl<'src> Iterator for TokenStream<'src> {
                 span!(span, PreprocessingToken::BlueIdentifier(identifier)) => return Some(Ok(Spanned::new(span, Token::Identifier(identifier)))),
                 span!(span, PreprocessingToken::StringLiteral(string)) => return Some(Ok(Spanned::new(span, Token::StringLiteral(string)))),
                 span!(span, PreprocessingToken::CharLiteral(string)) => return Some(Ok(Spanned::new(span, Token::CharLiteral(string)))),
-                // span!(span, PreprocessingToken::PPNumber(number)) => return Some(Self::parse_pp_number(span, number)),
+                span!(span, PreprocessingToken::PPNumber(number)) => return Some(self.parse_pp_number(&span, number).map(|ic| Spanned::new(span.clone(), Token::Constant(ic)))),
 
                 span!(span, PreprocessingToken::Punctuator(punc)) => return Some(Ok(Spanned::new(span, Token::Punctuator(punc)))),
                 span!(PreprocessingToken::Whitespace(_)) => continue,
@@ -50,12 +53,8 @@ impl<'src> Iterator for TokenStream<'src> {
 }
 
 impl<'src> TokenStream<'src> {
-    pub fn parse_pp_number(span: Range<usize>, number: String) -> PResult<Spanned<Token>> {
-        let cl = ConstantLexer::new(span.clone(), &number);
-
-        dbg!(&cl.lex()?);
-
-        Err(SimpleError(span, format!("no errors, just showing the state of things")).into_why_report())
+    pub fn parse_pp_number(&mut self, span: &Range<usize>, number: SymbolU32) -> PResult<IntConstant> {
+        ConstantLexer::new(span.clone(), self.ctx.strings.resolve(number).unwrap()).lex()
     }
 }
 type Scope = HashSet<Identifier>;

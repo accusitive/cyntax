@@ -13,25 +13,23 @@ pub enum Stage {
     Number,
     Suffix,
 }
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Signedness {
     Unsigned,
     None,
 }
-#[derive(Debug)]
-
+#[derive(Debug, PartialEq, Clone)]
 pub enum Width {
     Long,
     LongLong,
     None,
 }
-#[derive(Debug)]
-
+#[derive(Debug, PartialEq, Clone)]
 pub struct Suffix {
     signed: Signedness,
     width: Width,
 }
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct IntConstant {
     number: String,
     suffix: Suffix,
