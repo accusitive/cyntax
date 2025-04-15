@@ -1,3 +1,1 @@
-int main(int left, int right) {
-    float f = 090lu;
-}
+#include "./test2.h"

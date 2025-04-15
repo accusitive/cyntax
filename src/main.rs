@@ -1,52 +1,61 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
 use codespan_reporting::diagnostic::{Diagnostic, Label};
+use colored::{ColoredString, Colorize};
 use cyntax_common::{
-    ast::{Keyword, PreprocessingToken, Whitespace}, ctx::{string_interner::StringInterner, Context, File}, spanned::Spanned
+    ast::{Keyword, PreprocessingToken, Whitespace},
+    ctx::{Context, File, string_interner::StringInterner},
+    spanned::Spanned,
 };
 
 #[cfg(test)]
 mod tests;
-// fn print_tokens<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>>(source: &'src str, tokens: I) {
-//     for spanned_token in tokens {
-//         match &spanned_token.value {
-//             PreprocessingToken::Identifier(identifier) => {
-//                 print!("{}", identifier);
-//             }
-//             PreprocessingToken::BlueIdentifier(identifier) => {
-//                 print!("{}", identifier);
-//             }
-//             PreprocessingToken::StringLiteral(string) => {
-//                 print!("\"");
-//                 print!("{}", string);
-//                 print!("\"");
-//             }
-//             PreprocessingToken::CharLiteral(chars) => {
-//                 print!("\'");
-//                 print!("{}", chars);
-//                 print!("\'");
-//             }
-//             PreprocessingToken::PPNumber(number) => {
-//                 print!("{}", number);
-//             }
-//             PreprocessingToken::Delimited (d) => {
-//                 print!("{}", d.opening.value);
-//                 print_tokens(source, d.tokens.iter());
-//                 print!("{}", d.closing.value);
-//             }
-//             PreprocessingToken::ControlLine(inner) => {
-//                 print!("#");
-//                 print_tokens(source, inner.iter());
-//             }
-//             PreprocessingToken::Whitespace(whitespace) => match whitespace {
-//                 Whitespace::Space => print!(" "),
-//                 Whitespace::Newline => print!("\n"),
-//                 Whitespace::Tab => print!("\t"),
-//             },
-//             PreprocessingToken::Punctuator(punctuator) => print!("{}", punctuator.to_string()),
-//         }
-//     }
-// }
+fn p(s: ColoredString) {
+    print!("{}", s);
+}
+fn print_tokens<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>>(ctx: &'src Context, source: &'src str, tokens: I) {
+    for spanned_token in tokens {
+        match &spanned_token.value {
+            PreprocessingToken::Identifier(identifier) if Keyword::from_str(ctx.strings.resolve(*identifier).unwrap()).is_ok() => {
+                p(format!("{}", ctx.strings.resolve(*identifier).unwrap()).green());
+            }
+            PreprocessingToken::Identifier(identifier) => {
+                p(format!("{}", ctx.strings.resolve(*identifier).unwrap()).white());
+            }
+            PreprocessingToken::BlueIdentifier(identifier) => {
+                p(format!("{}", ctx.strings.resolve(*identifier).unwrap()).blue());
+            }
+            PreprocessingToken::StringLiteral(string) => {
+                p(format!("\"").green());
+                p(format!("{}", ctx.strings.resolve(*string).unwrap()).green());
+                p(format!("\"").green());
+            }
+            PreprocessingToken::CharLiteral(chars) => {
+                p(format!("\'").bright_green());
+                p(format!("{}", ctx.strings.resolve(*chars).unwrap()).bright_green());
+                p(format!("\'").bright_green());
+            }
+            PreprocessingToken::PPNumber(number) => {
+                p(format!("{}", ctx.strings.resolve(*number).unwrap()).bright_blue());
+            }
+            PreprocessingToken::Delimited(d) => {
+                p(format!("{}", d.opener.value).on_black());
+                print_tokens(ctx, source, d.inner_tokens.iter());
+                p(format!("{}", d.closer.value).on_black());
+            }
+            PreprocessingToken::ControlLine(inner) => {
+                p(format!("#").purple());
+                print_tokens(ctx, source, inner.iter());
+            }
+            PreprocessingToken::Whitespace(whitespace) => match whitespace {
+                Whitespace::Space => print!(" "),
+                Whitespace::Newline => print!("\n"),
+                Whitespace::Tab => print!("\t"),
+            },
+            PreprocessingToken::Punctuator(punctuator) => p(format!("{}", punctuator.to_string()).purple()),
+        }
+    }
+}
 // fn debug_spans(source: &str, tokens: &[Spanned<PreprocessingToken>]) {
 //     for token in tokens {
 //         let diag = Diagnostic::new(codespan_reporting::diagnostic::Severity::Note).with_label(Label {
@@ -62,32 +71,35 @@ mod tests;
 fn main() {
     let source = include_str!("../test.c");
     let mut files = HashMap::new();
-    files.insert(0, File{
-        name: "test.c".to_owned(),
-        source: source.to_owned(),
-    });
-    let mut context = Context {
+    files.insert(
+        0,
+        File {
+            name: "test.c".to_owned(),
+            source: source.to_owned(),
+        },
+    );
+    let mut ctx = Context {
         files,
         strings: StringInterner::new(),
         current_file: 0,
     };
 
-    let lexer = cyntax_lexer::lexer::Lexer::new(&mut context, source);
+    let lexer = cyntax_lexer::lexer::Lexer::new(&mut ctx, source);
     let tokens: Vec<_> = lexer.collect();
     dbg!(&tokens);
-    // print_tokens(source, tokens.iter());
+    print_tokens(&ctx, source, tokens.iter());
     println!();
-    let pp = cyntax_preprocessor::Preprocessor::new(&mut context, "test.c", source, &tokens);
+    let pp = cyntax_preprocessor::Preprocessor::new(&mut ctx, "test.c", source, &tokens);
     let expanded = pp.expand();
     {
         println!("========================================================");
         // dbg!(&expanded);
-        // print_tokens(source, expanded.iter());
+        print_tokens(&mut ctx, source, expanded.iter());
         println!();
         // debug_spans(source, &expanded);
     }
 
-    let mut parser = cyntax_parser::Parser::new(&mut context, expanded);
+    let mut parser = cyntax_parser::Parser::new(&mut ctx, expanded);
     let tu = parser.parse_translation_unit();
 
     match tu {
