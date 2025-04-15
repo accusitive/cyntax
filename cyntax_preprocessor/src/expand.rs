@@ -9,7 +9,6 @@ use cyntax_lexer::span;
 use std::{
     collections::{HashMap, HashSet},
     fmt::Debug,
-    ops::Range,
 };
 
 use crate::{
@@ -50,7 +49,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> HasContext for Expander<'src, 
     }
 }
 impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
-    pub fn new(ctx: &'src mut Context, name: &'src str, source: &'src str, token_trees: PrependingPeekableIterator<I>) -> Self {
+    pub fn new(ctx: &'src mut Context, token_trees: PrependingPeekableIterator<I>) -> Self {
         Self {
             ctx,
             token_trees,
@@ -119,22 +118,21 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                     let content = std::fs::read_to_string(self.ctx.strings.resolve(file_name).unwrap()).unwrap();
                     let file = self.ctx.files.add(self.ctx.strings.resolve(file_name).unwrap().to_owned(), content.clone());
                     let current_file = self.ctx.current_file;
-                    
+
                     self.ctx.current_file = file;
                     let lexer = cyntax_lexer::lexer::Lexer::new(self.ctx, &content);
                     let toks = lexer.collect::<Vec<_>>();
                     let trees = IntoTokenTree {
                         ctx: self.ctx,
-                        source: &content,
                         tokens: toks.iter().peekable(),
                         expecting_opposition: false,
                     }
                     .collect::<Vec<TokenTree>>();
                     self.ctx.current_file = current_file;
-                    
+
                     return Ok(ExpandControlFlow::RescanMany(trees));
                 }
-                crate::tree::HeaderName::H(tokens) => {
+                crate::tree::HeaderName::H(_tokens) => {
                     todo!();
                     // let first = tokens.first().unwrap();
                     // let last = tokens.last().unwrap();

@@ -1,17 +1,16 @@
-use std::{iter::Peekable, ops::Range};
+use std::iter::Peekable;
 
 use cyntax_common::{
     ast::{Delimited, PreprocessingToken, Punctuator, Whitespace},
     ctx::{Context, HasContext, string_interner::symbol::SymbolU32},
     spanned::{Location, Spanned},
 };
-use cyntax_errors::{Diagnostic, UnwrapDiagnostic, errors::UnterminatedTreeNode};
+use cyntax_errors::{Diagnostic, UnwrapDiagnostic};
 use cyntax_lexer::span;
 
 use crate::expand::PResult;
 pub struct IntoTokenTree<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>> {
     pub ctx: &'src mut Context,
-    pub source: &'src str,
     pub tokens: Peekable<I>,
     pub expecting_opposition: bool,
 }
@@ -179,7 +178,7 @@ impl<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>> IntoTokenTree<
 
                     while let Some(token) = tokens_iter.next() {
                         if matches!(token, span!(PreprocessingToken::Punctuator(Punctuator::RightParen))) {
-                            let end = parameters.last().map(|param: &Spanned<_>| param.end()).unwrap_or(opener.end());
+                            // let end = parameters.last().map(|param: &Spanned<_>| param.end()).unwrap_or(opener.end());
                             let parameters_token = PreprocessingToken::Delimited(Box::new(Delimited {
                                 opener: opener.map_ref(|_| '('),
                                 closer: token.map_ref(|_| ')'),
@@ -189,10 +188,7 @@ impl<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>> IntoTokenTree<
                             let replacement_list = tokens_iter.collect();
                             return ControlLine::DefineFunction {
                                 macro_name: macro_name.value,
-                                parameters: Spanned::new(
-                                    opener.location.clone(),
-                                    parameters_token,
-                                ),
+                                parameters: Spanned::new(opener.location.clone(), parameters_token),
                                 replacement_list: replacement_list,
                             };
                         } else {

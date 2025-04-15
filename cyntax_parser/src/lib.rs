@@ -2,18 +2,13 @@ use crate::ast::*;
 use constant::{ConstantParser, IntConstant};
 use cyntax_common::{
     ast::*,
-    ctx::{string_interner::symbol::SymbolU32, Context},
+    ctx::{Context, string_interner::symbol::SymbolU32},
     spanned::{Location, Spanned},
 };
 use cyntax_errors::{Diagnostic, errors::SimpleError};
 use cyntax_lexer::span;
-use peekmore::{PeekMore, PeekMoreIterator};
-use std::{
-    collections::{HashMap, HashSet},
-    ops::{Deref, Range},
-    str::{Chars, FromStr},
-    vec::IntoIter,
-};
+use peekmore::PeekMore;
+use std::{collections::HashSet, str::FromStr, vec::IntoIter};
 
 #[macro_use]
 pub mod patterns;

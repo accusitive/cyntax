@@ -1,6 +1,7 @@
-use std::ops::Range;
-
-use cyntax_common::{ast::PreprocessingToken, spanned::{Location, Spanned}};
+use cyntax_common::{
+    ast::PreprocessingToken,
+    spanned::{Location, Spanned},
+};
 
 use crate::{Diagnostic, DiagnosticSeverity, Label};
 #[derive(Debug)]

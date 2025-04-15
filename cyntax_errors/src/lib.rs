@@ -1,11 +1,6 @@
-use std::collections::HashMap;
-
 pub use codespan_reporting;
-use codespan_reporting::{files::SimpleFiles, term::termcolor::Ansi};
-use cyntax_common::{
-    ctx::{File, HasContext, HasMutContext},
-    spanned::Location,
-};
+use codespan_reporting::term::termcolor::Ansi;
+use cyntax_common::{ctx::HasContext, spanned::Location};
 pub enum DiagnosticSeverity {
     Error,
     Warning,

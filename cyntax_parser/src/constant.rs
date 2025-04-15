@@ -1,4 +1,4 @@
-use std::{ops::Range, str::Chars};
+use std::str::Chars;
 
 use cyntax_common::spanned::{Location, Spanned};
 use cyntax_errors::{Diagnostic, errors::SimpleError};
@@ -64,7 +64,10 @@ impl<'a> ConstantParser<'a> {
     fn next_char(&mut self) -> Option<Spanned<char>> {
         let char = self.chars.next()?;
         let char_len = char.len_utf8();
-        let char_location = Location { range: self.last_location..self.last_location + char_len, file_id: self.file_id };
+        let char_location = Location {
+            range: self.last_location..self.last_location + char_len,
+            file_id: self.file_id,
+        };
         self.last_location += char_len;
 
         Some(Spanned::new(char_location, char))
@@ -108,7 +111,16 @@ impl<'a> ConstantParser<'a> {
             }
 
             Some(span!(s,  c @('8' | '9'))) if self.base == 8 => return Err(SimpleError(s, format!("invalid character {c} for base {} constant", self.base)).into_codespan_report()),
-            _ => return Err(SimpleError(Location { range: self.last_location..self.last_location, file_id: self.file_id}, "unhandled".to_string()).into_codespan_report()),
+            _ => {
+                return Err(SimpleError(
+                    Location {
+                        range: self.last_location..self.last_location,
+                        file_id: self.file_id,
+                    },
+                    "unhandled".to_string(),
+                )
+                .into_codespan_report());
+            }
         };
 
         Ok(())

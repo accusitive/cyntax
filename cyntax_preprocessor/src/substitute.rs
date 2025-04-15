@@ -3,7 +3,8 @@ use std::{collections::HashMap, fmt::Debug};
 use cyntax_common::{
     ast::{PreprocessingToken, Punctuator},
     ctx::{
-        string_interner::{backend::StringBackend, symbol::SymbolU32}, Context
+        Context,
+        string_interner::{backend::StringBackend, symbol::SymbolU32},
     },
     spanned::{Location, Spanned},
 };

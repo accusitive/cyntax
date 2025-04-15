@@ -1,6 +1,6 @@
 use std::str::Chars;
 
-use cyntax_common::{ctx::Context, spanned::{Location, Spanned}};
+use cyntax_common::spanned::{Location, Spanned};
 use peekmore::{PeekMore, PeekMoreIterator};
 
 #[derive(Debug)]
@@ -85,10 +85,13 @@ impl<'src> Iterator for PrelexerIter<'src> {
             return self.next();
         } else {
             self.current_pos = start + length;
-            return Some(Spanned::new(Location{
-                range: start..self.current_pos,
-                file_id: self.file_id,
-            }, current_character))
+            return Some(Spanned::new(
+                Location {
+                    range: start..self.current_pos,
+                    file_id: self.file_id,
+                },
+                current_character,
+            ));
         }
     }
 }

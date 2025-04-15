@@ -1,13 +1,10 @@
-use std::{collections::HashMap, str::FromStr};
+use std::str::FromStr;
 
-use codespan_reporting::{
-    diagnostic::{Diagnostic, Label},
-    files::{SimpleFile, SimpleFiles},
-};
+use codespan_reporting::files::SimpleFiles;
 use colored::{ColoredString, Colorize};
 use cyntax_common::{
     ast::{Keyword, PreprocessingToken, Whitespace},
-    ctx::{Context, File, HasContext, string_interner::StringInterner},
+    ctx::{Context, HasContext, string_interner::StringInterner},
     spanned::Spanned,
 };
 use cyntax_errors::UnwrapDiagnostic;
@@ -75,11 +72,6 @@ fn print_tokens<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>>(ctx
 struct WithContext<'src> {
     context: &'src mut Context,
 }
-impl<'src> WithContext<'src> {
-    pub fn with_context<F: FnOnce(Self)>(self, f: F) {
-        f(self)
-    }
-}
 impl<'src> HasContext for WithContext<'src> {
     fn ctx(&self) -> &Context {
         &self.context
@@ -105,7 +97,7 @@ fn main() {
         println!();
     }
 
-    let pre_processor = cyntax_preprocessor::Preprocessor::new(&mut ctx, "test.c", source, &tokens);
+    let pre_processor = cyntax_preprocessor::Preprocessor::new(&mut ctx, &tokens);
     let pre_processor_result = pre_processor.expand();
 
     let expanded = WithContext { context: &mut ctx }.unwrap_diagnostic(pre_processor_result);

@@ -121,7 +121,7 @@ impl<'src> Iterator for Lexer<'src> {
             }
             span!(location, '#') if self.at_start_of_line => {
                 let mut tokens = vec![];
-                let mut end = location.range.end;
+                let mut end = location.clone();
                 let mut add = true;
                 while let Some(span!(token)) = self.chars.peek() {
                     if matches!(token, '\n') {
@@ -135,12 +135,12 @@ impl<'src> Iterator for Lexer<'src> {
                         let n = self.next().unwrap();
                         self.inside_control_line = false;
                         if add {
-                            end = n.location.range.end;
+                            end = n.location.clone();
                             tokens.push(n);
                         }
                     }
                 }
-                Some(Spanned::new(location, PreprocessingToken::ControlLine(tokens)))
+                Some(Spanned::new(location.until(&end), PreprocessingToken::ControlLine(tokens)))
             }
             span!(range, '#') if matches!(self.chars.peek(), Some(span!('#'))) => {
                 self.chars.next().unwrap();

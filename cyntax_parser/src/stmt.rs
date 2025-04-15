@@ -1,7 +1,5 @@
-use cyntax_common::ast::{Keyword, PreprocessingToken, Punctuator};
+use cyntax_common::ast::{Keyword, Punctuator};
 use cyntax_common::spanned::Spanned;
-use cyntax_errors::Diagnostic;
-use cyntax_errors::errors::SimpleError;
 use cyntax_lexer::span;
 
 use crate::ast::{BlockItem, Statement, Token};
