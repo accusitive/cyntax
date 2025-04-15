@@ -34,18 +34,20 @@ pub struct IntConstant {
     number: String,
     suffix: Suffix,
 }
-pub struct ConstantLexer<'a> {
-    last_location: Location,
+pub struct ConstantParser<'a> {
+    last_location: usize,
+    file_id: usize,
     chars: PeekMoreIterator<Chars<'a>>,
     number_part: String,
     base: u8,
     stage: Stage,
     suffix: Suffix,
 }
-impl<'a> ConstantLexer<'a> {
-    pub fn new(span: Location, number: &'a str) -> ConstantLexer<'a> {
-        ConstantLexer {
-            last_location: span,
+impl<'a> ConstantParser<'a> {
+    pub fn new(span: Location, number: &'a str) -> ConstantParser<'a> {
+        ConstantParser {
+            last_location: span.range.start,
+            file_id: span.file_id,
             chars: number.chars().peekmore(),
             number_part: String::new(),
             base: 10,
@@ -60,12 +62,12 @@ impl<'a> ConstantLexer<'a> {
         Ok(IntConstant { number: self.number_part, suffix: self.suffix })
     }
     fn next_char(&mut self) -> Option<Spanned<char>> {
-        let value = self.chars.next()?;
-        let l = value.len_utf8();
-        let range = self.last_location.until(&Location { range: self.last_location.range.start..self.last_location.range.end+l, file_id: self.last_location.file_id });
-        self.last_location = Location { range: self.last_location.range.start+l..self.last_location.range.end+l, file_id: self.last_location.file_id };
+        let char = self.chars.next()?;
+        let char_len = char.len_utf8();
+        let char_location = Location { range: self.last_location..self.last_location + char_len, file_id: self.file_id };
+        self.last_location += char_len;
 
-        Some(Spanned::new(range, value))
+        Some(Spanned::new(char_location, char))
     }
     pub fn handle_next_char(&mut self) -> PResult<()> {
         match self.next_char() {
@@ -106,7 +108,7 @@ impl<'a> ConstantLexer<'a> {
             }
 
             Some(span!(s,  c @('8' | '9'))) if self.base == 8 => return Err(SimpleError(s, format!("invalid character {c} for base {} constant", self.base)).into_codespan_report()),
-            _ => return Err(SimpleError(self.last_location.clone(), "unhandled".to_string()).into_codespan_report()),
+            _ => return Err(SimpleError(Location { range: self.last_location..self.last_location, file_id: self.file_id}, "unhandled".to_string()).into_codespan_report()),
         };
 
         Ok(())

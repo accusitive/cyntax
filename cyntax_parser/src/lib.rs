@@ -1,5 +1,5 @@
 use crate::ast::*;
-use constant::{ConstantLexer, IntConstant};
+use constant::{ConstantParser, IntConstant};
 use cyntax_common::{
     ast::*,
     ctx::{string_interner::symbol::SymbolU32, Context},
@@ -54,7 +54,7 @@ impl<'src> Iterator for TokenStream<'src> {
 
 impl<'src> TokenStream<'src> {
     pub fn parse_pp_number(&mut self, location: &Location, number: SymbolU32) -> PResult<IntConstant> {
-        ConstantLexer::new(location.clone(), self.ctx.strings.resolve(number).unwrap()).lex()
+        ConstantParser::new(location.clone(), self.ctx.strings.resolve(number).unwrap()).lex()
     }
 }
 type Scope = HashSet<Identifier>;
