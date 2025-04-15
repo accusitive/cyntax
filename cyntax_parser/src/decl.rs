@@ -6,7 +6,7 @@ use cyntax_errors::Diagnostic;
 use cyntax_errors::errors::SimpleError;
 use cyntax_lexer::span;
 /// Declarations, Declarators, Init declarators, stuff of that sort
-impl Parser {
+impl<'src> Parser<'src> {
     pub fn parse_external_declaration(&mut self) -> PResult<Option<ExternalDeclaration>> {
         if self.token_stream.peek().is_none() {
             return Ok(None);

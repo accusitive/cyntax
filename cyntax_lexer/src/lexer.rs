@@ -1,6 +1,7 @@
 use cyntax_common::ast::PreprocessingToken;
 use cyntax_common::ast::Punctuator;
 use cyntax_common::ast::Whitespace;
+use cyntax_common::ctx::Context;
 use cyntax_common::spanned::Spanned;
 use peekmore::PeekMore;
 use peekmore::PeekMoreIterator;
@@ -54,9 +55,8 @@ pub type CharLocation = Range<usize>;
 
 #[derive(Debug)]
 pub struct Lexer<'src> {
+    pub ctx: &'src mut Context,
     pub chars: PeekMoreIterator<PrelexerIter<'src>>,
-    pub file_name: &'src str,
-    pub source: &'src str,
     at_start_of_line: bool,
     inside_control_line: bool,
 }
@@ -71,27 +71,27 @@ impl<'src> Iterator for Lexer<'src> {
         let token = match next {
             first_character @ span!(nondigit!()) => {
                 let identifier = self.lex_identifier(&first_character);
-                Some(identifier.map(|identifier| PreprocessingToken::Identifier(identifier)))
+                Some(identifier.map(|identifier| PreprocessingToken::Identifier(self.ctx.strings.get_or_intern(identifier))))
             }
 
             // Literals
             span!(range, '"') => {
                 let string = self.lex_string_literal(range);
-                Some(string.map(|string| PreprocessingToken::StringLiteral(string)))
+                Some(string.map(|string| PreprocessingToken::StringLiteral(self.ctx.strings.get_or_intern(string))))
             }
             span!(range, '\'') => {
                 let string = self.lex_char_literal(range);
-                Some(string.map(|string| PreprocessingToken::CharLiteral(string)))
+                Some(string.map(|string| PreprocessingToken::CharLiteral(self.ctx.strings.get_or_intern(string))))
             }
             first_character @ span!(digit!()) => {
                 let number = self.lex_number(&first_character);
-                Some(number.map(|num| PreprocessingToken::PPNumber(num)))
+                Some(number.map(|num| PreprocessingToken::PPNumber(self.ctx.strings.get_or_intern(num))))
             }
             // Digits can start with 0
             first_character @ span!('.') if matches!(self.chars.peek(), Some(span!(digit!()))) => {
                 let number = self.lex_number(&first_character);
 
-                Some(number.map(|num| PreprocessingToken::PPNumber(num)))
+                Some(number.map(|num| PreprocessingToken::PPNumber(self.ctx.strings.get_or_intern(num))))
             }
             // span!(range, c@ ('(' | ')' | '{' | '}' | '[' | ']')) if self.ignore_delimiters => Some(
             //     Spanned::new(range, Token::Punctuator(Punctuator::from_char(c).unwrap())),
@@ -163,13 +163,12 @@ impl<'src> Iterator for Lexer<'src> {
     }
 }
 impl<'src> Lexer<'src> {
-    pub fn new(file_name: &'src str, source: &'src str) -> Lexer<'src> {
+    pub fn new(ctx: &'src mut Context, source: &'src str) -> Lexer<'src> {
         Lexer {
             chars: PrelexerIter::new(source).peekmore(),
-            file_name,
-            source,
             at_start_of_line: true,
             inside_control_line: false,
+            ctx
         }
     }
     pub fn lex_identifier(&mut self, first_character: &Spanned<char>) -> Spanned<String> {
@@ -273,7 +272,8 @@ impl<'src> Lexer<'src> {
 // Util functions
 impl<'src> Lexer<'src> {
     pub fn fatal_diagnostic<E: cyntax_errors::Diagnostic>(&mut self, diagnostic: E) -> ! {
-        panic!("{}", diagnostic.into_why_report().with(self.file_name, self.source))
+        let f = self.ctx.current_file();
+        panic!("{}", diagnostic.into_why_report().with(&f.name, &f.source))
     }
     pub fn ignore_preceeding_whitespace<T, F>(&mut self, mut f: F) -> T
     where

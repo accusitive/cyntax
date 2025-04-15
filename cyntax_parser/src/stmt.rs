@@ -7,7 +7,7 @@ use cyntax_lexer::span;
 use crate::ast::{BlockItem, Statement, Token};
 use crate::{PResult, Parser};
 
-impl Parser {
+impl<'src> Parser<'src> {
     pub fn parse_statement(&mut self) -> PResult<Statement> {
         if self.can_start_labelled_stmt() {
         } else if self.can_start_compound_statement() {

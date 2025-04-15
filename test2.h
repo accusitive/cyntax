@@ -1,1 +1,3 @@
-#define x 42
+int main(int left, int right) {
+    float f = 090lu;
+}

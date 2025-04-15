@@ -1,15 +1,17 @@
 use std::{iter::Peekable, ops::Range};
 
 use cyntax_common::{
-    ast::{PreprocessingToken, Punctuator, Whitespace},
+    ast::{Delimited, PreprocessingToken, Punctuator, Whitespace},
+    ctx::{Context, string_interner::symbol::SymbolU32},
     spanned::Spanned,
 };
 use cyntax_errors::{Diagnostic, errors::UnterminatedTreeNode};
 use cyntax_lexer::span;
 pub struct IntoTokenTree<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>> {
-    pub(crate) source: &'src str,
-    pub(crate) tokens: Peekable<I>,
-    pub(crate) expecting_opposition: bool,
+    pub ctx: &'src mut Context,
+    pub source: &'src str,
+    pub tokens: Peekable<I>,
+    pub expecting_opposition: bool,
 }
 impl<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>> Iterator for IntoTokenTree<'src, I> {
     type Item = TokenTree;
@@ -140,33 +142,34 @@ impl<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>> IntoTokenTree<
         let directive = self.expect_identifier(&mut tokens_iter).expect("expected identifier after directive character");
         let directive_name = directive.value;
         let directive_range = directive.range;
+
         match () {
-            _ if directive_name == "ifdef" => {
+            _ if directive_name == self.ctx.strings.get_or_intern_static("ifdef") => {
                 skip_whitespace(&mut tokens_iter);
 
                 let macro_name = self.expect_identifier(&mut tokens_iter).expect("expected macro_name in ifdef directive");
 
                 return ControlLine::IfDef { macro_name: macro_name.value };
             }
-            _ if directive_name == "ifndef" => {
+            _ if directive_name == self.ctx.strings.get_or_intern_static("ifndef") => {
                 skip_whitespace(&mut tokens_iter);
 
                 let macro_name = self.expect_identifier(&mut tokens_iter).expect("expected macro_name in ifndef directive");
 
                 return ControlLine::IfNDef { macro_name: macro_name.value };
             }
-            _ if directive_name == "else" => {
+            _ if directive_name == self.ctx.strings.get_or_intern_static("else") => {
                 return ControlLine::Else;
             }
-            _ if directive_name == "elif" => {
+            _ if directive_name == self.ctx.strings.get_or_intern_static("elif") => {
                 skip_whitespace(&mut tokens_iter);
                 let condition = tokens_iter.collect::<Vec<_>>();
                 return ControlLine::Elif { condition };
             }
-            _ if directive_name == "endif" => {
+            _ if directive_name == self.ctx.strings.get_or_intern_static("endif") => {
                 return ControlLine::EndIf;
             }
-            _ if directive_name == "define" => {
+            _ if directive_name == self.ctx.strings.get_or_intern_static("define") => {
                 skip_whitespace(&mut tokens_iter);
 
                 let macro_name = self.expect_identifier(&mut tokens_iter).expect("expected macro_name in ifdef directive");
@@ -177,11 +180,11 @@ impl<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>> IntoTokenTree<
                     while let Some(token) = tokens_iter.next() {
                         if matches!(token, span!(PreprocessingToken::Punctuator(Punctuator::RightParen))) {
                             let end = parameters.last().map(|param: &Spanned<_>| param.range.end).unwrap_or(opener.range.end);
-                            let parameters_token = PreprocessingToken::Delimited {
+                            let parameters_token = PreprocessingToken::Delimited(Box::new(Delimited {
                                 opener: opener.map_ref(|_| '('),
                                 closer: token.map_ref(|_| ')'),
                                 inner_tokens: parameters,
-                            };
+                            }));
                             skip_whitespace(&mut tokens_iter);
                             let replacement_list = tokens_iter.collect();
                             return ControlLine::DefineFunction {
@@ -204,22 +207,22 @@ impl<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>> IntoTokenTree<
                     return ControlLine::DefineObject { macro_name: macro_name.value, replacement_list };
                 }
             }
-            _ if directive_name == "undef" => {
+            _ if directive_name == self.ctx.strings.get_or_intern_static("undef") => {
                 skip_whitespace(&mut tokens_iter);
 
                 let macro_name = self.expect_identifier(&mut tokens_iter).expect("expected macro_name in ifdef directive");
                 return ControlLine::Undefine(macro_name.value);
             }
-            _ if directive_name == "error" => {
+            _ if directive_name == self.ctx.strings.get_or_intern_static("error") => {
                 skip_whitespace(&mut tokens_iter);
                 let reason = tokens_iter.next();
                 return ControlLine::Error(directive_range, reason);
             }
-            _ if directive_name == "warning" => {
+            _ if directive_name == self.ctx.strings.get_or_intern_static("warning") => {
                 let reason = tokens_iter.next();
                 return ControlLine::Warning(directive_range, reason);
             }
-            _ if directive_name == "include" => {
+            _ if directive_name == self.ctx.strings.get_or_intern_static("include") => {
                 skip_whitespace(&mut tokens_iter);
                 match tokens_iter.next() {
                     Some(span!(PreprocessingToken::Punctuator(Punctuator::LessThan))) => {
@@ -238,9 +241,9 @@ impl<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>> IntoTokenTree<
             }
         };
     }
-    pub fn expect_identifier<'b, I2: Iterator<Item = Spanned<PreprocessingToken>>>(&mut self, iter: &mut I2) -> Option<Spanned<String>> {
+    pub fn expect_identifier<'b, I2: Iterator<Item = Spanned<PreprocessingToken>>>(&mut self, iter: &mut I2) -> Option<Spanned<SymbolU32>> {
         match iter.next()? {
-            span!(range, PreprocessingToken::Identifier(i)) => Some(Spanned::new(range.clone(), i.clone())),
+            span!(range, PreprocessingToken::Identifier(i)) => Some(Spanned::new(range.clone(), i)),
             _ => None,
         }
     }
@@ -250,10 +253,10 @@ impl<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>> IntoTokenTree<
 #[allow(dead_code)]
 pub enum ControlLine {
     IfDef {
-        macro_name: String,
+        macro_name: SymbolU32,
     },
     IfNDef {
-        macro_name: String,
+        macro_name: SymbolU32,
     },
 
     If {
@@ -265,15 +268,15 @@ pub enum ControlLine {
     Else,
     EndIf,
     DefineFunction {
-        macro_name: String,
+        macro_name: SymbolU32,
         parameters: Spanned<PreprocessingToken>,
         replacement_list: Vec<Spanned<PreprocessingToken>>,
     },
     DefineObject {
-        macro_name: String,
+        macro_name: SymbolU32,
         replacement_list: Vec<Spanned<PreprocessingToken>>,
     },
-    Undefine(String),
+    Undefine(SymbolU32),
     Include(HeaderName),
     Error(Range<usize>, Option<Spanned<PreprocessingToken>>),
     Warning(Range<usize>, Option<Spanned<PreprocessingToken>>),
@@ -283,7 +286,7 @@ pub enum ControlLine {
 #[derive(Debug, Clone)]
 pub enum HeaderName {
     /// "header-name.h"
-    Q(String),
+    Q(SymbolU32),
     /// <header-name.h>
     H(Vec<Spanned<PreprocessingToken>>),
 }
@@ -304,12 +307,12 @@ impl<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>> IntoTokenTree<
 pub enum TokenTree {
     Directive(ControlLine),
     IfDef {
-        macro_name: String,
+        macro_name: SymbolU32,
         body: Vec<TokenTree>,
         opposition: Box<TokenTree>,
     },
     IfNDef {
-        macro_name: String,
+        macro_name: SymbolU32,
         body: Vec<TokenTree>,
         opposition: Box<TokenTree>,
     },
@@ -337,10 +340,10 @@ pub enum TokenTree {
 #[derive(Debug, Clone)]
 pub enum InternalLeaf {
     // Delimited(Spanned<char>, Spanned<char>, Vec<TokenTree<'src>>),
-    MacroExpansion(String, Vec<Spanned<PreprocessingToken>>),
+    MacroExpansion(SymbolU32, Vec<Spanned<PreprocessingToken>>),
 
-    BeginExpandingMacro(String),
-    FinishExpandingMacro(String),
+    BeginExpandingMacro(SymbolU32),
+    FinishExpandingMacro(SymbolU32),
 }
 impl TokenTree {
     pub fn as_token(&self) -> Spanned<PreprocessingToken> {

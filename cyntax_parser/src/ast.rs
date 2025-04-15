@@ -1,7 +1,7 @@
 use cyntax_common::{
-    ast::{Keyword, Punctuator},
-    spanned::Spanned,
+    ast::{Keyword, Punctuator}, ctx::string_interner::symbol::SymbolU32, spanned::Spanned
 };
+pub type Identifier = SymbolU32;
 
 #[derive(Debug)]
 pub struct TranslationUnit {
@@ -50,11 +50,11 @@ pub enum TypeSpecifier {
     Complex,
     Struct(StructSpecifier),
     Enum,
-    TypedefName(String),
+    TypedefName(Identifier),
 }
 #[derive(Debug)]
 pub struct StructSpecifier {
-    pub identifier: Option<String>,
+    pub identifier: Option<Identifier>,
     pub declarations: Vec<StructDeclaration>,
 }
 #[derive(Debug)]
@@ -91,7 +91,7 @@ impl From<Keyword> for TypeQualifier {
 
 #[derive(Debug)]
 pub enum Declarator {
-    Identifier(String),
+    Identifier(Identifier),
     /// *declarator
     Pointer(Spanned<Pointer>, Box<Spanned<Self>>),
     /// (declarator)
@@ -134,7 +134,7 @@ pub enum Statement {
     Expression,
     Selection,
     Iteration,
-    Goto(Spanned<String>),
+    Goto(Spanned<Identifier>),
     Continue,
     Break,
     Error,
@@ -159,17 +159,17 @@ pub struct DesignatedIntiializer {
 pub enum Designator {
     // [constant-expression]
     ConstantExpression,
-    Identifier(Spanned<String>),
+    Identifier(Spanned<Identifier>),
 }
 #[derive(Debug)]
 pub enum Expression {
-    Identifier(String),
+    Identifier(Identifier),
 }
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
     Keyword(Keyword),
-    Identifier(String),
-    StringLiteral(String),
-    CharLiteral(String),
+    Identifier(SymbolU32),
+    StringLiteral(SymbolU32),
+    CharLiteral(SymbolU32),
     Punctuator(Punctuator),
 }

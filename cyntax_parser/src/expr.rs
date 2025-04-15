@@ -1,11 +1,10 @@
 use crate::Spanned;
 use crate::ast::{Expression, Token};
 use crate::{PResult, Parser};
-use cyntax_common::ast::PreprocessingToken;
 use cyntax_errors::{Diagnostic, errors::SimpleError};
 use cyntax_lexer::span;
 
-impl Parser {
+impl<'src> Parser<'src> {
     pub fn parse_expression(&mut self) -> PResult<Expression> {
         if self.can_start_primary_expression() {
             self.parse_primary_expression()

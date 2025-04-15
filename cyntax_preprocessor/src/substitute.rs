@@ -2,18 +2,23 @@ use std::{collections::HashMap, fmt::Debug};
 
 use cyntax_common::{
     ast::{PreprocessingToken, Punctuator},
+    ctx::{
+        Context,
+        string_interner::{backend::StringBackend, symbol::SymbolU32},
+    },
     spanned::Spanned,
 };
 use cyntax_lexer::{lexer::Lexer, span};
 
 use crate::{expand::MacroArgument, prepend::PrependingPeekableIterator};
 
-pub struct ArgumentSubstitutionIterator<I>
+pub struct ArgumentSubstitutionIterator<'a, I>
 where
     I: Debug + Iterator<Item = Spanned<PreprocessingToken>>,
 {
+    pub ctx: &'a mut Context,
     pub replacements: PrependingPeekableIterator<I>,
-    pub map: HashMap<String, MacroArgument>,
+    pub map: HashMap<SymbolU32, MacroArgument>,
     pub is_variadic: bool,
     pub variadic_args: Vec<MacroArgument>,
     pub glue_next_token: bool,
@@ -24,7 +29,7 @@ where
     pub stringify_string: String,
 }
 
-impl<'a, I: Debug + Iterator<Item = Spanned<PreprocessingToken>>> Iterator for ArgumentSubstitutionIterator<I> {
+impl<'a, I: Debug + Iterator<Item = Spanned<PreprocessingToken>>> Iterator for ArgumentSubstitutionIterator<'a, I> {
     type Item = Vec<Spanned<PreprocessingToken>>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -34,12 +39,13 @@ impl<'a, I: Debug + Iterator<Item = Spanned<PreprocessingToken>>> Iterator for A
 
         match &token {
             token if self.glue_next_token => {
-                Self::stringify_tokens(self.maybe_substitute_arg(token.clone(), false).iter(), &mut self.glue_string);
+                let a = self.maybe_substitute_arg(token.clone(), false);
+                Self::stringify_tokens(&self.ctx.strings, a.iter(), &mut self.glue_string);
 
                 if !matches!(self.replacements.peek(), Some(span!(PreprocessingToken::Punctuator(Punctuator::HashHash)))) {
                     let src = format!("{}", self.glue_string);
 
-                    let tokens = Lexer::new("test.c", &src).map(|span| Spanned::new(token.range.clone(), span.value)).collect::<Vec<_>>();
+                    let tokens = Lexer::new(self.ctx, &src).map(|span| Spanned::new(token.range.clone(), span.value)).collect::<Vec<_>>();
 
                     self.glue_next_token = false;
                     self.glue_string.clear();
@@ -51,8 +57,9 @@ impl<'a, I: Debug + Iterator<Item = Spanned<PreprocessingToken>>> Iterator for A
             }
             token if self.stringify_next_token => {
                 dbg!(&token);
-                Self::stringify_tokens(self.maybe_substitute_arg(token.clone(), false).iter(), &mut self.stringify_string);
-                self.replacements.prepend(Spanned::new(token.range.clone(), PreprocessingToken::StringLiteral(self.stringify_string.clone())));
+                let a = self.maybe_substitute_arg(token.clone(), false);
+                Self::stringify_tokens(&self.ctx.strings, a.iter(), &mut self.stringify_string);
+                self.replacements.prepend(Spanned::new(token.range.clone(), PreprocessingToken::StringLiteral(self.ctx.strings.get_or_intern(&self.stringify_string))));
                 self.stringify_next_token = false;
                 self.stringify_string.clear();
                 Some(vec![])
@@ -64,7 +71,8 @@ impl<'a, I: Debug + Iterator<Item = Spanned<PreprocessingToken>>> Iterator for A
             }
             token if matches!(self.replacements.peek(), Some(span!(PreprocessingToken::Punctuator(Punctuator::HashHash)))) => {
                 self.glue_next_token = true;
-                Self::stringify_tokens(self.maybe_substitute_arg(token.clone(), false).iter(), &mut self.glue_string);
+                let a = self.maybe_substitute_arg(token.clone(), false);
+                Self::stringify_tokens(&self.ctx.strings, a.iter(), &mut self.glue_string);
                 self.replacements.next().unwrap(); // // eat ## 
                 Some(vec![])
             }
@@ -72,7 +80,7 @@ impl<'a, I: Debug + Iterator<Item = Spanned<PreprocessingToken>>> Iterator for A
                 let expanded = self.map.get(identifier).unwrap().expanded.clone();
                 Some(expanded)
             }
-            span!(PreprocessingToken::Identifier(identifier)) if self.is_variadic && identifier == "__VA_ARGS__" => Some(
+            span!(PreprocessingToken::Identifier(identifier)) if self.is_variadic && *identifier == self.ctx.strings.get_or_intern_static("__VA_ARGS__") => Some(
                 self.variadic_args
                     .iter()
                     .map(|arg| arg.expanded.clone())
@@ -85,7 +93,7 @@ impl<'a, I: Debug + Iterator<Item = Spanned<PreprocessingToken>>> Iterator for A
     }
 }
 
-impl<'a, I: Debug + Iterator<Item = Spanned<PreprocessingToken>>> ArgumentSubstitutionIterator<I> {
+impl<'a, I: Debug + Iterator<Item = Spanned<PreprocessingToken>>> ArgumentSubstitutionIterator<'a, I> {
     pub fn maybe_substitute_arg(&mut self, token: Spanned<PreprocessingToken>, expand: bool) -> Vec<Spanned<PreprocessingToken>> {
         match token {
             span!(PreprocessingToken::Identifier(identifier)) if self.map.contains_key(&identifier) => {
@@ -95,28 +103,28 @@ impl<'a, I: Debug + Iterator<Item = Spanned<PreprocessingToken>>> ArgumentSubsti
             _ => vec![token],
         }
     }
-    pub fn stringify_tokens<'b, T: Iterator<Item = &'b Spanned<PreprocessingToken>>>(tokens: T, s: &mut String) {
+    pub fn stringify_tokens<'b, T: Iterator<Item = &'b Spanned<PreprocessingToken>>>(strings: &cyntax_common::ctx::string_interner::StringInterner<StringBackend>, tokens: T, s: &mut String) {
         for token in tokens {
-            Self::stringify_token(token, s);
+            Self::stringify_token(strings, token, s);
         }
     }
-    pub fn stringify_token(token: &Spanned<PreprocessingToken>, s: &mut String) {
+    pub fn stringify_token(strings: &cyntax_common::ctx::string_interner::StringInterner<StringBackend>, token: &Spanned<PreprocessingToken>, s: &mut String) {
         match &token.value {
-            PreprocessingToken::Identifier(identifier) => s.push_str(identifier),
-            PreprocessingToken::BlueIdentifier(identifier) => s.push_str(identifier),
+            PreprocessingToken::Identifier(identifier) => s.push_str(strings.resolve(*identifier).unwrap()),
+            PreprocessingToken::BlueIdentifier(identifier) => s.push_str(strings.resolve(*identifier).unwrap()),
 
             PreprocessingToken::StringLiteral(string) => {
                 s.push('"');
-                s.push_str(string);
+                s.push_str(strings.resolve(*string).unwrap());
                 s.push('"');
             }
             PreprocessingToken::CharLiteral(chars) => {
                 s.push('\'');
-                s.push_str(chars);
+                s.push_str(strings.resolve(*chars).unwrap());
                 s.push('\'');
             }
             PreprocessingToken::PPNumber(number) => {
-                s.push_str(number);
+                s.push_str(strings.resolve(*number).unwrap());
             }
             PreprocessingToken::Whitespace(whitespace) => {
                 s.push(match whitespace {
@@ -126,10 +134,10 @@ impl<'a, I: Debug + Iterator<Item = Spanned<PreprocessingToken>>> ArgumentSubsti
                 });
             }
             PreprocessingToken::Punctuator(punctuator) => s.push_str(&punctuator.to_string()),
-            PreprocessingToken::Delimited { opener, closer, inner_tokens } => {
-                s.push(opener.value);
-                Self::stringify_tokens(inner_tokens.iter(), s);
-                s.push(closer.value);
+            PreprocessingToken::Delimited(d) => {
+                s.push(d.opener.value);
+                Self::stringify_tokens(strings, d.inner_tokens.iter(), s);
+                s.push(d.closer.value);
             }
             _ => unreachable!(),
         }

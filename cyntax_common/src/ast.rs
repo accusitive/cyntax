@@ -1,29 +1,31 @@
+use string_interner::{Symbol, symbol::SymbolU32};
 use strum_macros::EnumString;
 
 use crate::spanned::Spanned;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum PreprocessingToken {
-    Identifier(String),
+    Identifier(SymbolU32),
     /// An identifier that should not be considered for a potential macro invocation
-    BlueIdentifier(String),
-    StringLiteral(String),
-    CharLiteral(String),
-    PPNumber(String),
+    BlueIdentifier(SymbolU32),
+    StringLiteral(SymbolU32),
+    CharLiteral(SymbolU32),
+    PPNumber(SymbolU32),
     ControlLine(Vec<Spanned<PreprocessingToken>>),
     Whitespace(Whitespace),
     Punctuator(Punctuator),
-    Delimited {
-        opener: Spanned<char>,
-        closer: Spanned<char>,
-        inner_tokens: Vec<Spanned<PreprocessingToken>>,
-    },
+    Delimited(Box<Delimited>),
 }
-
+#[derive(Debug, Clone, PartialEq)]
+pub struct Delimited {
+    pub opener: Spanned<char>,
+    pub closer: Spanned<char>,
+    pub inner_tokens: Vec<Spanned<PreprocessingToken>>,
+}
 impl PreprocessingToken {
     pub fn as_delimited(self) -> (Spanned<char>, Spanned<char>, Vec<Spanned<PreprocessingToken>>) {
         match self {
-            PreprocessingToken::Delimited { opener, closer, inner_tokens } => (opener, closer, inner_tokens),
+            PreprocessingToken::Delimited(d) => (d.opener, d.closer, d.inner_tokens),
             _ => panic!(),
         }
     }

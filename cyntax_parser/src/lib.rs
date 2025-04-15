@@ -1,7 +1,7 @@
 use crate::ast::*;
+use constant::ConstantLexer;
 use cyntax_common::{
-    ast::*,
-    spanned::{Span, Spanned},
+    ast::*, ctx::{string_interner::symbol::SymbolU32, Context}, spanned::{Span, Spanned}
 };
 use cyntax_errors::{Diagnostic, errors::SimpleError, why::Report};
 use cyntax_lexer::span;
@@ -9,11 +9,12 @@ use peekmore::{PeekMore, PeekMoreIterator};
 use std::{
     collections::{HashMap, HashSet},
     ops::{Deref, Range},
-    str::{Chars, FromStr},
+    str::{Chars, FromStr}, vec::IntoIter,
 };
 
 #[macro_use]
 pub mod patterns;
+pub mod constant;
 pub mod ast;
 pub mod decl;
 pub mod expr;
@@ -21,23 +22,25 @@ pub mod stmt;
 pub type PResult<T> = Result<T, cyntax_errors::why::Report>;
 
 #[derive(Debug)]
-struct TokenStream {
+struct TokenStream<'src> {
+    ctx: &'src mut Context,
     iter: std::vec::IntoIter<Spanned<PreprocessingToken>>,
 }
-impl Iterator for TokenStream {
+impl<'src> Iterator for TokenStream<'src> {
     type Item = PResult<Spanned<Token>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             match self.iter.next()? {
-                span!(span, PreprocessingToken::Identifier(identifier)) => match Keyword::from_str(&identifier) {
+                span!(span, PreprocessingToken::Identifier(identifier)) => match Keyword::from_str(self.ctx.strings.resolve(identifier).unwrap()) {
                     Ok(kw) => return Some(Ok(Spanned::new(span, Token::Keyword(kw)))),
                     Err(_) => return Some(Ok(Spanned::new(span, Token::Identifier(identifier)))),
                 },
                 span!(span, PreprocessingToken::BlueIdentifier(identifier)) => return Some(Ok(Spanned::new(span, Token::Identifier(identifier)))),
                 span!(span, PreprocessingToken::StringLiteral(string)) => return Some(Ok(Spanned::new(span, Token::StringLiteral(string)))),
                 span!(span, PreprocessingToken::CharLiteral(string)) => return Some(Ok(Spanned::new(span, Token::CharLiteral(string)))),
-                span!(span, PreprocessingToken::PPNumber(number)) => return Some(Self::parse_pp_number(span, number)),
+                // span!(span, PreprocessingToken::PPNumber(number)) => return Some(Self::parse_pp_number(span, number)),
+
                 span!(span, PreprocessingToken::Punctuator(punc)) => return Some(Ok(Spanned::new(span, Token::Punctuator(punc)))),
                 span!(PreprocessingToken::Whitespace(_)) => continue,
                 _ => unreachable!(), // span!(PreprocessingToken::)
@@ -45,112 +48,8 @@ impl Iterator for TokenStream {
         }
     }
 }
-#[derive(Debug, PartialEq, Eq)]
-enum Stage {
-    Prefix,
-    Number,
-    Suffix,
-}
-#[derive(Debug)]
-enum Signedness {
-    Unsigned,
-    None,
-}
-#[derive(Debug)]
 
-enum Width {
-    Long,
-    LongLong,
-    None,
-}
-#[derive(Debug)]
-
-pub struct Suffix {
-    signed: Signedness,
-    width: Width,
-}
-#[derive(Debug)]
-struct IntConstant {
-    number: String,
-    suffix: Suffix,
-}
-struct ConstantLexer<'a> {
-    last_location: usize,
-    chars: PeekMoreIterator<Chars<'a>>,
-    number_part: String,
-    base: u8,
-    stage: Stage,
-    suffix: Suffix,
-}
-impl<'a> ConstantLexer<'a> {
-    pub fn new(span: Range<usize>, number: &'a str) -> ConstantLexer<'a> {
-        ConstantLexer {
-            last_location: span.start,
-            chars: number.chars().peekmore(),
-            number_part: String::new(),
-            base: 10,
-            stage: Stage::Prefix,
-            suffix: Suffix { signed: Signedness::None, width: Width::None },
-        }
-    }
-    pub fn lex(mut self) -> PResult<IntConstant> {
-        while let Some(_) = self.chars.peek() {
-            self.handle_next_char()?
-        }
-        Ok(IntConstant { number: self.number_part, suffix: self.suffix })
-    }
-    fn next_char(&mut self) -> Option<Spanned<char>> {
-        let value = self.chars.next()?;
-        let range = self.last_location..(self.last_location + value.len_utf8());
-        self.last_location = self.last_location + value.len_utf8();
-
-        Some(Spanned::new(range, value))
-    }
-    pub fn handle_next_char(&mut self) -> PResult<()> {
-        match self.next_char() {
-            Some(span!('0')) if self.stage == Stage::Prefix => {
-                if matches!(self.chars.peek(), Some('x' | 'X')) {
-                    self.next_char();
-                    self.base = 16;
-                    self.stage = Stage::Number;
-                } else {
-                    self.number_part.push('0');
-                    self.base = 8;
-                    self.stage = Stage::Number;
-                }
-            }
-            Some(span!(c @ ('0'..='9' | 'a'..='f' | 'A'..='F') )) if self.base == 16 && matches!(self.stage, Stage::Number | Stage::Prefix) => {
-                self.stage = Stage::Number;
-                self.number_part.push(c);
-            }
-            Some(span!(c @ '0'..='9')) if self.base == 10 && matches!(self.stage, Stage::Number | Stage::Prefix) => {
-                self.stage = Stage::Number;
-                self.number_part.push(c);
-            }
-            Some(span!(c @ '0'..='7')) if self.base == 8 && matches!(self.stage, Stage::Number | Stage::Prefix) => {
-                self.stage = Stage::Number;
-                self.number_part.push(c);
-            }
-            Some(span!('u' | 'U')) if matches!(self.stage, Stage::Number | Stage::Suffix) => {
-                self.stage = Stage::Suffix;
-                self.suffix.signed = Signedness::Unsigned;
-            }
-            Some(span!(s, 'l' | 'L')) if matches!(self.stage, Stage::Number | Stage::Suffix) => {
-                self.stage = Stage::Suffix;
-                match self.suffix.width {
-                    Width::None => self.suffix.width = Width::Long,
-                    Width::Long => self.suffix.width = Width::LongLong,
-                    Width::LongLong => return Err(SimpleError(s, "expected maximum of two suffix width specifiers".to_string()).into_why_report()),
-                }
-            }
-
-            _ => return Err(SimpleError(self.last_location..self.last_location, "unhandled".to_string()).into_why_report()),
-        };
-
-        Ok(())
-    }
-}
-impl TokenStream {
+impl<'src> TokenStream<'src> {
     pub fn parse_pp_number(span: Range<usize>, number: String) -> PResult<Spanned<Token>> {
         let cl = ConstantLexer::new(span.clone(), &number);
 
@@ -159,18 +58,22 @@ impl TokenStream {
         Err(SimpleError(span, format!("no errors, just showing the state of things")).into_why_report())
     }
 }
-type Scope = HashSet<String>;
+type Scope = HashSet<Identifier>;
 #[derive(Debug)]
-pub struct Parser {
+pub struct Parser<'src> {
+    pub ctx: &'src mut Context,
     pub diagnostics: Vec<Report>,
-    token_stream: peekmore::PeekMoreIterator<TokenStream>,
+    token_stream: peekmore::PeekMoreIterator<IntoIter<PResult<Spanned<Token>>>>,
     last_location: Range<usize>,
     scopes: Vec<Scope>,
 }
-impl Parser {
-    pub fn new(tokens: Vec<Spanned<PreprocessingToken>>) -> Self {
+impl<'src> Parser<'src> {
+    pub fn new(ctx: &'src mut Context, tokens: Vec<Spanned<PreprocessingToken>>) -> Self {
+        let t = TokenStream { ctx, iter: tokens.into_iter() };
+        let i = t.collect::<Vec<_>>().into_iter();
         Parser {
-            token_stream: TokenStream { iter: tokens.into_iter() }.peekmore(),
+            ctx: ctx,
+            token_stream: i.peekmore(),
             last_location: 0..0,
             diagnostics: vec![],
             scopes: vec![],
@@ -257,7 +160,7 @@ impl Parser {
             }
         }
     }
-    pub fn get_declarator_name(&mut self, declarator: &Declarator) -> String {
+    pub fn get_declarator_name(&mut self, declarator: &Declarator) -> Identifier {
         match declarator {
             Declarator::Identifier(identifier) => identifier.clone(),
             Declarator::Pointer(_, declarator) => self.get_declarator_name(&declarator.value),
@@ -271,7 +174,7 @@ impl Parser {
         self.scopes.last_mut().unwrap().insert(declarator_name);
         dbg!(&self.scopes);
     }
-    pub fn is_typedef(&self, identifier: &str) -> bool {
+    pub fn is_typedef(&self, identifier: &Identifier) -> bool {
         for scope in &self.scopes {
             if scope.contains(identifier) {
                 return true;
@@ -279,7 +182,7 @@ impl Parser {
         }
         return false;
     }
-    pub fn expect_identifier(&mut self) -> PResult<Spanned<String>> {
+    pub fn expect_identifier(&mut self) -> PResult<Spanned<SymbolU32>> {
         match self.next_token()? {
             span!(span, Token::Identifier(identifier)) => Ok(Spanned::new(span, identifier)),
             stoken => Err(SimpleError(stoken.range, format!("expected identifier, found {:?}", stoken.value)).into_why_report()),
