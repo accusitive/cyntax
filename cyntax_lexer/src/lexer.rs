@@ -241,7 +241,9 @@ impl<'src> Lexer<'src> {
                 'e' | 'E' | 'p' | 'P' => {
                     expecting_exponent = true;
                     // e / E / p / P
-                    number.push(self.chars.next().unwrap().value);
+                    let c = self.chars.next().unwrap();
+                    end = c.range.end;
+                    number.push(c.value);
                 }
                 '+' | '-' if expecting_exponent => {
                     expecting_exponent = false;
@@ -259,15 +261,7 @@ impl<'src> Lexer<'src> {
                 nondigit!() => {
                     let nondigit = self.chars.next().unwrap();
                     end = nondigit.range.end;
-                    let identifier = self.lex_identifier(&nondigit);
-                    match identifier.value.chars().last().as_ref() {
-                        Some('e' | 'E' | 'p' | 'P') => {
-                            expecting_exponent = true;
-                        }
-                        _ => {}
-                    }
-
-                    number.push_str(&identifier.value);
+                    number.push(nondigit.value);
                 }
                 _ => break,
             }
@@ -280,14 +274,6 @@ impl<'src> Lexer<'src> {
 impl<'src> Lexer<'src> {
     pub fn fatal_diagnostic<E: cyntax_errors::Diagnostic>(&mut self, diagnostic: E) -> ! {
         panic!("{}", diagnostic.into_why_report().with(self.file_name, self.source))
-    }
-    pub fn closing_delimiter_for(c: char) -> char {
-        match c {
-            '(' => ')',
-            '{' => '}',
-            '[' => ']',
-            _ => unreachable!(),
-        }
     }
     pub fn ignore_preceeding_whitespace<T, F>(&mut self, mut f: F) -> T
     where

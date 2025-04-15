@@ -1,3 +1,3 @@
 int main(int left, int right) {
-    return 123;
+    float f = 090lu;
 }

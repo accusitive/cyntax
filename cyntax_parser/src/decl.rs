@@ -135,7 +135,7 @@ impl Parser {
         self.can_start_declarator()
     }
     pub fn can_start_declarator(&mut self) -> bool {
-        return matches!(self.token_stream.peek(), Some(span!(Token::Punctuator(Punctuator::Asterisk) | Token::Identifier(_) | Token::Punctuator(Punctuator::LeftParen))));
+        return matches!(self.peek_token(), Ok(span!(Token::Punctuator(Punctuator::Asterisk) | Token::Identifier(_) | Token::Punctuator(Punctuator::LeftParen))));
     }
     pub fn parse_init_declarator(&mut self) -> PResult<InitDeclarator> {
         let declarator = self.parse_declarator()?;

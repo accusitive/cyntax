@@ -66,7 +66,7 @@ fn main() {
     let source = include_str!("../test.c");
     let lexer = cyntax_lexer::lexer::Lexer::new("test.c", source);
     let tokens: Vec<_> = lexer.collect();
-    // dbg!(&tokens);
+    dbg!(&tokens);
     print_tokens(source, tokens.iter());
     println!();
     let pp = cyntax_preprocessor::Preprocessor::new("test.c", source, &tokens);

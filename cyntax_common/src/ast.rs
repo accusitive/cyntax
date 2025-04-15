@@ -13,7 +13,6 @@ pub enum PreprocessingToken {
     ControlLine(Vec<Spanned<PreprocessingToken>>),
     Whitespace(Whitespace),
     Punctuator(Punctuator),
-    /// closer being None is valid in control lines
     Delimited {
         opener: Spanned<char>,
         closer: Spanned<char>,
