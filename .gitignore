@@ -1,4 +1,5 @@
 cyntax_lexer/target
+cyntax_parser/target
 cyntax_errors/target
 cyntax_preprocessor/target
 cyntax_common/target
@@ -6,9 +7,3 @@ cyntax_common/target
 /target
 # file i use to test large debug outputs
 /a
-
-# Added by cargo
-#
-# already existing elements were commented out
-
-#/target

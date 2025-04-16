@@ -153,15 +153,7 @@ impl<'src> Parser<'src> {
             Ok(declarator)
         }
     }
-    /// (6.7.5) direct-declarator:
-    /// identifier
-    /// ( declarator )
-    /// direct-declarator [ type-qualifier-list opt assignment-expressionopt ]
-    /// direct-declarator [ static type-qualifier-listopt assignment-expression ]
-    /// direct-declarator [ type-qualifier-list static assignment-expression ]
-    /// direct-declarator [ type-qualifier-list opt * ]
-    /// direct-declarator ( parameter-type-list )
-    /// direct-declarator ( identifier-listopt )
+
     pub fn parse_direct_declarator(&mut self) -> PResult<Spanned<Declarator>> {
         dbg!();
         let base = match self.next_token()? {
@@ -181,6 +173,37 @@ impl<'src> Parser<'src> {
             let span = base.location.until(&rp.location);
 
             return Ok(Spanned::new(span, Declarator::Function(Box::new(base), params)));
+        }
+        // todo: Array staff
+        Ok(base)
+    }
+    pub fn parse_abstract_declarator(&mut self) -> PResult<Spanned<Declarator>> {
+        if self.can_start_pointer()? {
+            let ptr = self.parse_pointer()?;
+            let declarator = self.parse_direct_abstract_declarator()?;
+
+            Ok(Spanned::new(ptr.location.until(&declarator.location), Declarator::Pointer(ptr, Box::new(declarator))))
+        } else {
+            let declarator = self.parse_direct_abstract_declarator()?;
+            Ok(declarator)
+        }
+    }
+    pub fn parse_direct_abstract_declarator(&mut self) -> PResult<Spanned<Declarator>> {
+        let start = self.last_location.clone();
+
+        let mut base = if self.eat_if_next(Token::Punctuator(Punctuator::LeftParen))? {
+            Spanned::new(start.until(&self.last_location), Declarator::Parenthesized(Box::new(self.parse_abstract_declarator()?)))
+        } else {
+            Spanned::new(start.until(&self.last_location), Declarator::Abstract)
+        };
+
+        // Function stuff
+        if self.eat_if_next(Token::Punctuator(Punctuator::LeftParen))? {
+            let params = self.parse_parameter_type_list()?;
+            let rp = self.expect_token(Token::Punctuator(Punctuator::RightParen), "to end an abstract function declarator")?;
+            let span = start.until(&rp.location);
+
+            base = Spanned::new(span, Declarator::Function(Box::new(base), params));
         }
         // todo: Array staff
         Ok(base)
@@ -216,10 +239,7 @@ impl<'src> Parser<'src> {
         matches!(self.peek_token(), Ok(span!(Token::Punctuator(Punctuator::LeftBracket | Punctuator::Dot))))
     }
     pub fn can_start_initializer(&mut self) -> bool {
-        matches!(self.peek_token(), Ok(span!(Token::Punctuator(Punctuator::LeftBrace)))) || self.can_start_expression()
-    }
-    pub fn can_start_expression(&mut self) -> bool {
-        false
+        matches!(self.peek_token(), Ok(span!(Token::Punctuator(Punctuator::LeftBrace)))) || self.can_start_primary_expression()
     }
     pub fn parse_designation(&mut self) -> PResult<Vec<Designator>> {
         let mut designator_list = vec![];

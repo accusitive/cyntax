@@ -66,7 +66,7 @@ impl<'src> Parser<'src> {
         let t = TokenStream { ctx, iter: tokens.into_iter() };
         let i = t.collect::<Vec<_>>().into_iter();
         Parser {
-            ctx: ctx,
+            ctx,
             token_stream: i.peekmore(),
             last_location: Location::new(),
             diagnostics: vec![],
@@ -80,11 +80,7 @@ impl<'src> Parser<'src> {
                 Ok(token)
             }
             Some(Err(e)) => Err(e),
-            None => Err(SimpleError {
-                0: self.last_location.clone(),
-                1: "Unexpected EOF!".to_string(),
-            }
-            .into_codespan_report()),
+            None => Err(SimpleError(self.last_location.clone(), "Unexpected EOF!".to_string()).into_codespan_report()),
         }
     }
     pub fn peek_token(&mut self) -> PResult<&Spanned<Token>> {
@@ -94,12 +90,7 @@ impl<'src> Parser<'src> {
                 Ok(token)
             }
             Some(Err(e)) => Err(e.clone()),
-            None => Err(SimpleError {
-                0: self.last_location.clone(),
-                // 0: panic!(),
-                1: "Unexpected EOF while peeking!".to_string(),
-            }
-            .into_codespan_report()),
+            None => Err(SimpleError(self.last_location.clone(), "Unexpected EOF while peeking!".to_string()).into_codespan_report()),
         }
     }
     pub fn eat_if_next(&mut self, t: Token) -> PResult<bool> {
@@ -122,10 +113,12 @@ impl<'src> Parser<'src> {
         if self.peek_token()?.value == t { Ok(true) } else { Ok(false) }
     }
     pub fn expect_token(&mut self, t: Token, msg: &str) -> PResult<Spanned<Token>> {
+        let location = self.last_location.clone();
+
         match self.next_token() {
             Ok(stoken) if stoken.value == t => Ok(stoken),
             Ok(stoken) => Err(SimpleError(stoken.location, format!("expected {:?}, found {:?}: {msg}", t, stoken.value)).into_codespan_report()),
-            Err(e) => Err(SimpleError(self.last_location.clone(), format!("expected {:?}, found EOF", t)).into_codespan_report()),
+            Err(e) => Err(SimpleError(location, format!("expected {:?}, found EOF: {:?}", t, e)).into_codespan_report()),
         }
     }
     pub fn maybe_recover<T: Debug, F: FnMut(&mut Self) -> PResult<T>, E: FnMut() -> T>(&mut self, mut f: F, mut e: E, recovery_char: Token) -> T {
@@ -176,12 +169,7 @@ impl<'src> Parser<'src> {
         dbg!(&self.scopes);
     }
     pub fn is_typedef(&self, identifier: &Identifier) -> bool {
-        for scope in &self.scopes {
-            if scope.contains(identifier) {
-                return true;
-            }
-        }
-        return false;
+        self.scopes.iter().any(|scope| scope.contains(identifier))
     }
     pub fn expect_identifier(&mut self) -> PResult<Spanned<SymbolU32>> {
         match self.next_token()? {
@@ -354,17 +342,12 @@ impl<'src> Parser<'src> {
         //todo: abstract declarator
         let start = self.last_location.clone();
         let specifiers = self.parse_declaration_specifiers()?;
-        let declarator = if self.can_start_declarator() {
-            Some(self.parse_declarator()?)
-        } else {
-            None
-        };
+        let declarator = if self.can_start_declarator() { Some(self.parse_declarator()?) } else { None };
         if declarator.is_none() && !allow_abstract {
-            return Err(SimpleError(start, "this declaration does not allow abstract declarators".to_string()).into_codespan_report())
+            return Err(SimpleError(start, "this declaration does not allow abstract declarators".to_string()).into_codespan_report());
         }
 
         let range = start.as_fallback_for_vec(&specifiers);
         Ok(Spanned::new(range, ParameterDeclaration { specifiers, declarator: declarator }))
     }
-
 }

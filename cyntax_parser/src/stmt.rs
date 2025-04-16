@@ -1,5 +1,7 @@
 use cyntax_common::ast::{Keyword, Punctuator};
 use cyntax_common::spanned::Spanned;
+use cyntax_errors::Diagnostic;
+use cyntax_errors::errors::SimpleError;
 use cyntax_lexer::span;
 
 use crate::ast::{BlockItem, Statement, Token};
@@ -11,6 +13,8 @@ impl<'src> Parser<'src> {
         } else if self.can_start_compound_statement() {
             let compound_stmt = self.parse_compound_statement()?;
             return Ok(compound_stmt);
+        } else if self.can_start_primary_expression() {
+            return Ok(Statement::Expression(self.parse_full_expression()?));
         }
         // expression stmt
         else if self.can_start_selection_statement() {
@@ -32,7 +36,6 @@ impl<'src> Parser<'src> {
         while self.can_start_block_item() {
             let block_item = self.parse_block_item()?;
             block_items.push(block_item);
-            // self.expect_token(Token::Punctuator(Punctuator::Semicolon), "after each block item")?;
         }
         if self.eat_if_next(Token::Punctuator(Punctuator::RightBrace))? {
             Ok(Statement::Compound(block_items))
@@ -49,6 +52,7 @@ impl<'src> Parser<'src> {
     pub fn parse_block_item(&mut self) -> PResult<BlockItem> {
         if self.can_start_declaration_specifier() {
             let decl = self.parse_declaration()?;
+            self.expect_token(Token::Punctuator(Punctuator::Semicolon), "after each declaration")?;
             Ok(BlockItem::Declaration(decl))
         } else if self.can_start_statement() {
             let stmt = self.parse_statement()?;
@@ -70,29 +74,27 @@ impl<'src> Parser<'src> {
         let jump_stmt = match self.next_token()? {
             span!(Token::Keyword(Keyword::Goto)) => {
                 let identifier = self.expect_identifier()?;
-                Ok(Statement::Goto(identifier))
+                self.expect_token(Token::Punctuator(Punctuator::Semicolon), "after goto statement")?;
+                Statement::Goto(identifier)
             }
-            span!(Token::Keyword(Keyword::Continue)) => Ok(Statement::Continue),
-            span!(Token::Keyword(Keyword::Break)) => Ok(Statement::Break),
+            span!(Token::Keyword(Keyword::Continue)) => Statement::Continue,
+            span!(Token::Keyword(Keyword::Break)) => Statement::Break,
             span!(Token::Keyword(Keyword::Return)) => {
-                dbg!(&self.peek_token());
                 if matches!(self.peek_token(), Ok(span!(Token::Punctuator(Punctuator::Semicolon)))) {
-                    Ok(Statement::Return(None))
+                    Statement::Return(None)
+                } else if self.can_start_primary_expression() {
+                    let e = self.parse_full_expression()?;
+
+                    dbg!("returning", &e);
+                    Statement::Return(Some(e))
                 } else {
-                    Ok(self.maybe_recover(
-                        |this| {
-                            let e = this.parse_full_expression()?;
-                            Ok(Statement::Return(Some(e)))
-                        },
-                        || Statement::Error,
-                        Token::Punctuator(Punctuator::Semicolon),
-                    ))
+                    return Err(SimpleError(self.last_location.clone(), "asdasd".to_string()).into_codespan_report());
                 }
             }
             _ => unreachable!(),
         };
         self.expect_token(Token::Punctuator(Punctuator::Semicolon), "after jump statement   ")?;
 
-        jump_stmt
+        Ok(jump_stmt)
     }
 }

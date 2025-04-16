@@ -134,7 +134,7 @@ pub struct ParameterList {
 pub enum Statement {
     Labeled,
     Compound(Vec<BlockItem>),
-    Expression,
+    Expression(Expression),
     Selection,
     Iteration,
     Goto(Spanned<Identifier>),
@@ -168,8 +168,13 @@ pub enum Designator {
 pub enum Expression {
     Identifier(Identifier),
     IntConstant(IntConstant),
-    StringLiteral(SymbolU32)
+    StringLiteral(SymbolU32),
+    Parenthesized(Box<Self>),
+    BinOp(BinaryOperator, Box<Self>, Box<Self>),
+    Comma(),
+    Cast(TypeName, Box<Self>),
 }
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
     Keyword(Keyword),
@@ -178,4 +183,17 @@ pub enum Token {
     CharLiteral(SymbolU32),
     Punctuator(Punctuator),
     Constant(IntConstant),
+}
+#[derive(Debug)]
+pub enum BinaryOperator {
+    Add,
+    Subtract,
+    Mul,
+    Div,
+    Mod,
+}
+#[derive(Debug)]
+pub struct TypeName {
+    pub specifier_qualifiers: Vec<SpecifierQualifier>,
+    pub declarator: Spanned<Declarator>,
 }

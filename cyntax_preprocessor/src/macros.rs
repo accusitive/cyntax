@@ -29,7 +29,6 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                 dbg!(&parameters);
                 let mut is_variadic = false;
                 for idx in 0..parameters.len() {
-                    // let parameter = &parameters[idx];
                     macro_rules! p {
                         () => {
                             &parameters[idx]
