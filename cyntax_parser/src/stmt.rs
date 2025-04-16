@@ -27,13 +27,13 @@ impl<'src> Parser<'src> {
         return matches!(self.peek_token(), Ok(span!(Token::Punctuator(Punctuator::LeftBrace))));
     }
     pub fn parse_compound_statement(&mut self) -> PResult<Statement> {
-        self.expect_token(Token::Punctuator(Punctuator::LeftBrace))?;
+        self.expect_token(Token::Punctuator(Punctuator::LeftBrace), "to open compound statement")?;
         let mut block_items = vec![];
         while self.can_start_block_item() {
             let block_item = self.parse_block_item()?;
             block_items.push(block_item);
+            // self.expect_token(Token::Punctuator(Punctuator::Semicolon), "after each block item")?;
         }
-
         if self.eat_if_next(Token::Punctuator(Punctuator::RightBrace))? {
             Ok(Statement::Compound(block_items))
         } else {
@@ -81,7 +81,7 @@ impl<'src> Parser<'src> {
                 } else {
                     Ok(self.maybe_recover(
                         |this| {
-                            let e = this.parse_expression()?;
+                            let e = this.parse_full_expression()?;
                             Ok(Statement::Return(Some(e)))
                         },
                         || Statement::Error,
@@ -91,7 +91,7 @@ impl<'src> Parser<'src> {
             }
             _ => unreachable!(),
         };
-        self.expect_token(Token::Punctuator(Punctuator::Semicolon))?;
+        self.expect_token(Token::Punctuator(Punctuator::Semicolon), "after jump statement   ")?;
 
         jump_stmt
     }

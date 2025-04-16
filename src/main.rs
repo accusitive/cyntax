@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use codespan_reporting::files::SimpleFiles;
+use codespan_reporting::{files::SimpleFiles, term::termcolor::Ansi};
 use colored::{ColoredString, Colorize};
 use cyntax_common::{
     ast::{Keyword, PreprocessingToken, Whitespace},
@@ -104,11 +104,33 @@ fn main() {
     {
         println!("========================================================");
         print_tokens(&mut ctx, source, expanded.iter());
-        println!("========================================================");
+        println!("\n========================================================");
     }
 
     let mut parser = cyntax_parser::Parser::new(&mut ctx, expanded);
     let parse_result = parser.parse_translation_unit();
-    let tu = WithContext { context: &mut ctx }.unwrap_diagnostic(parse_result);
-    dbg!(&tu);
+    match parse_result {
+        Ok(tu) => {
+            dbg!(&tu);
+            let mut output_buffer = Vec::new();
+            let config = codespan_reporting::term::Config::default();
+            let mut ansi_writer = Ansi::new(&mut output_buffer);
+            for diag in &parser.diagnostics {
+                codespan_reporting::term::emit(&mut ansi_writer, &config, &ctx.files, &diag).unwrap();
+            }
+            println!("{}", String::from_utf8(output_buffer).unwrap());
+
+        }
+        Err(e) => {
+            let mut output_buffer = Vec::new();
+            let config = codespan_reporting::term::Config::default();
+            let mut ansi_writer = Ansi::new(&mut output_buffer);
+            for diag in &parser.diagnostics {
+                codespan_reporting::term::emit(&mut ansi_writer, &config, &ctx.files, &diag).unwrap();
+            }
+            codespan_reporting::term::emit(&mut ansi_writer, &config, &ctx.files, &e).unwrap();
+
+            println!("{}", String::from_utf8(output_buffer).unwrap());
+        }
+    }
 }

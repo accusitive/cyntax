@@ -113,9 +113,8 @@ pub struct Pointer {
 #[derive(Debug)]
 pub struct ParameterDeclaration {
     pub specifiers: Vec<Spanned<DeclarationSpecifier>>,
-    pub declarator: Spanned<Declarator>,
+    pub declarator: Option<Spanned<Declarator>>,
 }
-
 #[derive(Debug)]
 pub struct InitDeclarator {
     pub declarator: Spanned<Declarator>,
@@ -168,11 +167,13 @@ pub enum Designator {
 #[derive(Debug)]
 pub enum Expression {
     Identifier(Identifier),
+    IntConstant(IntConstant),
+    StringLiteral(SymbolU32)
 }
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
     Keyword(Keyword),
-    Identifier(SymbolU32),
+    Identifier(Identifier),
     StringLiteral(SymbolU32),
     CharLiteral(SymbolU32),
     Punctuator(Punctuator),

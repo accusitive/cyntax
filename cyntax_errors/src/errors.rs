@@ -176,3 +176,24 @@ impl Diagnostic for SimpleError {
         }]
     }
 }
+
+// pub struct ExpectedTokenError(pub Location, pub Option<String>);
+
+// impl Diagnostic for ExpectedTokenError{
+//     fn title<'a>(&self) -> &'a str {
+//         "expectec token"
+//     }
+
+//     fn severity(&self) -> DiagnosticSeverity {
+//         DiagnosticSeverity::Error
+//     }
+//     fn labels(&self) -> Vec<Label> {
+//         let mut labels = vec![];
+
+//         labels.push(Label{
+//             kind: crate::LabelKind::Primary,
+//             location: self.0.clone(),
+//             message: format!("expected "),
+//         });
+//     }
+// }

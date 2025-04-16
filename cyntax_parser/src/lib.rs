@@ -8,7 +8,7 @@ use cyntax_common::{
 use cyntax_errors::{Diagnostic, errors::SimpleError};
 use cyntax_lexer::span;
 use peekmore::PeekMore;
-use std::{collections::HashSet, str::FromStr, vec::IntoIter};
+use std::{collections::HashSet, fmt::Debug, str::FromStr, vec::IntoIter};
 
 #[macro_use]
 pub mod patterns;
@@ -96,7 +96,8 @@ impl<'src> Parser<'src> {
             Some(Err(e)) => Err(e.clone()),
             None => Err(SimpleError {
                 0: self.last_location.clone(),
-                1: "Unexpected EOF!".to_string(),
+                // 0: panic!(),
+                1: "Unexpected EOF while peeking!".to_string(),
             }
             .into_codespan_report()),
         }
@@ -120,14 +121,17 @@ impl<'src> Parser<'src> {
     pub fn peek_matches(&mut self, t: Token) -> PResult<bool> {
         if self.peek_token()?.value == t { Ok(true) } else { Ok(false) }
     }
-    pub fn expect_token(&mut self, t: Token) -> PResult<Spanned<Token>> {
-        match self.next_token()? {
-            stoken if stoken.value == t => Ok(stoken),
-            stoken => Err(SimpleError(stoken.location, format!("expected {:?}, found {:?}", t, stoken.value)).into_codespan_report()),
+    pub fn expect_token(&mut self, t: Token, msg: &str) -> PResult<Spanned<Token>> {
+        match self.next_token() {
+            Ok(stoken) if stoken.value == t => Ok(stoken),
+            Ok(stoken) => Err(SimpleError(stoken.location, format!("expected {:?}, found {:?}: {msg}", t, stoken.value)).into_codespan_report()),
+            Err(e) => Err(SimpleError(self.last_location.clone(), format!("expected {:?}, found EOF", t)).into_codespan_report()),
         }
     }
-    pub fn maybe_recover<T, F: FnMut(&mut Self) -> PResult<T>, E: FnMut() -> T>(&mut self, mut f: F, mut e: E, recovery_char: Token) -> T {
-        match f(self) {
+    pub fn maybe_recover<T: Debug, F: FnMut(&mut Self) -> PResult<T>, E: FnMut() -> T>(&mut self, mut f: F, mut e: E, recovery_char: Token) -> T {
+        let v = f(self);
+        dbg!(&v);
+        match v {
             Ok(value) => value,
             Err(err) => {
                 self.diagnostics.push(err);
@@ -148,6 +152,9 @@ impl<'src> Parser<'src> {
                 while let Ok(tok) = self.peek_token() {
                     if tok.value == recovery_char {
                         break;
+                    } else {
+                        self.next_token().unwrap();
+                        continue;
                     }
                 }
                 e()
@@ -201,7 +208,7 @@ impl<'src> Parser<'src> {
         if self.eat_if_next(Token::Punctuator(Punctuator::LeftBrace))? {
             let declarations = self.parse_struct_declaration_list()?;
 
-            self.expect_token(Token::Punctuator(Punctuator::RightBrace))?;
+            self.expect_token(Token::Punctuator(Punctuator::RightBrace), "to close struct type specifier")?;
             dbg!(&self.peek_token());
             Ok(ast::TypeSpecifier::Struct(StructSpecifier { identifier: name, declarations }))
         } else {
@@ -210,12 +217,17 @@ impl<'src> Parser<'src> {
     }
     pub fn parse_struct_declaration_list(&mut self) -> PResult<Vec<StructDeclaration>> {
         let mut struct_declarations = vec![];
-        while self.can_parse_type_qualifier() || self.can_start_declaration_specifier() {
+        // because i use recoverable parsing on the inside of this, its fine to not check the current token
+        while !matches!(self.peek_token(), Ok(span!(Token::Punctuator(Punctuator::RightBrace)))) {
             if let Some((specifier_qualifiers, declarators)) = self.maybe_recover(
                 |this| {
                     let specifier_qualifiers = this.parse_specifier_qualifier_list()?;
-                    let declarators = this.parse_struct_declarator_lsit()?;
-                    this.expect_token(Token::Punctuator(Punctuator::Semicolon))?;
+                    dbg!(&specifier_qualifiers);
+                    if !specifier_qualifiers.iter().any(|sq| matches!(sq, SpecifierQualifier::Specifier(_))) {
+                        return Err(SimpleError(this.last_location.clone(), "Struct declarations must have atleast one specifier".to_string()).into_codespan_report());
+                    }
+                    let declarators = this.parse_struct_declarator_list()?;
+                    this.expect_token(Token::Punctuator(Punctuator::Semicolon), "to end a struct declaration")?;
 
                     Ok(Some((specifier_qualifiers, declarators)))
                 },
@@ -223,9 +235,6 @@ impl<'src> Parser<'src> {
                 Token::Punctuator(Punctuator::Semicolon),
             ) {
                 struct_declarations.push(StructDeclaration { declarators, specifier_qualifiers });
-            } else {
-                dbg!(&self.peek_token());
-                // panic!("recovered but its still blown out");
             }
         }
 
@@ -254,11 +263,11 @@ impl<'src> Parser<'src> {
         }
         Ok(specifier_qualifiers)
     }
-    pub fn parse_struct_declarator_lsit(&mut self) -> PResult<Vec<StructDeclarator>> {
+    pub fn parse_struct_declarator_list(&mut self) -> PResult<Vec<StructDeclarator>> {
         let mut declarators = vec![];
         while self.can_start_declarator() || self.consider_comma(&declarators)? {
             if declarators.len() > 0 {
-                self.expect_token(Token::Punctuator(Punctuator::Comma))?;
+                self.expect_token(Token::Punctuator(Punctuator::Comma), "to seperate declarators in struct declaration")?;
             }
             let declarator = self.parse_declarator()?;
             declarators.push(StructDeclarator { declarator: Some(declarator) });
@@ -273,14 +282,14 @@ impl<'src> Parser<'src> {
         Ok(matches!(self.peek_token()?, span!(Token::Punctuator(Punctuator::Asterisk))))
     }
     pub fn parse_pointer(&mut self) -> PResult<Spanned<Pointer>> {
-        let asterist = self.expect_token(Token::Punctuator(Punctuator::Asterisk))?;
+        let asterisk = self.expect_token(Token::Punctuator(Punctuator::Asterisk), "for pointer")?;
         let type_qualifiers = self.parse_type_qualifiers()?;
 
         if self.can_start_pointer()? {
             let ptr = self.parse_pointer()?;
-            Ok(Spanned::new(asterist.location.until(&ptr.location), Pointer { type_qualifiers, ptr: Some(Box::new(ptr)) }))
+            Ok(Spanned::new(asterisk.location.until(&ptr.location), Pointer { type_qualifiers, ptr: Some(Box::new(ptr)) }))
         } else {
-            let range = asterist.location.as_fallback_for_vec(&type_qualifiers);
+            let range = asterisk.location.as_fallback_for_vec(&type_qualifiers);
             Ok(Spanned::new(range, Pointer { type_qualifiers, ptr: None }))
         }
     }
@@ -321,22 +330,41 @@ impl<'src> Parser<'src> {
 
         while self.can_parse_parameter() || self.consider_comma(&parameters)? {
             if parameters.len() >= 1 {
-                self.expect_token(Token::Punctuator(Punctuator::Comma))?;
+                self.expect_token(Token::Punctuator(Punctuator::Comma), "to seperate parameters")?;
             }
-            parameters.push(self.parse_parameter()?)
+            parameters.push(self.parse_parameter(false)?)
+        }
+        Ok(parameters)
+    }
+    pub fn parse_parameter_type_list(&mut self) -> PResult<Vec<Spanned<ParameterDeclaration>>> {
+        let mut parameters = vec![];
+
+        while self.can_parse_parameter() || self.consider_comma(&parameters)? {
+            if parameters.len() >= 1 {
+                self.expect_token(Token::Punctuator(Punctuator::Comma), "to seperate parameters")?;
+            }
+            parameters.push(self.parse_parameter(true)?)
         }
         Ok(parameters)
     }
     pub fn can_parse_parameter(&mut self) -> bool {
         return self.can_start_declaration_specifier();
     }
-    pub fn parse_parameter(&mut self) -> PResult<Spanned<ParameterDeclaration>> {
+    pub fn parse_parameter(&mut self, allow_abstract: bool) -> PResult<Spanned<ParameterDeclaration>> {
         //todo: abstract declarator
         let start = self.last_location.clone();
         let specifiers = self.parse_declaration_specifiers()?;
-        let declarator = self.parse_declarator()?;
+        let declarator = if self.can_start_declarator() {
+            Some(self.parse_declarator()?)
+        } else {
+            None
+        };
+        if declarator.is_none() && !allow_abstract {
+            return Err(SimpleError(start, "this declaration does not allow abstract declarators".to_string()).into_codespan_report())
+        }
+
         let range = start.as_fallback_for_vec(&specifiers);
-        // let range = specifiers.span_fallback(start).start..declarator.range.end;
-        Ok(Spanned::new(range, ParameterDeclaration { specifiers, declarator }))
+        Ok(Spanned::new(range, ParameterDeclaration { specifiers, declarator: declarator }))
     }
+
 }

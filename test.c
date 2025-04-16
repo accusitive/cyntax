@@ -1,1 +1,3 @@
-#include "./test2.h"
+int main(a, int b){
+
+}

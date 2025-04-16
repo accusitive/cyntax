@@ -26,13 +26,6 @@ impl<'src> Parser<'src> {
             }
         }
 
-        // dbg!(&self.peek_token());
-
-        // int a;
-        if self.eat_if_next(Token::Punctuator(Punctuator::Semicolon))? {
-            return Ok(Some(ExternalDeclaration::Declaration(Declaration { specifiers, init_declarators })));
-        }
-
         // int main() {}
         if init_declarators.len() == 1 && init_declarators[0].initializer.is_none() && self.peek_matches(Token::Punctuator(Punctuator::LeftBrace))? {
             let declarator = init_declarators.remove(0).declarator;
@@ -42,12 +35,11 @@ impl<'src> Parser<'src> {
         // int a,b() {}
         if init_declarators.len() > 1 && self.peek_matches(Token::Punctuator(Punctuator::LeftBrace))? {
             let range = self.last_location.as_fallback_for_vec(&specifiers).until(&self.last_location);
-            // let range = specifiers.span_fallback(self.last_location.clone()).start..self.last_location.end;
             return Err(SimpleError(range, "Declarations with more than 1 declarator cannot have a function body".to_string()).into_codespan_report());
         }
-
-        dbg!(&self.peek_token());
-        unreachable!()
+        // int a;
+        self.expect_token(Token::Punctuator(Punctuator::Semicolon), "to end declaration")?;
+        return Ok(Some(ExternalDeclaration::Declaration(Declaration { specifiers, init_declarators })));
     }
     pub fn parse_declaration(&mut self) -> PResult<Declaration> {
         let specifiers = self.parse_declaration_specifiers()?;
@@ -56,6 +48,7 @@ impl<'src> Parser<'src> {
 
         let init_declarators = self.parse_init_declarators()?;
 
+        // self.expect_token(Token::Punctuator(Punctuator::Semicolon), "after declaration")?;
         for specifier in &specifiers {
             if matches!(specifier, span!(DeclarationSpecifier::StorageClass(StorageClassSpecifier::Typedef))) {
                 is_typedef = true;
@@ -125,7 +118,7 @@ impl<'src> Parser<'src> {
         let mut init_declarators = vec![];
         while self.can_start_init_declarator() || self.consider_comma(&init_declarators)? {
             if init_declarators.len() >= 1 {
-                self.expect_token(Token::Punctuator(Punctuator::Comma))?;
+                self.expect_token(Token::Punctuator(Punctuator::Comma), "to seperate init declarators")?;
             }
             init_declarators.push(self.parse_init_declarator()?);
         }
@@ -160,21 +153,31 @@ impl<'src> Parser<'src> {
             Ok(declarator)
         }
     }
+    /// (6.7.5) direct-declarator:
+    /// identifier
+    /// ( declarator )
+    /// direct-declarator [ type-qualifier-list opt assignment-expressionopt ]
+    /// direct-declarator [ static type-qualifier-listopt assignment-expression ]
+    /// direct-declarator [ type-qualifier-list static assignment-expression ]
+    /// direct-declarator [ type-qualifier-list opt * ]
+    /// direct-declarator ( parameter-type-list )
+    /// direct-declarator ( identifier-listopt )
     pub fn parse_direct_declarator(&mut self) -> PResult<Spanned<Declarator>> {
+        dbg!();
         let base = match self.next_token()? {
             span!(span, Token::Identifier(identifier)) => Spanned::new(span, Declarator::Identifier(identifier.clone())),
             span!(span, Token::Punctuator(Punctuator::LeftParen)) => {
                 let d = self.parse_declarator()?;
-                self.expect_token(Token::Punctuator(Punctuator::RightParen))?;
+                self.expect_token(Token::Punctuator(Punctuator::RightParen), "to end a direct declarator")?;
                 Spanned::new(span, Declarator::Parenthesized(Box::new(d)))
             }
-            x => return Err(SimpleError(x.location, format!("Expected direct declarator, found {:#?}", x.value)).into_codespan_report()),
+            x => return Err(SimpleError(x.location, format!("Expected direct declarator, found {:?}", x.value)).into_codespan_report()),
         };
+        dbg!(&base, self.peek_token());
         // Function stuff
         if self.eat_if_next(Token::Punctuator(Punctuator::LeftParen))? {
-            let params = self.parse_parameter_list()?;
-            let rp = self.expect_token(Token::Punctuator(Punctuator::RightParen))?;
-
+            let params = self.parse_parameter_type_list()?;
+            let rp = self.expect_token(Token::Punctuator(Punctuator::RightParen), "to end a function declarator")?;
             let span = base.location.until(&rp.location);
 
             return Ok(Spanned::new(span, Declarator::Function(Box::new(base), params)));
@@ -188,7 +191,7 @@ impl<'src> Parser<'src> {
             let list = self.parse_initializer_list()?;
             // comma is optional
             let _ = self.eat_if_next(Token::Punctuator(Punctuator::Comma));
-            self.expect_token(Token::Punctuator(Punctuator::RightBrace))?;
+            self.expect_token(Token::Punctuator(Punctuator::RightBrace), "to end an initializer")?;
             Ok(Initializer::List(list))
         } else {
             self.next_token()?;
@@ -200,7 +203,7 @@ impl<'src> Parser<'src> {
 
         while self.can_start_designation() || self.can_start_initializer() || self.consider_comma(&initializers)? {
             if initializers.len() > 0 {
-                self.expect_token(Token::Punctuator(Punctuator::Comma))?;
+                self.expect_token(Token::Punctuator(Punctuator::Comma), "to sperate initializers")?;
             }
             let designation = self.parse_designation()?;
             let init = self.parse_initializer()?;
@@ -226,7 +229,7 @@ impl<'src> Parser<'src> {
         }
 
         if designator_list.len() > 0 {
-            self.expect_token(Token::Punctuator(Punctuator::Assign))?;
+            self.expect_token(Token::Punctuator(Punctuator::Assign), "for designation")?;
         }
         Ok(designator_list)
     }
@@ -241,5 +244,3 @@ impl<'src> Parser<'src> {
         }
     }
 }
-
-// int a  = {}
