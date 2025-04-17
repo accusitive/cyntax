@@ -24,48 +24,80 @@ macro_rules! map {
 
 fn main() {
     let int = Ty { generic_params: vec![], kind: TyKind::Int };
-    let val = Ty {
-        generic_params: vec![GenericParameter { c: 'T', constraint: None }],
+    let float = Ty { generic_params: vec![], kind: TyKind::Float };
+
+    let wraps_int = Ty {
+        generic_params: vec![GenericParameter {
+            c: 'T',
+            constraint: Some(Pattern::OneOf(vec![int.clone()])),
+        }],
         kind: TyKind::Generic(0),
     };
-    let result = Ty {
-        generic_params: vec![GenericParameter { c: 'T', constraint: None }, GenericParameter { c: 'E', constraint: None }],
-        kind: TyKind::Enum {
-            variants: map!("Some" => Ty::new(TyKind::Generic(0)), "None" => Ty::new(TyKind::Generic(1))),
-        },
-    };
-    let int_value_option = Ty {
-        generic_params: vec![],
-        kind: TyKind::Typename {
-            generic_arguments: vec![int.clone()],
-            ty: Box::new(val),
-        },
-    };
-    dbg!(&int_value_option);
-    dbg!(&int_value_option.insantiate(&vec![]));
 
-    let int_int_result = Ty {
-        generic_params: vec![],
-        kind: TyKind::Typename {
-            generic_arguments: vec![int.clone(), int.clone()],
-            ty: Box::new(result),
-        },
-    };
-    let iir_concrete = int_int_result.insantiate(&vec![]);
-    dbg!(&int_int_result, &iir_concrete);
-    println!("type iir = {}", int_int_result);
-    println!("type iir_concrete = {}", iir_concrete);
+    println!("{}", wraps_int.insantiate(&vec![float.clone()]));
+    // let int = Ty { generic_params: vec![], kind: TyKind::Int };
+    // let val = Ty {
+    //     generic_params: vec![GenericParameter { c: 'T', constraint: None }],
+    //     kind: TyKind::Generic(0),
+    // };
+    // let result = Ty {
+    //     generic_params: vec![GenericParameter { c: 'T', constraint: None }, GenericParameter { c: 'E', constraint: None }],
+    //     kind: TyKind::Enum {
+    //         variants: map!("Some" => Ty::new(TyKind::Generic(0)), "None" => Ty::new(TyKind::Generic(1))),
+    //     },
+    // };
+    // let int_value_option = Ty {
+    //     generic_params: vec![],
+    //     kind: TyKind::Typename {
+    //         generic_arguments: vec![int.clone()],
+    //         ty: Box::new(val),
+    //     },
+    // };
+    // dbg!(&int_value_option);
+    // dbg!(&int_value_option.insantiate(&vec![]));
+
+    // let int_int_result = Ty {
+    //     generic_params: vec![],
+    //     kind: TyKind::Typename {
+    //         generic_arguments: vec![int.clone(), int.clone()],
+    //         ty: Box::new(result),
+    //     },
+    // };
+    // let iir_concrete = int_int_result.insantiate(&vec![]);
+    // dbg!(&int_int_result, &iir_concrete);
+    // println!("type iir = {}", int_int_result);
+    // println!("type iir_concrete = {}", iir_concrete);
 }
 impl Ty {
     pub fn new(kind: TyKind) -> Self {
         Self { generic_params: vec![], kind }
     }
+    fn compatible(&self, param: &GenericParameter, arg: &Ty) -> bool {
+        if let Some(constraint) = &param.constraint {
+            match constraint {
+                Pattern::OneOf(items) => items.contains(&arg),
+            }
+        } else {
+            true
+        }
+    }
     pub fn check_constraints(&self, generic_arguments: &Vec<Ty>) {
-        
+        match &self.kind {
+            TyKind::Int => todo!(),
+            TyKind::Float => todo!(),
+            TyKind::Generic(index) => {
+                assert!(self.compatible(&self.generic_params[*index], &generic_arguments[*index]));
+            }
+            TyKind::Enum { variants } => todo!(),
+            TyKind::Typename { generic_arguments, ty } => {
+                todo!()
+            }
+        }
     }
     pub fn insantiate(&self, generic_arguments: &Vec<Ty>) -> Self {
+        self.check_constraints(generic_arguments);
         match &self.kind {
-            TyKind::Int => self.clone(),
+            TyKind::Int | TyKind::Float => self.clone(),
             TyKind::Generic(generic_index) => {
                 let arg = generic_arguments[*generic_index].clone();
                 arg
@@ -81,28 +113,25 @@ impl Ty {
         }
     }
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct Ty {
     generic_params: Vec<GenericParameter>,
     kind: TyKind,
+    // predicate: ()
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct GenericParameter {
     c: char,
     constraint: Option<Pattern>,
 }
-impl GenericParameter {
-    pub fn compatible(&self, arg: &Ty) -> bool {
-        if let Some(constraint) = &self.constraint { false } else { true }
-    }
-}
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum Pattern {
     OneOf(Vec<Ty>),
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum TyKind {
     Int,
+    Float,
     Generic(usize),
     Enum { variants: HashMap<String, Ty> },
     Typename { generic_arguments: Vec<Ty>, ty: Box<Ty> },
@@ -112,6 +141,8 @@ impl Display for Ty {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.kind {
             TyKind::Int => write!(f, "int"),
+            TyKind::Float => write!(f, "float"),
+
             TyKind::Generic(g) => write!(f, "{}", g),
             TyKind::Enum { variants } => {
                 write!(f, "(")?;
