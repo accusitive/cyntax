@@ -30,3 +30,9 @@ pub trait HasContext {
 pub trait HasMutContext {
     fn ctx_mut(&mut self) -> &mut Context;
 }
+
+impl HasContext for Context {
+    fn ctx(&self) -> &Context {
+        self
+    }
+}

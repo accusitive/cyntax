@@ -57,26 +57,6 @@ fn print_tokens<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>>(ctx
         }
     }
 }
-// fn debug_spans(source: &str, tokens: &[Spanned<PreprocessingToken>]) {
-//     for token in tokens {
-//         let diag = Diagnostic::new(codespan_reporting::diagnostic::Severity::Note).with_label(Label {
-//             file_id: 0,
-//             message: format!("debug: token {:?}", token),
-//             range: token.range.clone(),
-//             style: codespan_reporting::diagnostic::LabelStyle::Primary,
-//         });
-
-//         println!("{}", cyntax_errors::write_codespan_report(diag, "test.c", source));
-//     }
-// }
-struct WithContext<'src> {
-    context: &'src mut Context,
-}
-impl<'src> HasContext for WithContext<'src> {
-    fn ctx(&self) -> &Context {
-        &self.context
-    }
-}
 fn main() {
     let mut files = SimpleFiles::new();
     let source = include_str!("../test.c");
@@ -100,10 +80,10 @@ fn main() {
     let pre_processor = cyntax_preprocessor::Preprocessor::new(&mut ctx, &tokens);
     let pre_processor_result = pre_processor.expand();
 
-    let expanded = WithContext { context: &mut ctx }.unwrap_diagnostic(pre_processor_result);
+    let expanded = ctx.unwrap_diagnostic(pre_processor_result);
     {
         println!("========================================================");
-        print_tokens(&mut ctx, source, expanded.iter());
+        print_tokens(&ctx, source, expanded.iter());
         println!("\n========================================================");
     }
 
@@ -116,7 +96,7 @@ fn main() {
             let config = codespan_reporting::term::Config::default();
             let mut ansi_writer = Ansi::new(&mut output_buffer);
             for diag in &parser.diagnostics {
-                codespan_reporting::term::emit(&mut ansi_writer, &config, &ctx.files, &diag).unwrap();
+                codespan_reporting::term::emit(&mut ansi_writer, &config, &ctx.files, diag).unwrap();
             }
             println!("{}", String::from_utf8(output_buffer).unwrap());
         }
@@ -125,7 +105,7 @@ fn main() {
             let config = codespan_reporting::term::Config::default();
             let mut ansi_writer = Ansi::new(&mut output_buffer);
             for diag in &parser.diagnostics {
-                codespan_reporting::term::emit(&mut ansi_writer, &config, &ctx.files, &diag).unwrap();
+                codespan_reporting::term::emit(&mut ansi_writer, &config, &ctx.files, diag).unwrap();
             }
             codespan_reporting::term::emit(&mut ansi_writer, &config, &ctx.files, &e).unwrap();
 
