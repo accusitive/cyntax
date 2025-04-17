@@ -46,6 +46,7 @@ pub enum Whitespace {
     /// \t
     Tab,
 }
+// todo: bikeshed these variant names. i hate some of them
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Punctuator {

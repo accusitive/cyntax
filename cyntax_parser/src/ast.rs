@@ -170,7 +170,9 @@ pub enum Expression {
     IntConstant(IntConstant),
     StringLiteral(SymbolU32),
     Parenthesized(Box<Self>),
-    BinOp(BinaryOperator, Box<Self>, Box<Self>),
+    BinOp(InfixOperator, Box<Self>, Box<Self>),
+    UnaryOp(PrefixOperator, Box<Self>),
+    PostfixOp(PostfixOperator, Box<Self>),
     Comma(),
     Cast(TypeName, Box<Self>),
 }
@@ -185,13 +187,67 @@ pub enum Token {
     Constant(IntConstant),
 }
 #[derive(Debug)]
-pub enum BinaryOperator {
+pub enum Operator {
+    Prefix(PrefixOperator),
+    Infix(InfixOperator),
+    Postfix(PostfixOperator)
+}
+#[derive(Debug)]
+pub enum PrefixOperator {
+    Plus,
+    Minus,
+
+    LogicalNot,
+
+    /// ~
+    Invert,
+
+    SizeOf,
+    Cast
+}
+#[derive(Debug)]
+pub enum InfixOperator {
     Add,
     Subtract,
-    Mul,
-    Div,
-    Mod,
+    Multiply,
+    Divide,
+    Modulo,
+
+    Less,
+    Greater,
+    LessEqual,
+    GreaterEqual,
+    Equal,
+    NotEqual,
+
+    LogicalAnd,
+    LogicalOr,
+
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
+    BitwiseShiftLeft,
+    BitwiseShiftRight,
+
+    Assign,
+    AddAssign,
+    SubtractAssign,
+    MultiplyAssign,
+    DivideAssign,
+    ModuloAssign,
+    BitwiseAndAssign,
+    BitwiseOrAssign,
+    BitwiseXorAssign,
+    BtwiseShiftRightAssign,
+    BtwiseShiftLeftAssign,
+
 }
+#[derive(Debug)]
+pub enum PostfixOperator {
+    Increment,
+    Decrement
+}
+
 #[derive(Debug)]
 pub struct TypeName {
     pub specifier_qualifiers: Vec<SpecifierQualifier>,

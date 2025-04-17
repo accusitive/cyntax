@@ -146,6 +146,14 @@ impl<'src> Iterator for Lexer<'src> {
                 self.chars.next().unwrap();
                 Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::HashHash)))
             }
+            span!(range, '+') if matches!(self.chars.peek(), Some(span!('+'))) => {
+                self.chars.next().unwrap();
+                Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::Increment)))
+            }
+            span!(range, '-') if matches!(self.chars.peek(), Some(span!('-'))) => {
+                self.chars.next().unwrap();
+                Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::Decrement)))
+            }
             span!(location, '.') if matches!(self.chars.peek_nth(0), Some(span!('.'))) && matches!(self.chars.peek_nth(1), Some(span!('.'))) => {
                 self.chars.next().unwrap();
                 let last_dot = self.chars.next().unwrap();
