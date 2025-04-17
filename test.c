@@ -1,3 +1,3 @@
 int main() {
-    return -(float) -(int) 1++;
+    return (5);
 }

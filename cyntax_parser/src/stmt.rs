@@ -88,7 +88,7 @@ impl<'src> Parser<'src> {
                     dbg!("returning", &e);
                     Statement::Return(Some(e))
                 } else {
-                    return Err(SimpleError(self.last_location.clone(), "asdasd".to_string()).into_codespan_report());
+                    return Err(SimpleError(self.last_location.clone(), "cannot start primary expression".to_string()).into_codespan_report());
                 }
             }
             _ => unreachable!(),

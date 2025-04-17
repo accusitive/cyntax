@@ -34,6 +34,8 @@ impl<'src> Parser<'src> {
     pub fn as_infix_operator(token: &Spanned<Token>) -> Option<InfixOperator> {
         match token {
             span!(Token::Punctuator(Punctuator::Plus)) => Some(InfixOperator::Add),
+            span!(Token::Punctuator(Punctuator::Minus)) => Some(InfixOperator::Subtract),
+
             span!(Token::Punctuator(Punctuator::Asterisk)) => Some(InfixOperator::Multiply),
             _ => None,
         }
@@ -59,13 +61,15 @@ impl<'src> Parser<'src> {
     /// THANKS!!! https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
     pub fn parse_expression_bp(&mut self, minimum_binding_power: u8) -> PResult<Expression> {
         let is_prefix_operator = Self::as_prefix_operator(self.peek_token()?);
-
+        
         // if let guards would be cool here
         let mut lhs = if let Some(prefix_operator) = is_prefix_operator {
             let ((), right_binding_power) = Self::prefix_binding_power(&prefix_operator);
             self.next_token()?; // bump prefix operator
+            let can_start_type_name = self.can_start_typename();
+            dbg!(&can_start_type_name, &self.peek_token());
 
-            let expression = if let PrefixOperator::Cast = prefix_operator {
+            let expression = if let (PrefixOperator::Cast, true) = (&prefix_operator, can_start_type_name) {
                 let type_name = self.parse_typename()?;
 
                 self.expect_token(Token::Punctuator(Punctuator::RightParen), "to close cast expression")?;
