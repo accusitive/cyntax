@@ -1,4 +1,6 @@
-use std::{collections::HashMap, fmt::Display};
+use std::{collections::HashMap, fmt::Display, ops::Range};
+
+use chumsky::{Parser, prelude::just, text};
 
 // use std::collections::HashMap;
 macro_rules! map {
@@ -21,52 +23,33 @@ macro_rules! map {
 // type NonZero<N: Int | Float> = N where match N { Int(n) if n > 0, Float(f) if  f > 0.0}
 // N is considered "constrained" to be Int|Float
 // Type::Pattern(Type::Generic(0), Pattern::Match([int_arm ,float_arm ]))
+struct TranslationUnit {
+    items: Vec<TypeDefinition>,
+}
+pub struct TypeDefinition {
+    identifier: String,
+}
+enum Token {}
+type Span = Range<usize>;
 
+type Spanned<T> = (T, Span);
+
+fn lex<'a>() -> impl Parser<'a, str, Vec<Spanned<Token>>> {}
+fn parse<'a>() -> impl Parser<'a, &'a str, Vec> {}
 fn main() {
-    let int = Ty { generic_params: vec![], kind: TyKind::Int };
-    let float = Ty { generic_params: vec![], kind: TyKind::Float };
 
-    let wraps_int = Ty {
-        generic_params: vec![GenericParameter {
-            c: 'T',
-            constraint: Some(Pattern::OneOf(vec![int.clone()])),
-        }],
-        kind: TyKind::Generic(0),
-    };
-
-    println!("{}", wraps_int.insantiate(&vec![float.clone()]));
     // let int = Ty { generic_params: vec![], kind: TyKind::Int };
-    // let val = Ty {
-    //     generic_params: vec![GenericParameter { c: 'T', constraint: None }],
+    // let float = Ty { generic_params: vec![], kind: TyKind::Float };
+
+    // let wraps_int = Ty {
+    //     generic_params: vec![GenericParameter {
+    //         c: 'T',
+    //         constraint: Some(Pattern::OneOf(vec![int.clone()])),
+    //     }],
     //     kind: TyKind::Generic(0),
     // };
-    // let result = Ty {
-    //     generic_params: vec![GenericParameter { c: 'T', constraint: None }, GenericParameter { c: 'E', constraint: None }],
-    //     kind: TyKind::Enum {
-    //         variants: map!("Some" => Ty::new(TyKind::Generic(0)), "None" => Ty::new(TyKind::Generic(1))),
-    //     },
-    // };
-    // let int_value_option = Ty {
-    //     generic_params: vec![],
-    //     kind: TyKind::Typename {
-    //         generic_arguments: vec![int.clone()],
-    //         ty: Box::new(val),
-    //     },
-    // };
-    // dbg!(&int_value_option);
-    // dbg!(&int_value_option.insantiate(&vec![]));
 
-    // let int_int_result = Ty {
-    //     generic_params: vec![],
-    //     kind: TyKind::Typename {
-    //         generic_arguments: vec![int.clone(), int.clone()],
-    //         ty: Box::new(result),
-    //     },
-    // };
-    // let iir_concrete = int_int_result.insantiate(&vec![]);
-    // dbg!(&int_int_result, &iir_concrete);
-    // println!("type iir = {}", int_int_result);
-    // println!("type iir_concrete = {}", iir_concrete);
+    // println!("{}", wraps_int.insantiate(&vec![float.clone()]));
 }
 impl Ty {
     pub fn new(kind: TyKind) -> Self {
