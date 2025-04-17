@@ -3,7 +3,7 @@ cyntax_parser/target
 cyntax_errors/target
 cyntax_preprocessor/target
 cyntax_common/target
-
+sweet_scratch/target
 /target
 # file i use to test large debug outputs
 /a
