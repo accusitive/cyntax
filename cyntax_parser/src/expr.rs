@@ -8,11 +8,11 @@ use cyntax_lexer::span;
 impl<'src> Parser<'src> {
     fn prefix_binding_power(operator: &PrefixOperator) -> ((), u8) {
         match operator {
+            PrefixOperator::Cast => ((), 6),
             PrefixOperator::Plus | PrefixOperator::Minus => ((), 5),
             PrefixOperator::LogicalNot => todo!(),
             PrefixOperator::Invert => todo!(),
             PrefixOperator::SizeOf => todo!(),
-            PrefixOperator::Cast => todo!(),
         }
     }
     fn infix_binding_power(operator: &InfixOperator) -> Option<(u8, u8)> {
@@ -42,6 +42,7 @@ impl<'src> Parser<'src> {
         match token {
             span!(Token::Punctuator(Punctuator::Minus)) => Some(PrefixOperator::Minus),
             span!(Token::Punctuator(Punctuator::Plus)) => Some(PrefixOperator::Plus),
+            span!(Token::Punctuator(Punctuator::LeftParen)) => Some(PrefixOperator::Cast),
             _ => None,
         }
     }
@@ -62,7 +63,17 @@ impl<'src> Parser<'src> {
         let mut lhs = if let Some(prefix_operator) = is_prefix_operator {
             let ((), right_binding_power) = Self::prefix_binding_power(&prefix_operator);
             self.next_token()?; // bump prefix operator
-            let expression = self.parse_expression_bp(right_binding_power)?;
+            let expression = if let PrefixOperator::Cast = prefix_operator {
+                // implement here?
+                let type_name = self.parse_typename()?;
+                self.expect_token(Token::Punctuator(Punctuator::RightParen), "to close cast expression")?;
+                let expr = self.parse_expression_bp(right_binding_power)?;
+                dbg!(&expr);
+                Expression::Cast(type_name, Box::new(expr))
+            } else {
+                self.parse_expression_bp(right_binding_power)?
+            };
+
             Expression::UnaryOp(prefix_operator, Box::new(expression))
         } else {
             match self.next_token()? {
@@ -74,12 +85,6 @@ impl<'src> Parser<'src> {
                     self.expect_token(Token::Punctuator(Punctuator::RightParen), "to close expression")?;
                     Expression::Parenthesized(Box::new(expr))
                 }
-                // Prefix operators
-                // span!(Token::Punctuator(Punctuator::LeftParen)) => {
-                //     let ((), right_binding_power) = Self::prefix_binding_power(PrefixOperator::Cast);
-                //     let typename = self.parse_typename()?;
-                //     self.expect_token(Token::Punctuator(Punctuator::RightParen), "to close cast expression")
-                // }
                 s => unreachable!("{:#?}", s),
             }
         };
