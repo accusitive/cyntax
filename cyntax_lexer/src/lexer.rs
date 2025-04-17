@@ -301,11 +301,11 @@ impl<'src> Lexer<'src> {
 }
 impl<'a> HasContext for Lexer<'a> {
     fn ctx(&self) -> &Context {
-        &self.ctx
+        self.ctx
     }
 }
 impl<'a> HasMutContext for Lexer<'a> {
     fn ctx_mut(&mut self) -> &mut Context {
-        &mut self.ctx
+        self.ctx
     }
 }

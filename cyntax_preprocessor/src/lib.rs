@@ -22,7 +22,7 @@ pub struct Preprocessor<'src> {
 }
 impl<'src> HasContext for Preprocessor<'src> {
     fn ctx(&self) -> &Context {
-        &self.ctx
+        self.ctx
     }
 }
 impl<'src> Preprocessor<'src> {
