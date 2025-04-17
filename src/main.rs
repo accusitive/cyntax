@@ -119,7 +119,6 @@ fn main() {
                 codespan_reporting::term::emit(&mut ansi_writer, &config, &ctx.files, &diag).unwrap();
             }
             println!("{}", String::from_utf8(output_buffer).unwrap());
-
         }
         Err(e) => {
             let mut output_buffer = Vec::new();

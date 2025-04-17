@@ -16,11 +16,11 @@ impl Context {
         self.files.get(self.current_file).unwrap()
     }
     /// Resolve an interned string
-    pub fn res(&self, sym: SymbolU32) -> &str{
+    pub fn res(&self, sym: SymbolU32) -> &str {
         self.strings.resolve(sym).expect("failed to resolve interned string")
     }
     /// Interns a string
-    pub fn int<S: AsRef<str>>(&mut self, s: S) -> SymbolU32{
+    pub fn int<S: AsRef<str>>(&mut self, s: S) -> SymbolU32 {
         self.strings.get_or_intern(s)
     }
 }

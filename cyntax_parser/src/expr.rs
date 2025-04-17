@@ -56,6 +56,7 @@ impl<'src> Parser<'src> {
     pub fn parse_full_expression(&mut self) -> PResult<Expression> {
         self.parse_expression_bp(0)
     }
+    /// THANKS!!! https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
     pub fn parse_expression_bp(&mut self, minimum_binding_power: u8) -> PResult<Expression> {
         let is_prefix_operator = Self::as_prefix_operator(self.peek_token()?);
 
@@ -63,18 +64,19 @@ impl<'src> Parser<'src> {
         let mut lhs = if let Some(prefix_operator) = is_prefix_operator {
             let ((), right_binding_power) = Self::prefix_binding_power(&prefix_operator);
             self.next_token()?; // bump prefix operator
+
             let expression = if let PrefixOperator::Cast = prefix_operator {
-                // implement here?
                 let type_name = self.parse_typename()?;
+
                 self.expect_token(Token::Punctuator(Punctuator::RightParen), "to close cast expression")?;
                 let expr = self.parse_expression_bp(right_binding_power)?;
-                dbg!(&expr);
                 Expression::Cast(type_name, Box::new(expr))
             } else {
-                self.parse_expression_bp(right_binding_power)?
+                let expression = self.parse_expression_bp(right_binding_power)?;
+                Expression::UnaryOp(prefix_operator, Box::new(expression))
             };
 
-            Expression::UnaryOp(prefix_operator, Box::new(expression))
+            expression
         } else {
             match self.next_token()? {
                 span!(Token::Identifier(identifier)) => Expression::Identifier(identifier),

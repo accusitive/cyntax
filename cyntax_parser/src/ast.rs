@@ -190,7 +190,7 @@ pub enum Token {
 pub enum Operator {
     Prefix(PrefixOperator),
     Infix(InfixOperator),
-    Postfix(PostfixOperator)
+    Postfix(PostfixOperator),
 }
 #[derive(Debug)]
 pub enum PrefixOperator {
@@ -203,7 +203,7 @@ pub enum PrefixOperator {
     Invert,
 
     SizeOf,
-    Cast
+    Cast,
 }
 #[derive(Debug)]
 pub enum InfixOperator {
@@ -240,12 +240,11 @@ pub enum InfixOperator {
     BitwiseXorAssign,
     BtwiseShiftRightAssign,
     BtwiseShiftLeftAssign,
-
 }
 #[derive(Debug)]
 pub enum PostfixOperator {
     Increment,
-    Decrement
+    Decrement,
 }
 
 #[derive(Debug)]
