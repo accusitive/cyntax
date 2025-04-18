@@ -28,6 +28,12 @@ impl Location {
 
         first.until(&last)
     }
+    pub fn into_spanned<T>(self, value: T) -> Spanned<T> {
+        Spanned { value, location: self }
+    }
+    pub fn to_spanned<T>(&self, value: T) -> Spanned<T> {
+        Spanned { value, location: self.clone() }
+    }
 }
 
 impl<T> Spanned<T> {

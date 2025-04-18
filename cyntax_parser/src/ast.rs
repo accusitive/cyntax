@@ -134,14 +134,14 @@ pub struct ParameterList {
 pub enum Statement {
     Labeled,
     Compound(Vec<BlockItem>),
-    Expression(Expression),
+    Expression(Spanned<Expression>),
     Selection,
     Iteration,
     Goto(Spanned<Identifier>),
     Continue,
     Break,
     Error,
-    Return(Option<Expression>),
+    Return(Option<Spanned<Expression>>),
 }
 #[derive(Debug)]
 pub enum BlockItem {
@@ -150,7 +150,7 @@ pub enum BlockItem {
 }
 #[derive(Debug)]
 pub enum Initializer {
-    Assignemnt,
+    Assignemnt(Spanned<Expression>),
     List(Vec<DesignatedIntiializer>),
 }
 #[derive(Debug)]
@@ -166,15 +166,14 @@ pub enum Designator {
 }
 #[derive(Debug)]
 pub enum Expression {
-    Identifier(Identifier),
-    IntConstant(IntConstant),
-    StringLiteral(SymbolU32),
-    Parenthesized(Box<Self>),
-    BinOp(InfixOperator, Box<Self>, Box<Self>),
-    UnaryOp(PrefixOperator, Box<Self>),
-    PostfixOp(PostfixOperator, Box<Self>),
-    Comma(),
-    Cast(TypeName, Box<Self>),
+    Identifier(Spanned<Identifier>),
+    IntConstant(Spanned<IntConstant>),
+    StringLiteral(Spanned<SymbolU32>),
+    Parenthesized(Box<Spanned<Self>>),
+    BinOp(Spanned<InfixOperator>, Box<Spanned<Self>>, Box<Spanned<Self>>),
+    UnaryOp(Spanned<PrefixOperator>, Box<Spanned<Self>>),
+    PostfixOp(Spanned<PostfixOperator>, Box<Spanned<Self>>),
+    Cast(Spanned<TypeName>, Box<Spanned<Self>>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -203,7 +202,7 @@ pub enum PrefixOperator {
     Invert,
 
     SizeOf,
-    Cast,
+    CastOrParen,
 }
 #[derive(Debug)]
 pub enum InfixOperator {

@@ -8,7 +8,7 @@ use cyntax_lexer::span;
 impl<'src> Parser<'src> {
     fn prefix_binding_power(operator: &PrefixOperator) -> ((), u8) {
         match operator {
-            PrefixOperator::Cast => ((), 6),
+            PrefixOperator::CastOrParen => ((), 6),
             PrefixOperator::Plus | PrefixOperator::Minus => ((), 5),
             PrefixOperator::LogicalNot => todo!(),
             PrefixOperator::Invert => todo!(),
@@ -44,7 +44,7 @@ impl<'src> Parser<'src> {
         match token {
             span!(Token::Punctuator(Punctuator::Minus)) => Some(PrefixOperator::Minus),
             span!(Token::Punctuator(Punctuator::Plus)) => Some(PrefixOperator::Plus),
-            span!(Token::Punctuator(Punctuator::LeftParen)) => Some(PrefixOperator::Cast),
+            span!(Token::Punctuator(Punctuator::LeftParen)) => Some(PrefixOperator::CastOrParen),
             _ => None,
         }
     }
@@ -55,54 +55,50 @@ impl<'src> Parser<'src> {
             _ => None,
         }
     }
-    pub fn parse_full_expression(&mut self) -> PResult<Expression> {
+    pub fn parse_full_expression(&mut self) -> PResult<Spanned<Expression>> {
         self.parse_expression_bp(0)
     }
     /// THANKS!!! https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
-    pub fn parse_expression_bp(&mut self, minimum_binding_power: u8) -> PResult<Expression> {
+    pub fn parse_expression_bp(&mut self, minimum_binding_power: u8) -> PResult<Spanned<Expression>> {
         let as_prefix_operator = Self::as_prefix_operator(self.peek_token()?);
 
-        // if let guards would be cool here
         let mut lhs = if let Some(prefix_operator) = as_prefix_operator {
             let ((), right_binding_power) = Self::prefix_binding_power(&prefix_operator);
-            self.next_token()?; // bump prefix operator
+
+            let span!(prefix_op_span, _) = self.next_token()?; // bump prefix operator
+
             let can_start_type_name = self.can_start_typename();
             dbg!(&can_start_type_name, &self.peek_token());
 
             let expression = match (&prefix_operator, can_start_type_name) {
-                (PrefixOperator::Cast, true) => {
+                (PrefixOperator::CastOrParen, true) => {
                     let type_name = self.parse_typename()?;
                     self.expect_token(Token::Punctuator(Punctuator::RightParen), "to close cast expression")?;
                     let expr = self.parse_expression_bp(right_binding_power)?;
-                    Expression::Cast(type_name, Box::new(expr))
+                    type_name.location.until(&expr.location).into_spanned(Expression::Cast(type_name, Box::new(expr)))
                 }
-                (PrefixOperator::Cast, false) => {
+                (PrefixOperator::CastOrParen, false) => {
                     let expr = self.parse_expression_bp(right_binding_power)?;
                     self.expect_token(Token::Punctuator(Punctuator::RightParen), "to close paren expression")?;
 
                     expr
-                    // Expression::Parenthesized(Box::new(expr))
                 }
                 _ => {
                     let expression = self.parse_expression_bp(right_binding_power)?;
-                    Expression::UnaryOp(prefix_operator, Box::new(expression))
+                    prefix_op_span.until(&expression.location).into_spanned(Expression::UnaryOp(Spanned::new(prefix_op_span.clone(), prefix_operator), Box::new(expression)))
                 }
             };
 
             expression
         } else {
             match self.next_token()? {
-                span!(Token::Identifier(identifier)) => Expression::Identifier(identifier),
-                span!(Token::Constant(iconst)) => Expression::IntConstant(iconst),
-                span!(Token::StringLiteral(iconst)) => Expression::StringLiteral(iconst),
-                // span!(Token::Punctuator(Punctuator::LeftParen)) if !self.can_start_typename() => {
-                //     let expr = self.parse_expression_bp(0)?;
-                //     self.expect_token(Token::Punctuator(Punctuator::RightParen), "to close expression")?;
-                //     Expression::Parenthesized(Box::new(expr))
-                // }
+                span!(span, Token::Identifier(identifier)) => span.to_spanned(Expression::Identifier(span.to_spanned(identifier))),
+                span!(span, Token::Constant(iconst)) => span.to_spanned(Expression::IntConstant(span.to_spanned(iconst))),
+                span!(span, Token::StringLiteral(iconst)) => span.to_spanned(Expression::StringLiteral(span.to_spanned(iconst))),
                 s => unreachable!("{:#?}", s),
             }
         };
+
         while !self.next_is_semicolon() {
             let peeked = self.peek_token()?;
             let post_fix_operator = Self::as_postfix_operator(peeked);
@@ -112,9 +108,9 @@ impl<'src> Parser<'src> {
                 if left_binding_power < minimum_binding_power {
                     break;
                 }
-                self.next_token()?; // bump past postfix operator
+                let span!(post_fix_operator_span, _) = self.next_token()?; // bump past postfix operator
 
-                lhs = Expression::PostfixOp(post_fix_operator, Box::new(lhs));
+                lhs = post_fix_operator_span.until(&lhs.location).into_spanned(Expression::PostfixOp(post_fix_operator_span.into_spanned(post_fix_operator), Box::new(lhs)));
                 continue;
             }
 
@@ -124,10 +120,10 @@ impl<'src> Parser<'src> {
                 if left_binding_power < minimum_binding_power {
                     break;
                 }
-                self.next_token()?; // bump infix operator
+                let span!(infix_operator_span, _)= self.next_token()?; // bump infix operator
 
                 let rhs = self.parse_expression_bp(right_binding_power)?;
-                lhs = Expression::BinOp(infix_operator, Box::new(lhs), Box::new(rhs));
+                lhs = lhs.location.until(&rhs.location).into_spanned(Expression::BinOp(infix_operator_span.into_spanned(infix_operator), Box::new(lhs), Box::new(rhs)));
                 continue;
             }
             break;
@@ -153,12 +149,14 @@ impl<'src> Parser<'src> {
             _ => false,
         }
     }
-    pub fn parse_typename(&mut self) -> PResult<TypeName> {
+    pub fn parse_typename(&mut self) -> PResult<Spanned<TypeName>> {
+        // todo: add spanned to parse_specifier_qualifier_list
+        let start = self.last_location.clone();
         let sq = self.parse_specifier_qualifier_list()?;
         assert!(sq.len() > 0);
         let d = self.parse_abstract_declarator()?;
 
-        Ok(TypeName { specifier_qualifiers: sq, declarator: d })
+        Ok(start.until(&d.location).into_spanned(TypeName { specifier_qualifiers: sq, declarator: d }))
     }
     pub fn next_is_semicolon(&mut self) -> bool {
         matches!(self.peek_token(), Ok(span!(Token::Punctuator(Punctuator::Semicolon))))

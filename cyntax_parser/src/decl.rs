@@ -216,9 +216,11 @@ impl<'src> Parser<'src> {
             let _ = self.eat_if_next(Token::Punctuator(Punctuator::Comma));
             self.expect_token(Token::Punctuator(Punctuator::RightBrace), "to end an initializer")?;
             Ok(Initializer::List(list))
+        } else if self.can_start_primary_expression() {
+            Ok(Initializer::Assignemnt(self.parse_full_expression()?))
         } else {
-            self.next_token()?;
-            Ok(Initializer::Assignemnt)
+            // self.next_token()?;
+            panic!();
         }
     }
     pub fn parse_initializer_list(&mut self) -> PResult<Vec<DesignatedIntiializer>> {
