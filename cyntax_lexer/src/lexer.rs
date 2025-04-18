@@ -148,11 +148,11 @@ impl<'src> Iterator for Lexer<'src> {
             }
             span!(range, '+') if matches!(self.chars.peek(), Some(span!('+'))) => {
                 self.chars.next().unwrap();
-                Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::Increment)))
+                Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::PlusPlus)))
             }
             span!(range, '-') if matches!(self.chars.peek(), Some(span!('-'))) => {
                 self.chars.next().unwrap();
-                Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::Decrement)))
+                Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::MinusMinus)))
             }
             span!(location, '.') if matches!(self.chars.peek_nth(0), Some(span!('.'))) && matches!(self.chars.peek_nth(1), Some(span!('.'))) => {
                 self.chars.next().unwrap();

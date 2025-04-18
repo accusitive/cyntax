@@ -46,8 +46,6 @@ pub enum Whitespace {
     /// \t
     Tab,
 }
-// todo: bikeshed these variant names. i hate some of them
-
 #[derive(Debug, PartialEq, Clone)]
 pub enum Punctuator {
     // Brackets and Parentheses
@@ -61,30 +59,30 @@ pub enum Punctuator {
     Arrow,        // ->
 
     // Unary and Increment/Decrement Operators
-    Increment,   // ++
-    Decrement,   // --
-    Ampersand,   // &
-    Asterisk,    // *
-    Plus,        // +
-    Minus,       // -
-    Tilde,       // ~
-    Exclamation, // !
+    PlusPlus,   // ++
+    MinusMinus, // --
+    Ampersand,  // &
+    Asterisk,   // *
+    Plus,       // +
+    Minus,      // -
+    Tilde,      // ~
+    Bang,       // !
 
     // Arithmetic and Bitwise Operators
-    Slash,        // /
-    Percent,      // %
-    ShiftLeft,    // <<
-    ShiftRight,   // >>
-    LessThan,     // <
-    GreaterThan,  // >
-    LessEqual,    // <=
-    GreaterEqual, // >=
-    Equal,        // ==
-    NotEqual,     // !=
-    Caret,        // ^
-    Pipe,         // |
-    And,          // &&
-    Or,           // ||
+    Slash,      // /
+    Percent,    // %
+    LeftLeft,   // <<
+    RightRight, // >>
+    Left,       // <
+    Right,      // >
+    LeftEqual,  // <=
+    RightEqual, // >=
+    EqualEqual, // ==
+    BangEqual,  // !=
+    Caret,      // ^
+    Pipe,       // |
+    AndAnd,     // &&
+    PipePipe,   // ||
 
     // Ternary and Colon Operators
     Question,  // ?
@@ -93,17 +91,17 @@ pub enum Punctuator {
     DotDotDot, // ...
 
     // Assignment Operators
-    Assign,    // =
-    MulAssign, // *=
-    DivAssign, // /=
-    ModAssign, // %=
-    AddAssign, // +=
-    SubAssign, // -=
-    ShlAssign, // <<=
-    ShrAssign, // >>=
-    AndAssign, // &=
-    XorAssign, // ^=
-    OrAssign,  // |=
+    Equal,           // =
+    AsteriskEqual,   // *=
+    SlashEqual,      // /=
+    PercentEqual,    // %=
+    PlusEqual,       // +=
+    MinusEqual,      // -=
+    LeftLeftEqual,   // <<=
+    RightRightEqual, // >>=
+    AndEqual,        // &=
+    CaretEqual,      // ^=
+    PipeEqual,         // |=
 
     // Miscellaneous
     Comma,     // ,
@@ -112,10 +110,10 @@ pub enum Punctuator {
     HashHash,  // ##
 
     // Digraphs (Alternative Tokens)
-    LessColon,                // <:
-    ColonGreater,             // :>
+    LeftColon,                // <:
+    ColonRight,               // :>
     LessPercent,              // <%
-    PercentGreater,           // %>
+    PercentRight,             // %>
     PercentColon,             // %:
     PercentColonPercentColon, // %:%:
 }
@@ -176,52 +174,52 @@ impl Punctuator {
             Punctuator::RightBrace => "}".to_string(),
             Punctuator::Dot => ".".to_string(),
             Punctuator::Arrow => "->".to_string(),
-            Punctuator::Increment => "++".to_string(),
-            Punctuator::Decrement => "--".to_string(),
+            Punctuator::PlusPlus => "++".to_string(),
+            Punctuator::MinusMinus => "--".to_string(),
             Punctuator::Ampersand => "&".to_string(),
             Punctuator::Asterisk => "*".to_string(),
             Punctuator::Plus => "+".to_string(),
             Punctuator::Minus => "-".to_string(),
             Punctuator::Tilde => "~".to_string(),
-            Punctuator::Exclamation => "!".to_string(),
+            Punctuator::Bang => "!".to_string(),
             Punctuator::Slash => "/".to_string(),
             Punctuator::Percent => "%".to_string(),
-            Punctuator::ShiftLeft => "<<".to_string(),
-            Punctuator::ShiftRight => ">>".to_string(),
-            Punctuator::LessThan => "<".to_string(),
-            Punctuator::GreaterThan => ">".to_string(),
-            Punctuator::LessEqual => "<=".to_string(),
-            Punctuator::GreaterEqual => "".to_string(),
-            Punctuator::Equal => "==".to_string(),
-            Punctuator::NotEqual => "!=".to_string(),
+            Punctuator::LeftLeft => "<<".to_string(),
+            Punctuator::RightRight => ">>".to_string(),
+            Punctuator::Left => "<".to_string(),
+            Punctuator::Right => ">".to_string(),
+            Punctuator::LeftEqual => "<=".to_string(),
+            Punctuator::RightEqual => "".to_string(),
+            Punctuator::EqualEqual => "==".to_string(),
+            Punctuator::BangEqual => "!=".to_string(),
             Punctuator::Caret => "^".to_string(),
             Punctuator::Pipe => "|".to_string(),
-            Punctuator::And => "&&".to_string(),
-            Punctuator::Or => "||".to_string(),
+            Punctuator::AndAnd => "&&".to_string(),
+            Punctuator::PipePipe => "||".to_string(),
             Punctuator::Question => "?".to_string(),
             Punctuator::Colon => ":".to_string(),
             Punctuator::Semicolon => ";".to_string(),
             Punctuator::DotDotDot => "...".to_string(),
-            Punctuator::Assign => "=".to_string(),
-            Punctuator::MulAssign => "*=".to_string(),
-            Punctuator::DivAssign => "/=".to_string(),
-            Punctuator::ModAssign => "%=".to_string(),
-            Punctuator::AddAssign => "+=".to_string(),
-            Punctuator::SubAssign => "-=".to_string(),
-            Punctuator::ShlAssign => "<<=".to_string(),
-            Punctuator::ShrAssign => ">>=".to_string(),
-            Punctuator::AndAssign => "&=".to_string(),
-            Punctuator::XorAssign => "^=".to_string(),
-            Punctuator::OrAssign => "|=".to_string(),
+            Punctuator::Equal => "=".to_string(),
+            Punctuator::AsteriskEqual => "*=".to_string(),
+            Punctuator::SlashEqual => "/=".to_string(),
+            Punctuator::PercentEqual => "%=".to_string(),
+            Punctuator::PlusEqual => "+=".to_string(),
+            Punctuator::MinusEqual => "-=".to_string(),
+            Punctuator::LeftLeftEqual => "<<=".to_string(),
+            Punctuator::RightRightEqual => ">>=".to_string(),
+            Punctuator::AndEqual => "&=".to_string(),
+            Punctuator::CaretEqual => "^=".to_string(),
+            Punctuator::PipeEqual => "|=".to_string(),
             Punctuator::Comma => ",".to_string(),
             // Use alternate character `♯` instead of `#` for debug printing, to make it clear that its a Directive not a Hash
             Punctuator::Directive => "♯".to_string(),
             Punctuator::Hash => "#".to_string(),
             Punctuator::HashHash => "##".to_string(),
-            Punctuator::LessColon => "<:".to_string(),
-            Punctuator::ColonGreater => "".to_string(),
+            Punctuator::LeftColon => "<:".to_string(),
+            Punctuator::ColonRight => "".to_string(),
             Punctuator::LessPercent => "<%".to_string(),
-            Punctuator::PercentGreater => "%>".to_string(),
+            Punctuator::PercentRight => "%>".to_string(),
             Punctuator::PercentColon => "%:".to_string(),
             Punctuator::PercentColonPercentColon => "%:%:".to_string(),
         }
@@ -243,17 +241,17 @@ impl Punctuator {
             '+' => Some(Punctuator::Plus),
             '-' => Some(Punctuator::Minus),
             '~' => Some(Punctuator::Tilde),
-            '!' => Some(Punctuator::Exclamation),
+            '!' => Some(Punctuator::Bang),
             '/' => Some(Punctuator::Slash),
             '%' => Some(Punctuator::Percent),
-            '<' => Some(Punctuator::LessThan),
-            '>' => Some(Punctuator::GreaterThan),
+            '<' => Some(Punctuator::Left),
+            '>' => Some(Punctuator::Right),
             '^' => Some(Punctuator::Caret),
             '|' => Some(Punctuator::Pipe),
             '?' => Some(Punctuator::Question),
             ':' => Some(Punctuator::Colon),
             ';' => Some(Punctuator::Semicolon),
-            '=' => Some(Punctuator::Assign),
+            '=' => Some(Punctuator::Equal),
             ',' => Some(Punctuator::Comma),
             '#' => Some(Punctuator::Hash),
             _ => None,

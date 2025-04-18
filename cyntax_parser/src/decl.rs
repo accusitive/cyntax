@@ -134,7 +134,7 @@ impl<'src> Parser<'src> {
     pub fn parse_init_declarator(&mut self) -> PResult<InitDeclarator> {
         let declarator = self.parse_declarator()?;
         dbg!(&declarator);
-        if self.eat_if_next(Token::Punctuator(Punctuator::Assign))? {
+        if self.eat_if_next(Token::Punctuator(Punctuator::Equal))? {
             let initializer = self.parse_initializer()?;
             dbg!(&initializer);
             Ok(InitDeclarator { declarator, initializer: Some(initializer) })
@@ -219,7 +219,6 @@ impl<'src> Parser<'src> {
         } else if self.can_start_primary_expression() {
             Ok(Initializer::Assignemnt(self.parse_full_expression()?))
         } else {
-            // self.next_token()?;
             panic!();
         }
     }
@@ -251,7 +250,7 @@ impl<'src> Parser<'src> {
         }
 
         if designator_list.len() > 0 {
-            self.expect_token(Token::Punctuator(Punctuator::Assign), "for designation")?;
+            self.expect_token(Token::Punctuator(Punctuator::Equal), "for designation")?;
         }
         Ok(designator_list)
     }

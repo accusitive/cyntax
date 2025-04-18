@@ -237,8 +237,8 @@ pub enum InfixOperator {
     BitwiseAndAssign,
     BitwiseOrAssign,
     BitwiseXorAssign,
-    BtwiseShiftRightAssign,
-    BtwiseShiftLeftAssign,
+    BitwiseShiftRightAssign,
+    BitwiseShiftLeftAssign,
 }
 #[derive(Debug)]
 pub enum PostfixOperator {

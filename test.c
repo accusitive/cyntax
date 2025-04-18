@@ -1,3 +1,6 @@
-int main(int left, int right) {
-    float f = 5+5;
+int add(int left, int right) {
+    return left + right;
+}
+int main(void){
+    return 1+2*3-4&5|6;
 }

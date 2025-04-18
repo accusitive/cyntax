@@ -224,8 +224,8 @@ impl<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>> IntoTokenTree<
             _ if directive_name == self.ctx.strings.get_or_intern_static("include") => {
                 skip_whitespace(&mut tokens_iter);
                 match tokens_iter.next() {
-                    Some(span!(PreprocessingToken::Punctuator(Punctuator::LessThan))) => {
-                        let inner = tokens_iter.take_while(|tok| !matches!(tok, span!(PreprocessingToken::Punctuator(Punctuator::GreaterThan)))).collect::<Vec<_>>();
+                    Some(span!(PreprocessingToken::Punctuator(Punctuator::Left))) => {
+                        let inner = tokens_iter.take_while(|tok| !matches!(tok, span!(PreprocessingToken::Punctuator(Punctuator::Right)))).collect::<Vec<_>>();
                         return ControlLine::Include(HeaderName::H(inner));
                     }
                     Some(span!(PreprocessingToken::StringLiteral(string))) => return ControlLine::Include(HeaderName::Q(string)),

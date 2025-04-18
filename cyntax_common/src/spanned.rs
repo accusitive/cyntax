@@ -1,11 +1,11 @@
-use std::ops::Range;
+use std::{fmt::Debug, ops::Range};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Location {
     pub range: Range<usize>,
     pub file_id: usize,
 }
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Spanned<T> {
     pub value: T,
     pub location: Location,
@@ -73,34 +73,8 @@ impl<T: PartialEq + Clone> PartialEq for Spanned<T> {
         self.value == other.value
     }
 }
-// pub trait SpanRef {
-//     fn span_ref(&self) -> Option<&location<usize>>;
-//     fn span_ref_fallback(&self, fallback: location<usize>) -> &location<usize>;
-// }
-// pub trait Span {
-//     fn span(&self) -> Option<location<usize>>;
-//     fn span_fallback(&self, fallback: location<usize>) -> location<usize>;
-// }
-
-// impl<T> SpanRef for Spanned<T> {
-//     fn span_ref(&self) -> Option<&location<usize>> {
-//         Some(&self.location)
-//     }
-//     fn span_ref_fallback(&self, fallback: location<usize>) -> &location<usize> {
-//         &self.location
-//     }
-// }
-// impl<T: SpanRef> Span for Vec<T> {
-//     fn span(&self) -> Option<location<usize>> {
-//         Some(self.first()?.span_ref()?.start..self.last()?.span_ref()?.end)
-//     }
-//     fn span_fallback(&self, fallback: location<usize>) -> location<usize> {
-//         self.span().unwrap_or(fallback)
-//     }
-// }
-// impl<T: SpanRef> From<Vec<T>> for Spanned<Vec<T>> {
-//     fn from(value: Vec<T>) -> Self {
-//         let span = value.span().unwrap_or(0..0);
-//         Spanned::new(span, value)
-//     }
-// }
+impl<T: Debug> Debug for Spanned<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Spanned").field("value", &self.value).finish()
+    }
+}

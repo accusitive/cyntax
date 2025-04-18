@@ -17,9 +17,23 @@ impl<'src> Parser<'src> {
     }
     fn infix_binding_power(operator: &InfixOperator) -> Option<(u8, u8)> {
         let bp = match operator {
-            InfixOperator::Add | InfixOperator::Subtract => (1, 2),
-            InfixOperator::Multiply | InfixOperator::Divide => (3, 4),
-            _ => todo!(),
+            InfixOperator::Multiply | InfixOperator::Divide | InfixOperator::Modulo => (31, 32),
+            InfixOperator::Add | InfixOperator::Subtract => (29, 30),
+            InfixOperator::BitwiseShiftLeft | InfixOperator::BitwiseShiftRight => (27, 28),
+            InfixOperator::Less | InfixOperator::LessEqual => (25, 26),
+            InfixOperator::Greater | InfixOperator::GreaterEqual => (23, 24),
+            InfixOperator::Equal | InfixOperator::NotEqual => (21, 22),
+            InfixOperator::BitwiseAnd => (19, 20),
+            InfixOperator::BitwiseXor => (17, 18),
+            InfixOperator::BitwiseOr => (15, 16),
+            InfixOperator::LogicalAnd => (15, 16),
+            InfixOperator::LogicalOr => (11, 12),
+            // Right associative
+            InfixOperator::Assign => (10, 9),
+            InfixOperator::AddAssign | InfixOperator::SubtractAssign => (8, 7),
+            InfixOperator::MultiplyAssign | InfixOperator::DivideAssign | InfixOperator::ModuloAssign => (6, 5),
+            InfixOperator::BitwiseShiftLeftAssign | InfixOperator::BitwiseShiftRightAssign => (4, 3),
+            InfixOperator::BitwiseAndAssign | InfixOperator::BitwiseXorAssign | InfixOperator::BitwiseOrAssign => (2, 1),
         };
 
         Some(bp)
@@ -35,8 +49,11 @@ impl<'src> Parser<'src> {
         match token {
             span!(Token::Punctuator(Punctuator::Plus)) => Some(InfixOperator::Add),
             span!(Token::Punctuator(Punctuator::Minus)) => Some(InfixOperator::Subtract),
-
             span!(Token::Punctuator(Punctuator::Asterisk)) => Some(InfixOperator::Multiply),
+            span!(Token::Punctuator(Punctuator::Ampersand)) => Some(InfixOperator::BitwiseAnd),
+            span!(Token::Punctuator(Punctuator::PipePipe)) => Some(InfixOperator::BitwiseOr),
+            span!(Token::Punctuator(Punctuator::Pipe)) => Some(InfixOperator::BitwiseOr),
+            
             _ => None,
         }
     }
@@ -50,8 +67,9 @@ impl<'src> Parser<'src> {
     }
     pub fn as_postfix_operator(token: &Spanned<Token>) -> Option<PostfixOperator> {
         match token {
-            span!(Token::Punctuator(Punctuator::Increment)) => Some(PostfixOperator::Increment),
-            span!(Token::Punctuator(Punctuator::Decrement)) => Some(PostfixOperator::Decrement),
+            span!(Token::Punctuator(Punctuator::PlusPlus)) => Some(PostfixOperator::Increment),
+            span!(Token::Punctuator(Punctuator::MinusMinus)) => Some(PostfixOperator::Decrement),
+            // span!(Token::Punctuator(Punctuator::LeftParen)) => Some(PostfixOperator::Call),
             _ => None,
         }
     }
@@ -120,7 +138,7 @@ impl<'src> Parser<'src> {
                 if left_binding_power < minimum_binding_power {
                     break;
                 }
-                let span!(infix_operator_span, _)= self.next_token()?; // bump infix operator
+                let span!(infix_operator_span, _) = self.next_token()?; // bump infix operator
 
                 let rhs = self.parse_expression_bp(right_binding_power)?;
                 lhs = lhs.location.until(&rhs.location).into_spanned(Expression::BinOp(infix_operator_span.into_spanned(infix_operator), Box::new(lhs), Box::new(rhs)));
