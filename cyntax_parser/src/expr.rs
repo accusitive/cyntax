@@ -60,24 +60,33 @@ impl<'src> Parser<'src> {
     }
     /// THANKS!!! https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
     pub fn parse_expression_bp(&mut self, minimum_binding_power: u8) -> PResult<Expression> {
-        let is_prefix_operator = Self::as_prefix_operator(self.peek_token()?);
-        
+        let as_prefix_operator = Self::as_prefix_operator(self.peek_token()?);
+
         // if let guards would be cool here
-        let mut lhs = if let Some(prefix_operator) = is_prefix_operator {
+        let mut lhs = if let Some(prefix_operator) = as_prefix_operator {
             let ((), right_binding_power) = Self::prefix_binding_power(&prefix_operator);
             self.next_token()?; // bump prefix operator
             let can_start_type_name = self.can_start_typename();
             dbg!(&can_start_type_name, &self.peek_token());
 
-            let expression = if let (PrefixOperator::Cast, true) = (&prefix_operator, can_start_type_name) {
-                let type_name = self.parse_typename()?;
+            let expression = match (&prefix_operator, can_start_type_name) {
+                (PrefixOperator::Cast, true) => {
+                    let type_name = self.parse_typename()?;
+                    self.expect_token(Token::Punctuator(Punctuator::RightParen), "to close cast expression")?;
+                    let expr = self.parse_expression_bp(right_binding_power)?;
+                    Expression::Cast(type_name, Box::new(expr))
+                }
+                (PrefixOperator::Cast, false) => {
+                    let expr = self.parse_expression_bp(right_binding_power)?;
+                    self.expect_token(Token::Punctuator(Punctuator::RightParen), "to close paren expression")?;
 
-                self.expect_token(Token::Punctuator(Punctuator::RightParen), "to close cast expression")?;
-                let expr = self.parse_expression_bp(right_binding_power)?;
-                Expression::Cast(type_name, Box::new(expr))
-            } else {
-                let expression = self.parse_expression_bp(right_binding_power)?;
-                Expression::UnaryOp(prefix_operator, Box::new(expression))
+                    expr
+                    // Expression::Parenthesized(Box::new(expr))
+                }
+                _ => {
+                    let expression = self.parse_expression_bp(right_binding_power)?;
+                    Expression::UnaryOp(prefix_operator, Box::new(expression))
+                }
             };
 
             expression
@@ -86,11 +95,11 @@ impl<'src> Parser<'src> {
                 span!(Token::Identifier(identifier)) => Expression::Identifier(identifier),
                 span!(Token::Constant(iconst)) => Expression::IntConstant(iconst),
                 span!(Token::StringLiteral(iconst)) => Expression::StringLiteral(iconst),
-                span!(Token::Punctuator(Punctuator::LeftParen)) if !self.can_start_typename() => {
-                    let expr = self.parse_expression_bp(0)?;
-                    self.expect_token(Token::Punctuator(Punctuator::RightParen), "to close expression")?;
-                    Expression::Parenthesized(Box::new(expr))
-                }
+                // span!(Token::Punctuator(Punctuator::LeftParen)) if !self.can_start_typename() => {
+                //     let expr = self.parse_expression_bp(0)?;
+                //     self.expect_token(Token::Punctuator(Punctuator::RightParen), "to close expression")?;
+                //     Expression::Parenthesized(Box::new(expr))
+                // }
                 s => unreachable!("{:#?}", s),
             }
         };
