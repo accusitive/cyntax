@@ -199,10 +199,13 @@ pub enum PrefixOperator {
     LogicalNot,
 
     /// ~
-    Invert,
+    BitwiseNot,
 
     SizeOf,
     CastOrParen,
+    Dereference,
+    Increment,
+    Decrement
 }
 #[derive(Debug)]
 pub enum InfixOperator {
@@ -239,6 +242,10 @@ pub enum InfixOperator {
     BitwiseXorAssign,
     BitwiseShiftRightAssign,
     BitwiseShiftLeftAssign,
+    // a.b
+    Access,
+    // a->b
+    IndirectAccess
 }
 #[derive(Debug)]
 pub enum PostfixOperator {

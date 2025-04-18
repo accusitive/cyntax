@@ -219,7 +219,8 @@ impl<'src> Parser<'src> {
         } else if self.can_start_primary_expression() {
             Ok(Initializer::Assignemnt(self.parse_full_expression()?))
         } else {
-            panic!();
+            Err(SimpleError(self.last_location.clone(), "failed to start initialzor".into()).into_codespan_report())
+            // panic!();
         }
     }
     pub fn parse_initializer_list(&mut self) -> PResult<Vec<DesignatedIntiializer>> {

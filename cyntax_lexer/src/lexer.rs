@@ -142,6 +142,22 @@ impl<'src> Iterator for Lexer<'src> {
                 }
                 Some(Spanned::new(location.until(&end), PreprocessingToken::ControlLine(tokens)))
             }
+            span!(location, '<') if matches!(self.chars.peek_nth(0), Some(span!('<'))) && matches!(self.chars.peek_nth(1), Some(span!('='))) => {
+                self.chars.next().unwrap();
+                let last_char = self.chars.next().unwrap();
+                Some(self.span(location.range.start..last_char.end(), PreprocessingToken::Punctuator(Punctuator::LeftLeftEqual)))
+            }
+            span!(location, '>') if matches!(self.chars.peek_nth(0), Some(span!('>'))) && matches!(self.chars.peek_nth(1), Some(span!('='))) => {
+                self.chars.next().unwrap();
+                let last_char = self.chars.next().unwrap();
+                Some(self.span(location.range.start..last_char.end(), PreprocessingToken::Punctuator(Punctuator::RightRightEqual)))
+            }
+            span!(location, '.') if matches!(self.chars.peek_nth(0), Some(span!('.'))) && matches!(self.chars.peek_nth(1), Some(span!('.'))) => {
+                self.chars.next().unwrap();
+                let last_dot = self.chars.next().unwrap();
+                Some(self.span(location.range.start..last_dot.end(), PreprocessingToken::Punctuator(Punctuator::DotDotDot)))
+            }
+
             span!(range, '#') if matches!(self.chars.peek(), Some(span!('#'))) => {
                 self.chars.next().unwrap();
                 Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::HashHash)))
@@ -154,10 +170,73 @@ impl<'src> Iterator for Lexer<'src> {
                 self.chars.next().unwrap();
                 Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::MinusMinus)))
             }
-            span!(location, '.') if matches!(self.chars.peek_nth(0), Some(span!('.'))) && matches!(self.chars.peek_nth(1), Some(span!('.'))) => {
+            span!(range, '&') if matches!(self.chars.peek(), Some(span!('&'))) => {
                 self.chars.next().unwrap();
-                let last_dot = self.chars.next().unwrap();
-                Some(self.span(location.range.start..last_dot.end(), PreprocessingToken::Punctuator(Punctuator::DotDotDot)))
+                Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::AndAnd)))
+            }
+            span!(range, '=') if matches!(self.chars.peek(), Some(span!('='))) => {
+                self.chars.next().unwrap();
+                Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::EqualEqual)))
+            }
+            span!(range, '-') if matches!(self.chars.peek(), Some(span!('>'))) => {
+                self.chars.next().unwrap();
+                Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::Arrow)))
+            }
+            span!(range, '<') if matches!(self.chars.peek(), Some(span!('<'))) => {
+                self.chars.next().unwrap();
+                Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::LeftLeft)))
+            }
+            span!(range, '<') if matches!(self.chars.peek(), Some(span!('='))) => {
+                self.chars.next().unwrap();
+                Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::LeftEqual)))
+            }
+            span!(range, '>') if matches!(self.chars.peek(), Some(span!('>'))) => {
+                self.chars.next().unwrap();
+                Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::RightRight)))
+            }
+            span!(range, '>') if matches!(self.chars.peek(), Some(span!('='))) => {
+                self.chars.next().unwrap();
+                Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::RightEqual)))
+            }
+            span!(range, '!') if matches!(self.chars.peek(), Some(span!('='))) => {
+                self.chars.next().unwrap();
+                Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::BangEqual)))
+            }
+            span!(range, '|') if matches!(self.chars.peek(), Some(span!('|'))) => {
+                self.chars.next().unwrap();
+                Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::PipePipe)))
+            }
+            span!(range, '+') if matches!(self.chars.peek(), Some(span!('='))) => {
+                self.chars.next().unwrap();
+                Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::PlusEqual)))
+            }
+            span!(range, '-') if matches!(self.chars.peek(), Some(span!('='))) => {
+                self.chars.next().unwrap();
+                Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::MinusEqual)))
+            }
+            span!(range, '*') if matches!(self.chars.peek(), Some(span!('='))) => {
+                self.chars.next().unwrap();
+                Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::MinusEqual)))
+            }
+            span!(range, '%') if matches!(self.chars.peek(), Some(span!('='))) => {
+                self.chars.next().unwrap();
+                Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::PercentEqual)))
+            }
+            span!(range, '/') if matches!(self.chars.peek(), Some(span!('='))) => {
+                self.chars.next().unwrap();
+                Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::SlashEqual)))
+            }
+            span!(range, '&') if matches!(self.chars.peek(), Some(span!('='))) => {
+                self.chars.next().unwrap();
+                Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::AndEqual)))
+            }
+            span!(range, '|') if matches!(self.chars.peek(), Some(span!('='))) => {
+                self.chars.next().unwrap();
+                Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::PipeEqual)))
+            }
+            span!(range, '^') if matches!(self.chars.peek(), Some(span!('='))) => {
+                self.chars.next().unwrap();
+                Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::CaretEqual)))
             }
             span!(range, punctuator) if Punctuator::is_punctuation(punctuator) => Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::from_char(punctuator).unwrap()))),
             span!(range, ' ') => Some(Spanned::new(range, PreprocessingToken::Whitespace(Whitespace::Space))),

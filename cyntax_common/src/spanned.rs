@@ -75,6 +75,6 @@ impl<T: PartialEq + Clone> PartialEq for Spanned<T> {
 }
 impl<T: Debug> Debug for Spanned<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Spanned").field("value", &self.value).finish()
+        if f.alternate() { write!(f, "{:#?}", self.value) } else { write!(f, "{:?}", self.value) }
     }
 }

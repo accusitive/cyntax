@@ -8,15 +8,12 @@ use cyntax_lexer::span;
 impl<'src> Parser<'src> {
     fn prefix_binding_power(operator: &PrefixOperator) -> ((), u8) {
         match operator {
-            PrefixOperator::CastOrParen => ((), 6),
-            PrefixOperator::Plus | PrefixOperator::Minus => ((), 5),
-            PrefixOperator::LogicalNot => todo!(),
-            PrefixOperator::Invert => todo!(),
-            PrefixOperator::SizeOf => todo!(),
+            _ => ((), 33),
         }
     }
     fn infix_binding_power(operator: &InfixOperator) -> Option<(u8, u8)> {
         let bp = match operator {
+            InfixOperator::Access | InfixOperator::IndirectAccess => (33, 34),
             InfixOperator::Multiply | InfixOperator::Divide | InfixOperator::Modulo => (31, 32),
             InfixOperator::Add | InfixOperator::Subtract => (29, 30),
             InfixOperator::BitwiseShiftLeft | InfixOperator::BitwiseShiftRight => (27, 28),
@@ -28,6 +25,7 @@ impl<'src> Parser<'src> {
             InfixOperator::BitwiseOr => (15, 16),
             InfixOperator::LogicalAnd => (15, 16),
             InfixOperator::LogicalOr => (11, 12),
+
             // Right associative
             InfixOperator::Assign => (10, 9),
             InfixOperator::AddAssign | InfixOperator::SubtractAssign => (8, 7),
@@ -40,8 +38,7 @@ impl<'src> Parser<'src> {
     }
     fn postfix_binding_power(operator: &PostfixOperator) -> (u8, ()) {
         match operator {
-            PostfixOperator::Increment | PostfixOperator::Decrement => (7, ()),
-            _ => unreachable!(),
+            _ => (35, ()),
         }
     }
 
@@ -53,7 +50,40 @@ impl<'src> Parser<'src> {
             span!(Token::Punctuator(Punctuator::Ampersand)) => Some(InfixOperator::BitwiseAnd),
             span!(Token::Punctuator(Punctuator::PipePipe)) => Some(InfixOperator::BitwiseOr),
             span!(Token::Punctuator(Punctuator::Pipe)) => Some(InfixOperator::BitwiseOr),
-            
+            span!(Token::Punctuator(Punctuator::Slash)) => Some(InfixOperator::Divide),
+            span!(Token::Punctuator(Punctuator::AndAnd)) => Some(InfixOperator::LogicalAnd),
+            span!(Token::Punctuator(Punctuator::Caret)) => Some(InfixOperator::BitwiseXor),
+            span!(Token::Punctuator(Punctuator::EqualEqual)) => Some(InfixOperator::Equal),
+            span!(Token::Punctuator(Punctuator::Percent)) => Some(InfixOperator::Modulo),
+            span!(Token::Punctuator(Punctuator::Equal)) => Some(InfixOperator::Assign),
+
+            span!(Token::Punctuator(Punctuator::Right)) => Some(InfixOperator::Greater),
+            span!(Token::Punctuator(Punctuator::RightEqual)) => Some(InfixOperator::GreaterEqual),
+            span!(Token::Punctuator(Punctuator::Left)) => Some(InfixOperator::Less),
+            span!(Token::Punctuator(Punctuator::LeftEqual)) => Some(InfixOperator::LessEqual),
+
+            span!(Token::Punctuator(Punctuator::Dot)) => Some(InfixOperator::Access),
+            span!(Token::Punctuator(Punctuator::Arrow)) => Some(InfixOperator::IndirectAccess),
+            span!(Token::Punctuator(Punctuator::LeftLeft)) => Some(InfixOperator::BitwiseShiftLeft),
+            span!(Token::Punctuator(Punctuator::RightRight)) => Some(InfixOperator::BitwiseShiftRight),
+
+            span!(Token::Punctuator(Punctuator::LeftEqual)) => Some(InfixOperator::BitwiseShiftRight),
+            span!(Token::Punctuator(Punctuator::RightEqual)) => Some(InfixOperator::BitwiseShiftRight),
+            span!(Token::Punctuator(Punctuator::BangEqual)) => Some(InfixOperator::NotEqual),
+
+            span!(Token::Punctuator(Punctuator::PlusEqual)) => Some(InfixOperator::AddAssign),
+            span!(Token::Punctuator(Punctuator::MinusEqual)) => Some(InfixOperator::SubtractAssign),
+            span!(Token::Punctuator(Punctuator::AsteriskEqual)) => Some(InfixOperator::MultiplyAssign),
+            span!(Token::Punctuator(Punctuator::PercentEqual)) => Some(InfixOperator::ModuloAssign),
+            span!(Token::Punctuator(Punctuator::SlashEqual)) => Some(InfixOperator::DivideAssign),
+
+            span!(Token::Punctuator(Punctuator::LeftLeftEqual)) => Some(InfixOperator::BitwiseShiftLeftAssign),
+            span!(Token::Punctuator(Punctuator::RightRightEqual)) => Some(InfixOperator::BitwiseShiftRightAssign),
+
+            span!(Token::Punctuator(Punctuator::AndEqual)) => Some(InfixOperator::BitwiseAndAssign),
+            span!(Token::Punctuator(Punctuator::PipeEqual)) => Some(InfixOperator::BitwiseOrAssign),
+            span!(Token::Punctuator(Punctuator::CaretEqual)) => Some(InfixOperator::BitwiseXorAssign),
+
             _ => None,
         }
     }
@@ -62,6 +92,13 @@ impl<'src> Parser<'src> {
             span!(Token::Punctuator(Punctuator::Minus)) => Some(PrefixOperator::Minus),
             span!(Token::Punctuator(Punctuator::Plus)) => Some(PrefixOperator::Plus),
             span!(Token::Punctuator(Punctuator::LeftParen)) => Some(PrefixOperator::CastOrParen),
+            span!(Token::Punctuator(Punctuator::Tilde)) => Some(PrefixOperator::BitwiseNot),
+            span!(Token::Punctuator(Punctuator::Asterisk)) => Some(PrefixOperator::Dereference),
+            span!(Token::Punctuator(Punctuator::PlusPlus)) => Some(PrefixOperator::Increment),
+            span!(Token::Punctuator(Punctuator::MinusMinus)) => Some(PrefixOperator::Decrement),
+            span!(Token::Punctuator(Punctuator::Bang)) => Some(PrefixOperator::LogicalNot),
+            span!(Token::Punctuator(Punctuator::Ampersand)) => Some(PrefixOperator::Dereference),
+
             _ => None,
         }
     }
@@ -69,6 +106,8 @@ impl<'src> Parser<'src> {
         match token {
             span!(Token::Punctuator(Punctuator::PlusPlus)) => Some(PostfixOperator::Increment),
             span!(Token::Punctuator(Punctuator::MinusMinus)) => Some(PostfixOperator::Decrement),
+       
+
             // span!(Token::Punctuator(Punctuator::LeftParen)) => Some(PostfixOperator::Call),
             _ => None,
         }
@@ -96,7 +135,8 @@ impl<'src> Parser<'src> {
                     type_name.location.until(&expr.location).into_spanned(Expression::Cast(type_name, Box::new(expr)))
                 }
                 (PrefixOperator::CastOrParen, false) => {
-                    let expr = self.parse_expression_bp(right_binding_power)?;
+                    let expr = self.parse_full_expression()?;
+                    // let expr = self.parse_expression_bp(right_binding_power)?;
                     self.expect_token(Token::Punctuator(Punctuator::RightParen), "to close paren expression")?;
 
                     expr
@@ -113,7 +153,7 @@ impl<'src> Parser<'src> {
                 span!(span, Token::Identifier(identifier)) => span.to_spanned(Expression::Identifier(span.to_spanned(identifier))),
                 span!(span, Token::Constant(iconst)) => span.to_spanned(Expression::IntConstant(span.to_spanned(iconst))),
                 span!(span, Token::StringLiteral(iconst)) => span.to_spanned(Expression::StringLiteral(span.to_spanned(iconst))),
-                s => unreachable!("{:#?}", s),
+                s => return Err(SimpleError(s.location, "unrecognized char while parsing expression".into()).into_codespan_report()),
             }
         };
 

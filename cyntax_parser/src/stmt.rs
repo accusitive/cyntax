@@ -22,7 +22,8 @@ impl<'src> Parser<'src> {
         } else if self.can_start_jump_statement() {
             return self.parse_jump_statement();
         }
-        unimplemented!("{:#?}", self.peek_token());
+        Err(SimpleError(self.last_location.clone(), "failed to start parsing a statement".into()).into_codespan_report())
+        // unimplemented!("{:#?}", self.peek_token());
     }
     pub fn can_start_labelled_stmt(&mut self) -> bool {
         return matches!(self.peek_token(), Ok(span!(Token::Identifier(_) | Token::Keyword(Keyword::Case | Keyword::Default))));
