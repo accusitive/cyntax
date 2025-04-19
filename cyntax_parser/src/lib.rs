@@ -83,8 +83,8 @@ impl<'src> Parser<'src> {
             None => Err(SimpleError(self.last_location.clone(), "Unexpected EOF!".to_string()).into_codespan_report()),
         }
     }
-    pub fn peek_token(&mut self) -> PResult<&Spanned<Token>> {
-        match self.token_stream.peek() {
+    pub fn peek_token_nth(&mut self, n: usize) -> PResult<&Spanned<Token>> {
+        match self.token_stream.peek_nth(n) {
             Some(Ok(token)) => {
                 self.last_location = token.location.clone();
                 Ok(token)
@@ -93,12 +93,24 @@ impl<'src> Parser<'src> {
             None => Err(SimpleError(self.last_location.clone(), "Unexpected EOF while peeking!".to_string()).into_codespan_report()),
         }
     }
+    pub fn peek_token(&mut self) -> PResult<&Spanned<Token>> {
+        self.peek_token_nth(0)
+    }
+
     pub fn eat_if_next(&mut self, t: Token) -> PResult<bool> {
         if self.peek_token()?.value == t {
             self.next_token().unwrap();
             Ok(true)
         } else {
             Ok(false)
+        }
+    }
+pub fn eat_next(&mut self, t: Token) -> PResult<Option<Spanned<Token>>> {
+        if self.peek_token()?.value == t {
+            
+            Ok(Some(self.next_token().unwrap()))
+        } else {
+            Ok(None)
         }
     }
     pub fn eat_if_same_variant(&mut self, t: Token) -> PResult<bool> {

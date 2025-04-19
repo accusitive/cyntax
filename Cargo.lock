@@ -88,7 +88,6 @@ dependencies = [
 name = "cyntax_preprocessor"
 version = "0.1.0"
 dependencies = [
- "bumpalo",
  "cyntax_common",
  "cyntax_errors",
  "cyntax_lexer",

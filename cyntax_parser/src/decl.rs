@@ -133,10 +133,8 @@ impl<'src> Parser<'src> {
     }
     pub fn parse_init_declarator(&mut self) -> PResult<InitDeclarator> {
         let declarator = self.parse_declarator()?;
-        dbg!(&declarator);
         if self.eat_if_next(Token::Punctuator(Punctuator::Equal))? {
             let initializer = self.parse_initializer()?;
-            dbg!(&initializer);
             Ok(InitDeclarator { declarator, initializer: Some(initializer) })
         } else {
             Ok(InitDeclarator { declarator, initializer: None })
@@ -155,7 +153,6 @@ impl<'src> Parser<'src> {
     }
 
     pub fn parse_direct_declarator(&mut self) -> PResult<Spanned<Declarator>> {
-        dbg!();
         let base = match self.next_token()? {
             span!(span, Token::Identifier(identifier)) => Spanned::new(span, Declarator::Identifier(identifier.clone())),
             span!(span, Token::Punctuator(Punctuator::LeftParen)) => {
@@ -165,7 +162,6 @@ impl<'src> Parser<'src> {
             }
             x => return Err(SimpleError(x.location, format!("Expected direct declarator, found {:?}", x.value)).into_codespan_report()),
         };
-        dbg!(&base, self.peek_token());
         // Function stuff
         if self.eat_if_next(Token::Punctuator(Punctuator::LeftParen))? {
             let params = self.parse_parameter_type_list()?;
@@ -217,7 +213,7 @@ impl<'src> Parser<'src> {
             self.expect_token(Token::Punctuator(Punctuator::RightBrace), "to end an initializer")?;
             Ok(Initializer::List(list))
         } else if self.can_start_primary_expression() {
-            Ok(Initializer::Assignemnt(self.parse_full_expression()?))
+            Ok(Initializer::Assignemnt(self.parse_expression()?))
         } else {
             Err(SimpleError(self.last_location.clone(), "failed to start initialzor".into()).into_codespan_report())
             // panic!();

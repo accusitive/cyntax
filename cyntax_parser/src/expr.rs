@@ -106,13 +106,13 @@ impl<'src> Parser<'src> {
         match token {
             span!(Token::Punctuator(Punctuator::PlusPlus)) => Some(PostfixOperator::Increment),
             span!(Token::Punctuator(Punctuator::MinusMinus)) => Some(PostfixOperator::Decrement),
-       
+            span!(Token::Punctuator(Punctuator::LeftParen)) => Some(PostfixOperator::Call),
 
             // span!(Token::Punctuator(Punctuator::LeftParen)) => Some(PostfixOperator::Call),
             _ => None,
         }
     }
-    pub fn parse_full_expression(&mut self) -> PResult<Spanned<Expression>> {
+    pub fn parse_expression(&mut self) -> PResult<Spanned<Expression>> {
         self.parse_expression_bp(0)
     }
     /// THANKS!!! https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
@@ -125,7 +125,6 @@ impl<'src> Parser<'src> {
             let span!(prefix_op_span, _) = self.next_token()?; // bump prefix operator
 
             let can_start_type_name = self.can_start_typename();
-            dbg!(&can_start_type_name, &self.peek_token());
 
             let expression = match (&prefix_operator, can_start_type_name) {
                 (PrefixOperator::CastOrParen, true) => {
@@ -135,10 +134,8 @@ impl<'src> Parser<'src> {
                     type_name.location.until(&expr.location).into_spanned(Expression::Cast(type_name, Box::new(expr)))
                 }
                 (PrefixOperator::CastOrParen, false) => {
-                    let expr = self.parse_full_expression()?;
-                    // let expr = self.parse_expression_bp(right_binding_power)?;
+                    let expr = self.parse_expression()?;
                     self.expect_token(Token::Punctuator(Punctuator::RightParen), "to close paren expression")?;
-
                     expr
                 }
                 _ => {
@@ -168,7 +165,12 @@ impl<'src> Parser<'src> {
                 }
                 let span!(post_fix_operator_span, _) = self.next_token()?; // bump past postfix operator
 
-                lhs = post_fix_operator_span.until(&lhs.location).into_spanned(Expression::PostfixOp(post_fix_operator_span.into_spanned(post_fix_operator), Box::new(lhs)));
+                lhs = if let PostfixOperator::Call = post_fix_operator {
+                    let args = self.parse_argument_expression_list()?;
+                    post_fix_operator_span.until(&lhs.location).into_spanned(Expression::Call(Box::new(lhs), args))
+                } else {
+                    post_fix_operator_span.until(&lhs.location).into_spanned(Expression::PostfixOp(post_fix_operator_span.into_spanned(post_fix_operator), Box::new(lhs)))
+                };
                 continue;
             }
 
@@ -188,6 +190,22 @@ impl<'src> Parser<'src> {
         }
 
         Ok(lhs)
+    }
+    pub fn parse_argument_expression_list(&mut self) -> PResult<Vec<Spanned<Expression>>> {
+        let mut arguments = vec![];
+        while !self.eat_if_next(Token::Punctuator(Punctuator::RightParen))? || self.consider_comma(&arguments)? {
+            if arguments.len() > 0 {
+                self.expect_token(Token::Punctuator(Punctuator::Comma), "to seperate arguments")?;
+            }
+
+            // recover from trailing comma
+            if let Some(token) = self.eat_next(Token::Punctuator(Punctuator::RightParen))? {
+                self.diagnostics.push(SimpleError(token.location, format!("Trailing comma is not allowed")).into_codespan_report());
+                break;
+            }
+            arguments.push(self.parse_expression()?);
+        }
+        Ok(arguments)
     }
     pub fn can_start_typename(&mut self) -> bool {
         match self.peek_token().cloned() {

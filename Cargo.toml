@@ -15,3 +15,5 @@ smallvec = "1.14.0"
 bumpalo = "3.17.0"
 codespan-reporting = "0.12.0"
 colored = "3.0.0"
+[profile.release]
+debug = true

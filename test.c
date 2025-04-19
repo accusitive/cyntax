@@ -1,56 +1,25 @@
-int add(int left, int right)
+#define VERSION "1.0"
+int main(int argc, char *argv)
 {
-    return left + right;
-}
-int main(void)
-{
-    int a = 5;
-    int b = 5;
-    int x = a++;
-    int x = a--;
-    // a();
-    // a[];
-    // int x = a.a;
-    int x = a->a;
-    // (int){}
-    int x = ++a;
-    int x = --a;
-    int x = +a;
-    int x = -a;
-    int x = !a;
-    int x = ~a;
-    // (int) a;
-    int x = *a;
-    int x = &a;
-    // sizeof(a)
-    // align?
-    int x = a * b;
-    int x = a / b;
-    int x = a + b;
-    int x = a - b;
-    int x = a << b;
-    int x = a >> b;
-    int x = a < b;
-    int x = a <= b;
-    int x = a > b;
-    int x = a >= b;
-    int x = a == b;
-    int x = a != b;
-    int x = a & b;
-    int x = a ^ b;
-    int x = a | b;
-    int x = a && b;
-    int x = a || b;
-    // ternary
-    int x = a = b;
-    int x = a += b;
-    int x = a -= b;
-    int x = a *= b;
-    int x = a /= b;
-    int x = a %= b;
-    int x = a <<= b;
-    int x = a >>= b;
-    int x = a &= b;
-    int x = a ^= b;
-    int x = a |= b;
+    if (argc == 2 && !strcmp("-v", argv))
+    {
+        die("dwm-");
+    }
+    else if (argc != 1)
+        die("usage: dwm [-v]");
+    if (!setlocale(LC_CTYPE, "") || !XSupportsLocale())
+        fputs("warning: no locale support\n", stderr, );
+    if (!(dpy = XOpenDisplay(NULL)))
+        die("dwm: cannot open display");
+    checkotherwm();
+    setup();
+#ifdef __OpenBSD__
+    if (pledge("stdio rpath proc exec", NULL) == -1)
+        die("pledge");
+#endif /* __OpenBSD__ */
+    scan();
+    run();
+    cleanup();
+    XCloseDisplay(dpy);
+    return EXIT_SUCCESS;
 }

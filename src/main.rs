@@ -59,7 +59,9 @@ fn print_tokens<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>>(ctx
 }
 fn main() {
     let mut files = SimpleFiles::new();
-    let source = include_str!("../test.c");
+    // let source = include_str!("../test.c");
+    let source = std::fs::read_to_string("./test.c").unwrap();
+    let source = source.as_str();
     let file = files.add("test.c".to_owned(), source.to_owned());
 
     let mut ctx = Context {
