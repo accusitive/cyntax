@@ -172,16 +172,8 @@ impl<'src> Parser<'src> {
                 let span = base.location.until(&rp.location);
 
                 base = Spanned::new(span, Declarator::Function(Box::new(base), params));
+                continue;
             } else if self.eat_if_next(Token::Punctuator(Punctuator::LeftBracket))? {
-                /*
-                direct-declarator [ type-qualifier-list opt assignment-expression opt ]
-                direct-declarator [ static type-qualifier-list opt assignment-expression ]
-                direct-declarator [ type-qualifier-list static assignment-expression ]
-                direct-declarator [ type-qualifier-list opt * ]
-                direct-declarator ( parameter-type-list )
-                direct-declarator ( identifier-listopt )
-                 */
-
                 let early_static = self.eat_if_next(Token::Keyword(Keyword::Static))?;
                 let tq = self.parse_type_qualifiers()?;
                 let late_static = self.eat_if_next(Token::Keyword(Keyword::Static))?;
@@ -217,6 +209,8 @@ impl<'src> Parser<'src> {
                         expr: Some(Box::new(expr)),
                     })
                 }
+
+                continue;
             } else {
                 break;
             }

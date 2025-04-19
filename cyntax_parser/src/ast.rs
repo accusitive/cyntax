@@ -102,15 +102,13 @@ pub enum Declarator {
     Parenthesized(Box<Spanned<Self>>),
     // todo: array
     Function(Box<Spanned<Self>>, Vec<Spanned<ParameterDeclaration>>),
-    Array{
+    Array {
         base: Box<Spanned<Self>>,
         has_static: bool,
         has_star: bool,
 
         type_qualifiers: Vec<Spanned<TypeQualifier>>,
         expr: Option<Box<Spanned<Expression>>>,
-        
-
     },
     // maybe this shouldnt be in the main declarator?
     Abstract,
@@ -152,24 +150,29 @@ pub enum Statement {
     Error,
     Return(Option<Spanned<Expression>>),
     If(Spanned<Expression>, Box<Statement>, Option<Box<Statement>>),
-    Switch(Spanned<Expression>, Box<Statement>)
+    Switch(Spanned<Expression>, Box<Statement>),
 }
 #[derive(Debug)]
-pub enum LabeledStatement{
+pub enum LabeledStatement {
     Identifier(Spanned<Identifier>, Box<Statement>),
     Case(Spanned<Expression>, Box<Statement>),
-    Default(Box<Statement>)
+    Default(Box<Statement>),
 }
 #[derive(Debug)]
 pub enum IterationStatement {
     While(Spanned<Expression>, Box<Statement>),
     DoWhile(Box<Statement>, Spanned<Expression>),
-    ForLoop{ init: Option<ForInit>, condition: Option<Spanned<Expression>>, update: Option<Spanned<Expression>>, body: Box<Statement>}
+    ForLoop {
+        init: Option<ForInit>,
+        condition: Option<Spanned<Expression>>,
+        update: Option<Spanned<Expression>>,
+        body: Box<Statement>,
+    },
 }
 #[derive(Debug)]
 pub enum ForInit {
     Expression(Spanned<Expression>),
-    Declaration(Spanned<Declaration>)
+    Declaration(Spanned<Declaration>),
 }
 #[derive(Debug)]
 pub enum BlockItem {
@@ -282,7 +285,7 @@ pub enum PostfixOperator {
     Increment,
     Decrement,
     Call,
-    Subscript
+    Subscript,
 }
 
 #[derive(Debug)]

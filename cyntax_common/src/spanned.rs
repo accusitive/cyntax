@@ -23,7 +23,7 @@ impl Location {
         }
     }
     pub fn until_vec<T>(&self, other: &Vec<Spanned<T>>) -> Self {
-        let end = other.last().map(|t|&t.location).unwrap_or(self);
+        let end = other.last().map(|t| &t.location).unwrap_or(self);
         self.until(end)
     }
     pub fn as_fallback_for_vec<T>(&self, other: &Vec<Spanned<T>>) -> Self {

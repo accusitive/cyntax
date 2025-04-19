@@ -175,7 +175,6 @@ impl<'src> Parser<'src> {
                         let expr = self.parse_expression()?;
                         self.expect_token(Token::Punctuator(Punctuator::RightBracket), "to close array subscript")?;
                         post_fix_operator_span.until(&lhs.location).into_spanned(Expression::Subscript(Box::new(lhs), Box::new(expr)))
-                        
                     }
                     _ => post_fix_operator_span.until(&lhs.location).into_spanned(Expression::PostfixOp(post_fix_operator_span.into_spanned(post_fix_operator), Box::new(lhs))),
                 };
