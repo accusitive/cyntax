@@ -118,12 +118,12 @@ pub struct ParameterDeclaration {
 #[derive(Debug)]
 pub struct InitDeclarator {
     pub declarator: Spanned<Declarator>,
-    pub initializer: Option<Initializer>,
+    pub initializer: Option<Spanned<Initializer>>,
 }
 #[derive(Debug)]
 pub struct Declaration {
     pub specifiers: Vec<Spanned<DeclarationSpecifier>>,
-    pub init_declarators: Vec<InitDeclarator>,
+    pub init_declarators: Vec<Spanned<InitDeclarator>>,
 }
 #[derive(Debug)]
 pub struct ParameterList {
@@ -132,22 +132,37 @@ pub struct ParameterList {
 }
 #[derive(Debug)]
 pub enum Statement {
-    Labeled,
+    Labeled(LabeledStatement),
     Compound(Vec<BlockItem>),
     Expression(Spanned<Expression>),
-    Selection,
-    Iteration,
+    Iteration(IterationStatement),
     Goto(Spanned<Identifier>),
     Continue,
     Break,
     Error,
     Return(Option<Spanned<Expression>>),
-
     If(Spanned<Expression>, Box<Statement>, Option<Box<Statement>>),
 }
 #[derive(Debug)]
+pub enum LabeledStatement{
+    Identifier(Spanned<Identifier>, Box<Statement>),
+    Case(Spanned<Expression>, Box<Statement>),
+    Default(Box<Statement>)
+}
+#[derive(Debug)]
+pub enum IterationStatement {
+    While(Spanned<Expression>, Box<Statement>),
+    DoWhile(Box<Statement>, Spanned<Expression>),
+    ForLoop{ init: Option<ForInit>, condition: Option<Spanned<Expression>>, update: Option<Spanned<Expression>>, body: Box<Statement>}
+}
+#[derive(Debug)]
+pub enum ForInit {
+    Expression(Spanned<Expression>),
+    Declaration(Spanned<Declaration>)
+}
+#[derive(Debug)]
 pub enum BlockItem {
-    Declaration(Declaration),
+    Declaration(Spanned<Declaration>),
     Statement(Statement),
 }
 #[derive(Debug)]
@@ -158,7 +173,7 @@ pub enum Initializer {
 #[derive(Debug)]
 pub struct DesignatedIntiializer {
     pub designation: Vec<Designator>,
-    pub initializer: Initializer,
+    pub initializer: Spanned<Initializer>,
 }
 #[derive(Debug)]
 pub enum Designator {
@@ -177,6 +192,7 @@ pub enum Expression {
     PostfixOp(Spanned<PostfixOperator>, Box<Spanned<Self>>),
     Cast(Spanned<TypeName>, Box<Spanned<Self>>),
     Call(Box<Spanned<Self>>, Vec<Spanned<Self>>),
+    Subscript(Box<Spanned<Self>>, Box<Spanned<Self>>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -255,6 +271,7 @@ pub enum PostfixOperator {
     Increment,
     Decrement,
     Call,
+    Subscript
 }
 
 #[derive(Debug)]

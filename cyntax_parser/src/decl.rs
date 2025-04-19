@@ -27,8 +27,8 @@ impl<'src> Parser<'src> {
         }
 
         // int main() {}
-        if init_declarators.len() == 1 && init_declarators[0].initializer.is_none() && self.peek_matches(Token::Punctuator(Punctuator::LeftBrace))? {
-            let declarator = init_declarators.remove(0).declarator;
+        if init_declarators.len() == 1 && init_declarators[0].value.initializer.is_none() && self.peek_matches(Token::Punctuator(Punctuator::LeftBrace))? {
+            let declarator = init_declarators.remove(0).value.declarator;
             let body = self.parse_statement()?;
             return Ok(Some(ExternalDeclaration::FunctionDefinition(FunctionDefinition { specifiers, declarator, body })));
         }
@@ -41,26 +41,28 @@ impl<'src> Parser<'src> {
         self.expect_token(Token::Punctuator(Punctuator::Semicolon), "to end declaration")?;
         return Ok(Some(ExternalDeclaration::Declaration(Declaration { specifiers, init_declarators })));
     }
-    pub fn parse_declaration(&mut self) -> PResult<Declaration> {
+    pub fn parse_declaration(&mut self) -> PResult<Spanned<Declaration>> {
+        let start = self.last_location.clone();
         let specifiers = self.parse_declaration_specifiers()?;
+        let mut location = start.until_vec(&specifiers);
 
         let mut is_typedef = false;
 
         let init_declarators = self.parse_init_declarators()?;
 
-        // self.expect_token(Token::Punctuator(Punctuator::Semicolon), "after declaration")?;
         for specifier in &specifiers {
             if matches!(specifier, span!(DeclarationSpecifier::StorageClass(StorageClassSpecifier::Typedef))) {
                 is_typedef = true;
             }
         }
-        if is_typedef {
-            for declarator in &init_declarators {
+        for declarator in &init_declarators {
+            location = location.until(&declarator.location);
+
+            if is_typedef {
                 self.declare_typedef(declarator);
             }
         }
-
-        Ok(Declaration { specifiers, init_declarators })
+        Ok(location.into_spanned(Declaration { specifiers, init_declarators }))
     }
     pub fn parse_declaration_specifiers(&mut self) -> PResult<Vec<Spanned<DeclarationSpecifier>>> {
         let mut declaration_specifiers = vec![];
@@ -114,7 +116,7 @@ impl<'src> Parser<'src> {
             },
         ))
     }
-    pub fn parse_init_declarators(&mut self) -> PResult<Vec<InitDeclarator>> {
+    pub fn parse_init_declarators(&mut self) -> PResult<Vec<Spanned<InitDeclarator>>> {
         let mut init_declarators = vec![];
         while self.can_start_init_declarator() || self.consider_comma(&init_declarators)? {
             if init_declarators.len() >= 1 {
@@ -131,13 +133,13 @@ impl<'src> Parser<'src> {
     pub fn can_start_declarator(&mut self) -> bool {
         return matches!(self.peek_token(), Ok(span!(Token::Punctuator(Punctuator::Asterisk) | Token::Identifier(_) | Token::Punctuator(Punctuator::LeftParen))));
     }
-    pub fn parse_init_declarator(&mut self) -> PResult<InitDeclarator> {
+    pub fn parse_init_declarator(&mut self) -> PResult<Spanned<InitDeclarator>> {
         let declarator = self.parse_declarator()?;
         if self.eat_if_next(Token::Punctuator(Punctuator::Equal))? {
             let initializer = self.parse_initializer()?;
-            Ok(InitDeclarator { declarator, initializer: Some(initializer) })
+            Ok(declarator.location.until(&initializer.location).to_spanned(InitDeclarator { declarator, initializer: Some(initializer) }))
         } else {
-            Ok(InitDeclarator { declarator, initializer: None })
+            Ok(Spanned::new(declarator.location.clone(), InitDeclarator { declarator, initializer: None }))
         }
     }
     pub fn parse_declarator(&mut self) -> PResult<Spanned<Declarator>> {
@@ -204,19 +206,20 @@ impl<'src> Parser<'src> {
         // todo: Array staff
         Ok(base)
     }
-    pub fn parse_initializer(&mut self) -> PResult<Initializer> {
-        //todo: assignement-expr
+    pub fn parse_initializer(&mut self) -> PResult<Spanned<Initializer>> {
+        let start = self.last_location.clone();
         if self.eat_if_next(Token::Punctuator(Punctuator::LeftBrace))? {
             let list = self.parse_initializer_list()?;
             // comma is optional
             let _ = self.eat_if_next(Token::Punctuator(Punctuator::Comma));
-            self.expect_token(Token::Punctuator(Punctuator::RightBrace), "to end an initializer")?;
-            Ok(Initializer::List(list))
+            let location = start.until(&self.expect_token(Token::Punctuator(Punctuator::RightBrace), "to end an initializer")?.location);
+            Ok(location.into_spanned(Initializer::List(list)))
         } else if self.can_start_primary_expression() {
-            Ok(Initializer::Assignemnt(self.parse_expression()?))
+            let expr = self.parse_expression()?;
+
+            Ok(start.until(&expr.location).to_spanned(Initializer::Assignemnt(expr)))
         } else {
             Err(SimpleError(self.last_location.clone(), "failed to start initialzor".into()).into_codespan_report())
-            // panic!();
         }
     }
     pub fn parse_initializer_list(&mut self) -> PResult<Vec<DesignatedIntiializer>> {

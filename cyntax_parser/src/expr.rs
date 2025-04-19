@@ -107,6 +107,7 @@ impl<'src> Parser<'src> {
             span!(Token::Punctuator(Punctuator::PlusPlus)) => Some(PostfixOperator::Increment),
             span!(Token::Punctuator(Punctuator::MinusMinus)) => Some(PostfixOperator::Decrement),
             span!(Token::Punctuator(Punctuator::LeftParen)) => Some(PostfixOperator::Call),
+            span!(Token::Punctuator(Punctuator::LeftBracket)) => Some(PostfixOperator::Subscript),
 
             // span!(Token::Punctuator(Punctuator::LeftParen)) => Some(PostfixOperator::Call),
             _ => None,
@@ -165,11 +166,18 @@ impl<'src> Parser<'src> {
                 }
                 let span!(post_fix_operator_span, _) = self.next_token()?; // bump past postfix operator
 
-                lhs = if let PostfixOperator::Call = post_fix_operator {
-                    let args = self.parse_argument_expression_list()?;
-                    post_fix_operator_span.until(&lhs.location).into_spanned(Expression::Call(Box::new(lhs), args))
-                } else {
-                    post_fix_operator_span.until(&lhs.location).into_spanned(Expression::PostfixOp(post_fix_operator_span.into_spanned(post_fix_operator), Box::new(lhs)))
+                lhs = match post_fix_operator {
+                    PostfixOperator::Call => {
+                        let args = self.parse_argument_expression_list()?;
+                        post_fix_operator_span.until(&lhs.location).into_spanned(Expression::Call(Box::new(lhs), args))
+                    }
+                    PostfixOperator::Subscript => {
+                        let expr = self.parse_expression()?;
+                        self.expect_token(Token::Punctuator(Punctuator::RightBracket), "to close array subscript")?;
+                        post_fix_operator_span.until(&lhs.location).into_spanned(Expression::Subscript(Box::new(lhs), Box::new(expr)))
+                        
+                    }
+                    _ => post_fix_operator_span.until(&lhs.location).into_spanned(Expression::PostfixOp(post_fix_operator_span.into_spanned(post_fix_operator), Box::new(lhs))),
                 };
                 continue;
             }

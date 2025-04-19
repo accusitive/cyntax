@@ -128,7 +128,7 @@ impl<'src> Parser<'src> {
             Err(e) => Err(SimpleError(location, format!("expected {:?}, found EOF: {:?}", t, e)).into_codespan_report()),
         }
     }
-    pub fn maybe_recover<T: Debug, F: FnMut(&mut Self) -> PResult<T>, E: FnMut() -> T>(&mut self, mut f: F, mut e: E, recovery_char: Token) -> T {
+    pub fn maybe_recover<T: Debug, F: FnMut(&mut Self) -> PResult<T>, E: FnOnce(&Self) -> T>(&mut self, mut f: F, e: E, recovery_char: Token) -> T {
         let v = f(self);
         dbg!(&v);
         match v {
@@ -140,7 +140,7 @@ impl<'src> Parser<'src> {
                         break;
                     }
                 }
-                e()
+                e(self)
             }
         }
     }
@@ -170,8 +170,8 @@ impl<'src> Parser<'src> {
             Declarator::Abstract => unreachable!(),
         }
     }
-    pub fn declare_typedef(&mut self, init_declarator: &InitDeclarator) {
-        let declarator_name = self.get_declarator_name(&init_declarator.declarator.value);
+    pub fn declare_typedef(&mut self, init_declarator: &Spanned<InitDeclarator>) {
+        let declarator_name = self.get_declarator_name(&init_declarator.value.declarator.value);
         self.scopes.last_mut().unwrap().insert(declarator_name);
         dbg!(&self.scopes);
     }
@@ -226,7 +226,7 @@ impl<'src> Parser<'src> {
 
                     Ok(Some((specifier_qualifiers, declarators)))
                 },
-                || None,
+                |_| None,
                 Token::Punctuator(Punctuator::Semicolon),
             ) {
                 struct_declarations.push(StructDeclaration { declarators, specifier_qualifiers });

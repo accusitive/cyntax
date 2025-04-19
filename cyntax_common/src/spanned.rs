@@ -22,6 +22,10 @@ impl Location {
             file_id: self.file_id,
         }
     }
+    pub fn until_vec<T>(&self, other: &Vec<Spanned<T>>) -> Self {
+        let end = other.last().map(|t|&t.location).unwrap_or(self);
+        self.until(end)
+    }
     pub fn as_fallback_for_vec<T>(&self, other: &Vec<Spanned<T>>) -> Self {
         let first = other.first().map(|s| s.location.clone()).unwrap_or(self.clone());
         let last = other.first().map(|s| s.location.clone()).unwrap_or(self.clone());
