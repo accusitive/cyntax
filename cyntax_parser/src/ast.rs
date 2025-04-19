@@ -143,7 +143,7 @@ pub enum Statement {
     Error,
     Return(Option<Spanned<Expression>>),
 
-    If(Spanned<Expression>, Box<Statement>, Option<Box<Statement>>)
+    If(Spanned<Expression>, Box<Statement>, Option<Box<Statement>>),
 }
 #[derive(Debug)]
 pub enum BlockItem {
@@ -176,7 +176,7 @@ pub enum Expression {
     UnaryOp(Spanned<PrefixOperator>, Box<Spanned<Self>>),
     PostfixOp(Spanned<PostfixOperator>, Box<Spanned<Self>>),
     Cast(Spanned<TypeName>, Box<Spanned<Self>>),
-    Call(Box<Spanned<Self>>, Vec<Spanned<Self>>)
+    Call(Box<Spanned<Self>>, Vec<Spanned<Self>>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -208,7 +208,7 @@ pub enum PrefixOperator {
     CastOrParen,
     Dereference,
     Increment,
-    Decrement
+    Decrement,
 }
 #[derive(Debug)]
 pub enum InfixOperator {
@@ -248,13 +248,13 @@ pub enum InfixOperator {
     // a.b
     Access,
     // a->b
-    IndirectAccess
+    IndirectAccess,
 }
 #[derive(Debug)]
 pub enum PostfixOperator {
     Increment,
     Decrement,
-    Call
+    Call,
 }
 
 #[derive(Debug)]

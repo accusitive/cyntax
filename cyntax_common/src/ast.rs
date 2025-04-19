@@ -101,7 +101,7 @@ pub enum Punctuator {
     RightRightEqual, // >>=
     AndEqual,        // &=
     CaretEqual,      // ^=
-    PipeEqual,         // |=
+    PipeEqual,       // |=
 
     // Miscellaneous
     Comma,     // ,

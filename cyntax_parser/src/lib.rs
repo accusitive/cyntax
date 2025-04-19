@@ -105,13 +105,8 @@ impl<'src> Parser<'src> {
             Ok(false)
         }
     }
-pub fn eat_next(&mut self, t: Token) -> PResult<Option<Spanned<Token>>> {
-        if self.peek_token()?.value == t {
-            
-            Ok(Some(self.next_token().unwrap()))
-        } else {
-            Ok(None)
-        }
+    pub fn eat_next(&mut self, t: Token) -> PResult<Option<Spanned<Token>>> {
+        if self.peek_token()?.value == t { Ok(Some(self.next_token().unwrap())) } else { Ok(None) }
     }
     pub fn eat_if_same_variant(&mut self, t: Token) -> PResult<bool> {
         if std::mem::discriminant(&self.peek_token()?.value) == std::mem::discriminant(&t) {
