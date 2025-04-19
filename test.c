@@ -1,11 +1,12 @@
-int main()
-{
-    int x[static const 5];
-    int x[const *];
-    int (*f(int))(double);
-    int (*f())();
-    int (((*f)));
-    int x[static *];
-    int a[const volatile restrict 10];
+enum Test{ 
+    RED,
+    BLUE = RED,
+    GREEN = 150,
+    YELLOW = RED + GREEN * BLUE - 100,
+};
 
-}
+enum {
+    Look,
+    Its,
+    Anonymous =3
+};

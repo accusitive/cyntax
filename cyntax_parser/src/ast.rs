@@ -52,19 +52,31 @@ pub enum TypeSpecifier {
     Bool,
     /// _Complex
     Complex,
-    Struct(StructSpecifier),
-    Enum,
+    Struct(StructOrUnionSpecifier),
+    Union(StructOrUnionSpecifier),
+
+    Enum(EnumSpecifier),
     TypedefName(Identifier),
 }
 #[derive(Debug)]
-pub struct StructSpecifier {
+pub struct StructOrUnionSpecifier {
     pub identifier: Option<Identifier>,
-    pub declarations: Vec<StructDeclaration>,
+    pub declarations: Vec<StructOrUnionDeclaration>,
 }
 #[derive(Debug)]
-pub struct StructDeclaration {
+pub struct EnumSpecifier {
+    pub identifier: Option<Identifier>,
+    pub declarations: Vec<EnumDeclaration>,
+}
+#[derive(Debug)]
+pub struct StructOrUnionDeclaration {
     pub specifier_qualifiers: Vec<SpecifierQualifier>,
     pub declarators: Vec<StructDeclarator>,
+}
+#[derive(Debug)]
+pub struct EnumDeclaration {
+    pub identifier: Spanned<Identifier>,
+    pub value: Option<Spanned<Expression>>
 }
 #[derive(Debug)]
 pub struct StructDeclarator {

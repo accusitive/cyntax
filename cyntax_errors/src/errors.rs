@@ -162,7 +162,7 @@ pub struct SimpleError(pub Location, pub String);
 
 impl Diagnostic for SimpleError {
     fn title<'a>(&self) -> &'a str {
-        "error"
+        "simple error"
     }
 
     fn severity(&self) -> DiagnosticSeverity {
@@ -176,24 +176,21 @@ impl Diagnostic for SimpleError {
         }]
     }
 }
+pub struct SimpleWarning(pub Location, pub String);
 
-// pub struct ExpectedTokenError(pub Location, pub Option<String>);
+impl Diagnostic for SimpleWarning {
+    fn title<'a>(&self) -> &'a str {
+        "simple warning"
+    }
 
-// impl Diagnostic for ExpectedTokenError{
-//     fn title<'a>(&self) -> &'a str {
-//         "expectec token"
-//     }
-
-//     fn severity(&self) -> DiagnosticSeverity {
-//         DiagnosticSeverity::Error
-//     }
-//     fn labels(&self) -> Vec<Label> {
-//         let mut labels = vec![];
-
-//         labels.push(Label{
-//             kind: crate::LabelKind::Primary,
-//             location: self.0.clone(),
-//             message: format!("expected "),
-//         });
-//     }
-// }
+    fn severity(&self) -> DiagnosticSeverity {
+        DiagnosticSeverity::Warning
+    }
+    fn labels(&self) -> Vec<Label> {
+        vec![Label {
+            kind: crate::LabelKind::Primary,
+            location: self.0.clone(),
+            message: self.1.clone(),
+        }]
+    }
+}

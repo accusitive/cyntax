@@ -79,6 +79,7 @@ impl<'src> Parser<'src> {
             _ => false,
         }
     }
+    // todo: dont duplicate so much code, just call the other functions that already exist
     pub fn parse_declaration_specifier(&mut self) -> PResult<Spanned<DeclarationSpecifier>> {
         let Spanned { value, location } = self.next_token()?;
         Ok(Spanned::new(
@@ -103,7 +104,9 @@ impl<'src> Parser<'src> {
                 Token::Keyword(Keyword::Unsigned) => DeclarationSpecifier::TypeSpecifier(TypeSpecifier::Unsigned),
                 Token::Keyword(Keyword::Bool) => DeclarationSpecifier::TypeSpecifier(TypeSpecifier::Bool),
                 Token::Keyword(Keyword::Complex) => DeclarationSpecifier::TypeSpecifier(TypeSpecifier::Complex),
-                Token::Keyword(Keyword::Struct) => DeclarationSpecifier::TypeSpecifier(self.parse_struct_type_specifier()?),
+                Token::Keyword(Keyword::Struct) => DeclarationSpecifier::TypeSpecifier(self.parse_struct_or_union_type_specifier(false)?),
+                Token::Keyword(Keyword::Union) => DeclarationSpecifier::TypeSpecifier(self.parse_struct_or_union_type_specifier(true)?),
+                Token::Keyword(Keyword::Enum) => DeclarationSpecifier::TypeSpecifier(self.parse_enum_type_specifier()?),
 
                 // Type qualifiers
                 Token::Keyword(Keyword::Const) => DeclarationSpecifier::TypeQualifier(TypeQualifier::Const),

@@ -114,6 +114,7 @@ impl<'src> Iterator for Lexer<'src> {
             span!('/') if matches!(self.chars.peek(), Some(span!('*'))) => {
                 while let Some(span!(char_span, char)) = self.chars.next() {
                     if char == '*' && matches!(self.chars.peek(), Some(span!('/'))) {
+                        self.chars.next().unwrap();
                         return Some(Spanned::new(char_span, PreprocessingToken::Whitespace(Whitespace::Newline)));
                     }
                 }
