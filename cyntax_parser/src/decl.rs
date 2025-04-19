@@ -155,7 +155,7 @@ impl<'src> Parser<'src> {
     }
 
     pub fn parse_direct_declarator(&mut self) -> PResult<Spanned<Declarator>> {
-        let base = match self.next_token()? {
+        let mut base = match self.next_token()? {
             span!(span, Token::Identifier(identifier)) => Spanned::new(span, Declarator::Identifier(identifier.clone())),
             span!(span, Token::Punctuator(Punctuator::LeftParen)) => {
                 let d = self.parse_declarator()?;
@@ -164,13 +164,19 @@ impl<'src> Parser<'src> {
             }
             x => return Err(SimpleError(x.location, format!("Expected direct declarator, found {:?}", x.value)).into_codespan_report()),
         };
-        // Function stuff
-        if self.eat_if_next(Token::Punctuator(Punctuator::LeftParen))? {
-            let params = self.parse_parameter_type_list()?;
-            let rp = self.expect_token(Token::Punctuator(Punctuator::RightParen), "to end a function declarator")?;
-            let span = base.location.until(&rp.location);
+        loop {
+            // Function stuff
+            if self.eat_if_next(Token::Punctuator(Punctuator::LeftParen))? {
+                let params = self.parse_parameter_type_list()?;
+                let rp = self.expect_token(Token::Punctuator(Punctuator::RightParen), "to end a function declarator")?;
+                let span = base.location.until(&rp.location);
 
-            return Ok(Spanned::new(span, Declarator::Function(Box::new(base), params)));
+                base = Spanned::new(span, Declarator::Function(Box::new(base), params));
+            } else if self.eat_if_next(Token::Punctuator(Punctuator::LeftBracket))? {
+                self.expect_token(Token::Punctuator(Punctuator::RightBracket), "to close array part of declarator")?;
+            } else {
+                break;
+            }
         }
         // todo: Array staff
         Ok(base)

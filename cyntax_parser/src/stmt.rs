@@ -212,8 +212,6 @@ impl<'src> Parser<'src> {
                     Statement::Return(None)
                 } else if self.can_start_primary_expression() {
                     let e = self.parse_expression()?;
-
-                    // dbg!("returning", &e);
                     Statement::Return(Some(e))
                 } else {
                     return Err(SimpleError(self.last_location.clone(), "cannot start primary expression".to_string()).into_codespan_report());
