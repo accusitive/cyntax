@@ -102,6 +102,16 @@ pub enum Declarator {
     Parenthesized(Box<Spanned<Self>>),
     // todo: array
     Function(Box<Spanned<Self>>, Vec<Spanned<ParameterDeclaration>>),
+    Array{
+        base: Box<Spanned<Self>>,
+        has_static: bool,
+        has_star: bool,
+
+        type_qualifiers: Vec<Spanned<TypeQualifier>>,
+        expr: Option<Box<Spanned<Expression>>>,
+        
+
+    },
     // maybe this shouldnt be in the main declarator?
     Abstract,
 }

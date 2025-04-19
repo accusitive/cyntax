@@ -173,12 +173,54 @@ impl<'src> Parser<'src> {
 
                 base = Spanned::new(span, Declarator::Function(Box::new(base), params));
             } else if self.eat_if_next(Token::Punctuator(Punctuator::LeftBracket))? {
-                self.expect_token(Token::Punctuator(Punctuator::RightBracket), "to close array part of declarator")?;
+                /*
+                direct-declarator [ type-qualifier-list opt assignment-expression opt ]
+                direct-declarator [ static type-qualifier-list opt assignment-expression ]
+                direct-declarator [ type-qualifier-list static assignment-expression ]
+                direct-declarator [ type-qualifier-list opt * ]
+                direct-declarator ( parameter-type-list )
+                direct-declarator ( identifier-listopt )
+                 */
+
+                let early_static = self.eat_if_next(Token::Keyword(Keyword::Static))?;
+                let tq = self.parse_type_qualifiers()?;
+                let late_static = self.eat_if_next(Token::Keyword(Keyword::Static))?;
+
+                if self.eat_if_next(Token::Punctuator(Punctuator::Asterisk))? {
+                    let closer = self.expect_token(Token::Punctuator(Punctuator::RightBracket), "to close expr array declarator")?;
+                    let span = base.location.until(&closer.location);
+                    base = span.to_spanned(Declarator::Array {
+                        base: Box::new(base),
+                        has_static: early_static || late_static,
+                        has_star: true,
+                        type_qualifiers: tq,
+                        expr: None,
+                    })
+                } else if let Some(closer) = self.eat_next(Token::Punctuator(Punctuator::RightBracket))? {
+                    let span = base.location.until(&closer.location);
+                    base = span.to_spanned(Declarator::Array {
+                        base: Box::new(base),
+                        has_static: early_static || late_static,
+                        has_star: false,
+                        type_qualifiers: tq,
+                        expr: None,
+                    })
+                } else {
+                    let expr = self.parse_expression()?;
+                    let closer = self.expect_token(Token::Punctuator(Punctuator::RightBracket), "to close expr array declarator")?;
+                    let span = base.location.until(&closer.location);
+                    base = span.to_spanned(Declarator::Array {
+                        base: Box::new(base),
+                        has_static: early_static || late_static,
+                        has_star: false,
+                        type_qualifiers: tq,
+                        expr: Some(Box::new(expr)),
+                    })
+                }
             } else {
                 break;
             }
         }
-        // todo: Array staff
         Ok(base)
     }
     pub fn parse_abstract_declarator(&mut self) -> PResult<Spanned<Declarator>> {

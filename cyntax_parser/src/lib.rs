@@ -167,6 +167,7 @@ impl<'src> Parser<'src> {
             Declarator::Pointer(_, declarator) => self.get_declarator_name(&declarator.value),
             Declarator::Parenthesized(declarator) => self.get_declarator_name(&declarator.value),
             Declarator::Function(declarator, _) => self.get_declarator_name(&declarator.value),
+            Declarator::Array { base, .. } => self.get_declarator_name(&base.value),
             Declarator::Abstract => unreachable!(),
         }
     }
