@@ -10,10 +10,9 @@ use crate::{PResult, Parser};
 impl<'src> Parser<'src> {
     pub fn parse_statement(&mut self) -> PResult<Statement> {
         if self.can_start_labeled_stmt() {
-            return Ok(self.parse_labeled_statement(false)?);
+            return Ok(self.parse_labeled_statement()?);
         } else if self.can_start_compound_statement() {
-            let compound_stmt = self.parse_compound_statement()?;
-            return Ok(compound_stmt);
+            return Ok(self.parse_compound_statement()?);
         } else if self.can_start_primary_expression() {
             let expr = self.parse_expression()?;
             self.expect_token(Token::Punctuator(Punctuator::Semicolon), "after expression")?;
@@ -25,8 +24,7 @@ impl<'src> Parser<'src> {
         } else if self.can_start_jump_statement() {
             return self.parse_jump_statement();
         }
-        Err(SimpleError(self.last_location.clone(), format!(" failed to parse statement starting with {:?}", self.peek_token())).into_codespan_report())
-        // unimplemented!("{:#?}", self.peek_token());
+        Err(SimpleError(self.last_location.clone(), format!("failed to parse statement starting with {:?}", self.peek_token())).into_codespan_report())
     }
     pub fn can_start_labeled_stmt(&mut self) -> bool {
         let a = matches!(self.peek_token(), Ok(span!(Token::Identifier(_)))) && matches!(self.peek_token_nth(1), Ok(span!(Token::Punctuator(Punctuator::Colon))));
@@ -57,14 +55,14 @@ impl<'src> Parser<'src> {
             Ok(())
         }
     }
-    pub fn parse_labeled_statement(&mut self, inside_switch: bool) -> PResult<Statement> {
-        let labeled_stmt = if inside_switch && self.eat_if_next(Token::Keyword(Keyword::Case))? {
+    pub fn parse_labeled_statement(&mut self) -> PResult<Statement> {
+        let labeled_stmt = if self.eat_if_next(Token::Keyword(Keyword::Case))? {
             let expr = self.parse_expression()?;
             self.expect_token(Token::Punctuator(Punctuator::Colon), "to seperate case expreesion and it's statement")?;
             self.check_stmt_not_declaration()?;
             let stmt = self.parse_statement()?;
             crate::ast::LabeledStatement::Case(expr, Box::new(stmt))
-        } else if inside_switch && self.eat_if_next(Token::Keyword(Keyword::Default))? {
+        } else if self.eat_if_next(Token::Keyword(Keyword::Default))? {
             self.expect_token(Token::Punctuator(Punctuator::Colon), "to seperate `default` case and it's statement")?;
             self.check_stmt_not_declaration()?;
             let stmt = self.parse_statement()?;
@@ -91,11 +89,9 @@ impl<'src> Parser<'src> {
             let block_item = self.parse_block_item()?;
             block_items.push(block_item);
         }
-        if self.eat_if_next(Token::Punctuator(Punctuator::RightBrace))? {
-            Ok(Statement::Compound(block_items))
-        } else {
-            todo!("{:#?}", self.peek_token());
-        }
+        self.expect_token(Token::Punctuator(Punctuator::RightBrace), "after compound stmt")?;
+
+        Ok(Statement::Compound(block_items))
     }
     pub fn can_start_block_item(&mut self) -> bool {
         self.can_start_declaration_specifier() || self.can_start_statement()
@@ -130,8 +126,13 @@ impl<'src> Parser<'src> {
             } else {
                 return Ok(Statement::If(expr, Box::new(then), None));
             }
-        } else if matches!(self.peek_token(), Ok(span!(Token::Keyword(Keyword::Goto)))) {
-            unimplemented!()
+        } else if self.eat_if_next(Token::Keyword(Keyword::Switch))? {
+            self.expect_token(Token::Punctuator(Punctuator::LeftParen), "to open switch statement's condition expression")?;
+            let expr = self.parse_expression()?;
+            self.expect_token(Token::Punctuator(Punctuator::RightParen), "to close switch statement's condition expression")?;
+            let stmt = self.parse_statement()?;
+
+            return Ok(Statement::Switch(expr, Box::new(stmt)));
         } else {
             todo!()
         }
@@ -173,7 +174,6 @@ impl<'src> Parser<'src> {
                 }
             };
 
-            dbg!(&init);
             let condition = if self.eat_if_next(Token::Punctuator(Punctuator::Semicolon))? {
                 None
             } else {
@@ -182,7 +182,6 @@ impl<'src> Parser<'src> {
                 Some(expr)
             };
 
-            dbg!(&condition);
             let update = if self.eat_if_next(Token::Punctuator(Punctuator::RightParen))? {
                 None
             } else {

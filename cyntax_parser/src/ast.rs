@@ -142,6 +142,7 @@ pub enum Statement {
     Error,
     Return(Option<Spanned<Expression>>),
     If(Spanned<Expression>, Box<Statement>, Option<Box<Statement>>),
+    Switch(Spanned<Expression>, Box<Statement>)
 }
 #[derive(Debug)]
 pub enum LabeledStatement{
