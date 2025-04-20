@@ -4,6 +4,7 @@ use cyntax_common::ast::Whitespace;
 use cyntax_common::ctx::Context;
 use cyntax_common::ctx::HasContext;
 use cyntax_common::ctx::HasMutContext;
+use cyntax_common::span;
 use cyntax_common::spanned::Location;
 use cyntax_common::spanned::Spanned;
 use cyntax_errors::Diagnostic;
@@ -40,20 +41,11 @@ macro_rules! opening_delimiter {
     };
 }
 
-#[macro_export]
-macro_rules! span {
-    ($l: pat, $p: pat) => {
-        Spanned { value: $p, location: $l }
-    };
-    ($p: pat) => {
-        Spanned { value: $p, .. }
-    };
-}
+
 pub use digit;
 pub use identifier;
 pub use nondigit;
 pub use opening_delimiter;
-pub use span;
 /// Characters can span multiple characters, so a simple `usize` index is not enough.
 /// an extreme example is a trigraph. the source `??=`, is lexed as only 1 character, that spans from 0..2
 pub type CharLocation = Range<usize>;

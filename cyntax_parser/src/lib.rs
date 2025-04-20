@@ -6,7 +6,7 @@ use cyntax_common::{
     spanned::{Location, Spanned},
 };
 use cyntax_errors::{Diagnostic, errors::SimpleError};
-use cyntax_lexer::span;
+use cyntax_common::span;
 use peekmore::PeekMore;
 use std::{
     collections::{HashMap, HashSet},

@@ -2,7 +2,7 @@ use cyntax_common::ast::{Keyword, Punctuator};
 use cyntax_common::spanned::Spanned;
 use cyntax_errors::errors::SimpleWarning;
 use cyntax_errors::{Diagnostic, errors::SimpleError};
-use cyntax_lexer::span;
+use cyntax_common::span;
 
 use crate::{
     PResult, Parser,

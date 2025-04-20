@@ -1,5 +1,13 @@
 use std::{fmt::Debug, ops::Range};
-
+#[macro_export]
+macro_rules! span {
+    ($l: pat, $p: pat) => {
+        Spanned { value: $p, location: $l }
+    };
+    ($p: pat) => {
+        Spanned { value: $p, .. }
+    };
+}
 #[derive(Debug, Clone, PartialEq)]
 pub struct Location {
     pub range: Range<usize>,

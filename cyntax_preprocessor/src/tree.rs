@@ -1,12 +1,9 @@
 use std::iter::Peekable;
 
 use cyntax_common::{
-    ast::{Delimited, PreprocessingToken, Punctuator, Whitespace},
-    ctx::{Context, HasContext, string_interner::symbol::SymbolU32},
-    spanned::{Location, Spanned},
+    ast::{Delimited, PreprocessingToken, Punctuator, Whitespace}, ctx::{string_interner::symbol::SymbolU32, Context, HasContext}, span, spanned::{Location, Spanned}
 };
 use cyntax_errors::{Diagnostic, UnwrapDiagnostic};
-use cyntax_lexer::span;
 
 use crate::expand::PResult;
 #[derive(Debug)]

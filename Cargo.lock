@@ -56,6 +56,11 @@ dependencies = [
 [[package]]
 name = "cyntax_consteval"
 version = "0.1.0"
+dependencies = [
+ "cyntax_common",
+ "cyntax_errors",
+ "cyntax_parser",
+]
 
 [[package]]
 name = "cyntax_errors"

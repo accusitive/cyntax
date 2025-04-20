@@ -3,7 +3,7 @@ use crate::ast::{Expression, InfixOperator, Operator, PostfixOperator, PrefixOpe
 use crate::{PResult, Parser};
 use cyntax_common::ast::{Keyword, Punctuator};
 use cyntax_errors::{Diagnostic, errors::SimpleError};
-use cyntax_lexer::span;
+use cyntax_common::span;
 
 impl<'src> Parser<'src> {
     fn prefix_binding_power(operator: &PrefixOperator) -> ((), u8) {
@@ -48,7 +48,7 @@ impl<'src> Parser<'src> {
             span!(Token::Punctuator(Punctuator::Minus)) => Some(InfixOperator::Subtract),
             span!(Token::Punctuator(Punctuator::Asterisk)) => Some(InfixOperator::Multiply),
             span!(Token::Punctuator(Punctuator::Ampersand)) => Some(InfixOperator::BitwiseAnd),
-            span!(Token::Punctuator(Punctuator::PipePipe)) => Some(InfixOperator::BitwiseOr),
+            span!(Token::Punctuator(Punctuator::PipePipe)) => Some(InfixOperator::LogicalOr),
             span!(Token::Punctuator(Punctuator::Pipe)) => Some(InfixOperator::BitwiseOr),
             span!(Token::Punctuator(Punctuator::Slash)) => Some(InfixOperator::Divide),
             span!(Token::Punctuator(Punctuator::AndAnd)) => Some(InfixOperator::LogicalAnd),
@@ -67,8 +67,8 @@ impl<'src> Parser<'src> {
             span!(Token::Punctuator(Punctuator::LeftLeft)) => Some(InfixOperator::BitwiseShiftLeft),
             span!(Token::Punctuator(Punctuator::RightRight)) => Some(InfixOperator::BitwiseShiftRight),
 
-            span!(Token::Punctuator(Punctuator::LeftEqual)) => Some(InfixOperator::BitwiseShiftRight),
-            span!(Token::Punctuator(Punctuator::RightEqual)) => Some(InfixOperator::BitwiseShiftRight),
+            span!(Token::Punctuator(Punctuator::LeftEqual)) => Some(InfixOperator::LessEqual),
+            span!(Token::Punctuator(Punctuator::RightEqual)) => Some(InfixOperator::GreaterEqual),
             span!(Token::Punctuator(Punctuator::BangEqual)) => Some(InfixOperator::NotEqual),
 
             span!(Token::Punctuator(Punctuator::PlusEqual)) => Some(InfixOperator::AddAssign),

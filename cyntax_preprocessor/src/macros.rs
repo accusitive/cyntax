@@ -3,12 +3,9 @@ use crate::{
     tree::TokenTree,
 };
 use cyntax_common::{
-    ast::{Delimited, PreprocessingToken, Punctuator},
-    ctx::string_interner::symbol::SymbolU32,
-    spanned::{Location, Spanned},
+    ast::{Delimited, PreprocessingToken, Punctuator}, ctx::string_interner::symbol::SymbolU32, span, spanned::{Location, Spanned}
 };
 use cyntax_errors::{Diagnostic, errors::SimpleError};
-use cyntax_lexer::span;
 use std::fmt::Debug;
 #[derive(Debug, Clone)]
 pub struct MacroParameterList {

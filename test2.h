@@ -1,7 +1,7 @@
 #define l left
 #define r right
 #define guard 42
-#if defined(guard)
+#if 2 == 5 || defined guard
 
 int main(int left, int right) {
     return l + r;

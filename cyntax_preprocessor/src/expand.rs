@@ -1,11 +1,9 @@
 use cyntax_common::{
-    ast::{Delimited, PreprocessingToken, Punctuator},
-    ctx::{Context, HasContext, string_interner::symbol::SymbolU32},
-    spanned::{Location, Spanned},
+    ast::{Delimited, PreprocessingToken, Punctuator}, ctx::{string_interner::symbol::SymbolU32, Context, HasContext}, span, spanned::{Location, Spanned}
 };
+use cyntax_consteval::Value;
 use cyntax_errors::errors::SimpleError;
 use cyntax_errors::{Diagnostic, errors::UnmatchedDelimiter};
-use cyntax_lexer::span;
 use std::{
     collections::{HashMap, HashSet},
     fmt::Debug,
@@ -167,26 +165,27 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
             TokenTree::PreprocessorToken(span!(defined_span, PreprocessingToken::Identifier(identifier))) if self.respect_defined && identifier == self.ctx.ints("defined") => {
                 let zero = self.ctx.int("0");
                 let one = self.ctx.int("1");
-                if matches!(self.next_non_whitespace(), Some(TokenTree::PreprocessorToken(span!(PreprocessingToken::Identifier(_))))) {
-                    let identifier = self.next_non_whitespace().expect("expected TokenTree::token after defined").as_token();
-                    match identifier {
-                        span!(PreprocessingToken::Identifier(ident)) => {
-                            let result = if self.macros.get(&ident).is_some() { one } else { zero };
-                            return Ok(ExpandControlFlow::Return(vec![Spanned::new(defined_span.clone(), PreprocessingToken::PPNumber(result))]));
-                        }
-                        _ => todo!(),
+
+                match self.peek_non_whitespace() {
+                    Some(TokenTree::PreprocessorToken(span!(PreprocessingToken::Identifier(ident)))) => {
+                        let _ = self.next_non_whitespace().unwrap();
+                        let result = if self.macros.get(&ident).is_some() { one } else { zero };
+                        return Ok(ExpandControlFlow::Return(vec![Spanned::new(defined_span.clone(), PreprocessingToken::PPNumber(result))]));
                     }
-                } else if matches!(self.next_non_whitespace(), Some(TokenTree::PreprocessorToken(span!(PreprocessingToken::Punctuator(Punctuator::LeftParen))))) {
-                    let inner = self.next_delimited();
-                    assert_eq!(inner.2.len(), 1);
-                    dbg!(&inner);
-                    let identifier = &inner.2[1];
-                    match identifier {
-                        span!(PreprocessingToken::Identifier(ident)) => {
-                            let result = if self.macros.get(&ident).is_some() { one } else { zero };
+                    Some(TokenTree::PreprocessorToken(span!(PreprocessingToken::Punctuator(Punctuator::LeftParen)))) => {
+                        let inner = self.next_delimited();
+                        assert_eq!(inner.2.len(), 1);
+                        dbg!(&inner);
+                        if let span!(PreprocessingToken::Identifier(ident)) = &inner.2[0] {
+                            let result = if self.macros.get(ident).is_some() { one } else { zero };
                             return Ok(ExpandControlFlow::Return(vec![Spanned::new(defined_span.clone(), PreprocessingToken::PPNumber(result))]));
+                        } else {
+                            todo!()
                         }
-                        _ => todo!(),
+                    }
+                    _ => {
+                        // Handle the case where the next non-whitespace token doesn't match either pattern
+                        todo!()
                     }
                 }
             }
@@ -240,8 +239,15 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                 let mut parser = cyntax_parser::Parser::new(self.ctx, expanded_condition);
                 let condition = parser.parse_expression()?;
                 dbg!(&condition);
+                let eval = cyntax_consteval::ConstantEvalutator::new().evaluate(&condition)?;
 
-                panic!("{}", std::mem::size_of::<Self>());
+                if let Value::Int(1) = eval {
+                    return Ok(ExpandControlFlow::RescanMany(body))
+                } else {
+                    return Ok(ExpandControlFlow::Rescan(*opposition))
+                }
+
+                // panic!("{}", std::mem::size_of::<Self>());
             }
             TokenTree::Else { body, opposition } => {
                 dbg!(&opposition);

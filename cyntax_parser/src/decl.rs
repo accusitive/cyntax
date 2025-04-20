@@ -1,10 +1,9 @@
 use crate::ast::*;
 use crate::{PResult, Parser};
-use cyntax_common::ast::*;
+use cyntax_common::{ast::*, span};
 use cyntax_common::spanned::Spanned;
 use cyntax_errors::Diagnostic;
 use cyntax_errors::errors::SimpleError;
-use cyntax_lexer::span;
 /// Declarations, Declarators, Init declarators, stuff of that sort
 impl<'src> Parser<'src> {
     pub fn parse_external_declaration(&mut self) -> PResult<Option<ExternalDeclaration>> {
