@@ -9,6 +9,7 @@ use cyntax_errors::{Diagnostic, UnwrapDiagnostic};
 use cyntax_lexer::span;
 
 use crate::expand::PResult;
+#[derive(Debug)]
 pub struct IntoTokenTree<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>> {
     pub ctx: &'src mut Context,
     pub tokens: Peekable<I>,
@@ -29,7 +30,6 @@ impl<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>> Iterator for I
                     }
                     ControlLine::If { condition } => {
                         let body = self.unwrap_with_diagnostic(|this| this.until_closer(token));
-
                         let opposition = Box::new(self.maybe_opposition());
 
                         return Some(TokenTree::If { condition, body, opposition });
@@ -45,7 +45,6 @@ impl<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>> Iterator for I
                         let opposition = Box::new(self.maybe_opposition());
                         return Some(TokenTree::IfNDef { macro_name, body, opposition });
                     }
-
                     ControlLine::Elif { .. } | ControlLine::Else if !self.expecting_opposition => self.unwrap_diagnostic(Err(cyntax_errors::errors::DanglingEndif(token.location.clone()).into_codespan_report())),
                     ControlLine::Elif { condition } => {
                         let body = self.unwrap_with_diagnostic(|this| this.until_closer(token));
@@ -165,6 +164,11 @@ impl<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>> IntoTokenTree<
                 let condition = tokens_iter.collect::<Vec<_>>();
                 return ControlLine::Elif { condition };
             }
+            _ if directive_name == self.ctx.strings.get_or_intern_static("if") => {
+                skip_whitespace(&mut tokens_iter);
+                let tokens = tokens_iter.collect();
+                return ControlLine::If { condition: tokens };
+            }
             _ if directive_name == self.ctx.strings.get_or_intern_static("endif") => {
                 return ControlLine::EndIf;
             }
@@ -233,6 +237,7 @@ impl<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>> IntoTokenTree<
                     _ => todo!(),
                 }
             }
+            
             _ => {
                 let directive_range = tokens.first().unwrap().start()..tokens.last().unwrap().end();
                 let err = cyntax_errors::errors::UnknownDirective(Location {
@@ -331,7 +336,6 @@ pub enum TokenTree {
     Endif,
 
     PreprocessorToken(Spanned<PreprocessingToken>),
-
     Internal(InternalLeaf),
 }
 #[derive(Debug, Clone)]
@@ -341,6 +345,7 @@ pub enum InternalLeaf {
 
     BeginExpandingMacro(SymbolU32),
     FinishExpandingMacro(SymbolU32),
+    Many(Vec<Spanned<PreprocessingToken>>)
 }
 impl TokenTree {
     pub fn as_token(&self) -> Spanned<PreprocessingToken> {

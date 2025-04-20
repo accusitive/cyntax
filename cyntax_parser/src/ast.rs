@@ -219,6 +219,7 @@ pub enum Expression {
     Cast(Spanned<TypeName>, Box<Spanned<Self>>),
     Call(Box<Spanned<Self>>, Vec<Spanned<Self>>),
     Subscript(Box<Spanned<Self>>, Box<Spanned<Self>>),
+    Defined(Spanned<Identifier>)
 }
 
 #[derive(Debug, PartialEq, Clone)]

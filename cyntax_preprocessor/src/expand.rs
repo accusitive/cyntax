@@ -26,7 +26,8 @@ pub struct Expander<'src, I: Debug + Iterator<Item = TokenTree>> {
     pub token_trees: PrependingPeekableIterator<I>,
     pub output: Vec<Spanned<PreprocessingToken>>,
     pub macros: HashMap<SymbolU32, MacroDefinition>,
-    pub expanding: HashSet<SymbolU32>, // pub expanding: HashMap<String, bool>
+    pub expanding: HashSet<SymbolU32>,
+    pub respect_defined: bool,
 }
 #[derive(Debug, Clone)]
 pub enum MacroDefinition {
@@ -56,7 +57,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
             output: Vec::new(),
             macros: HashMap::new(),
             expanding: HashSet::new(),
-            // files: vec![]
+            respect_defined: false,
         }
     }
     // this recursion isnt that bad, there shouldnt really ever be many BeginExpandingMacro tokens next to eachother. id be shocked to see more than 10
@@ -163,6 +164,32 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                 f.push(TokenTree::Internal(InternalLeaf::FinishExpandingMacro(macro_name.clone())));
                 return Ok(ExpandControlFlow::RescanMany(f));
             }
+            TokenTree::PreprocessorToken(span!(defined_span, PreprocessingToken::Identifier(identifier))) if self.respect_defined && identifier == self.ctx.ints("defined") => {
+                let zero = self.ctx.int("0");
+                let one = self.ctx.int("1");
+                if matches!(self.next_non_whitespace(), Some(TokenTree::PreprocessorToken(span!(PreprocessingToken::Identifier(_))))) {
+                    let identifier = self.next_non_whitespace().expect("expected TokenTree::token after defined").as_token();
+                    match identifier {
+                        span!(PreprocessingToken::Identifier(ident)) => {
+                            let result = if self.macros.get(&ident).is_some() { one } else { zero };
+                            return Ok(ExpandControlFlow::Return(vec![Spanned::new(defined_span.clone(), PreprocessingToken::PPNumber(result))]));
+                        }
+                        _ => todo!(),
+                    }
+                } else if matches!(self.next_non_whitespace(), Some(TokenTree::PreprocessorToken(span!(PreprocessingToken::Punctuator(Punctuator::LeftParen))))) {
+                    let inner = self.next_delimited();
+                    assert_eq!(inner.2.len(), 1);
+                    dbg!(&inner);
+                    let identifier = &inner.2[1];
+                    match identifier {
+                        span!(PreprocessingToken::Identifier(ident)) => {
+                            let result = if self.macros.get(&ident).is_some() { one } else { zero };
+                            return Ok(ExpandControlFlow::Return(vec![Spanned::new(defined_span.clone(), PreprocessingToken::PPNumber(result))]));
+                        }
+                        _ => todo!(),
+                    }
+                }
+            }
             TokenTree::PreprocessorToken(span!(span, PreprocessingToken::Identifier(identifier))) if self.expanding.contains(&identifier) => {
                 dbg!(&identifier, &self.expanding);
                 return Ok(ExpandControlFlow::Return(vec![Spanned::new(span.clone(), PreprocessingToken::BlueIdentifier(identifier.clone()))]));
@@ -187,6 +214,34 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                 } else {
                     return Ok(ExpandControlFlow::Rescan(*opposition));
                 }
+            }
+            TokenTree::If { condition, body, opposition } => {
+                let mut expanded_condition = vec![];
+
+                // have to collect here so the reference to self.ctx is dropped
+                // maybe there is a more efficient way to do this? copying the context would be a bad idea, since the string interners could get out of sync
+                let itt = IntoTokenTree {
+                    ctx: self.ctx,
+                    tokens: condition.iter().peekable(),
+                    expecting_opposition: false,
+                }
+                .collect::<Vec<_>>();
+
+                let mut expander = Expander::new(self.ctx, PrependingPeekableIterator::new(itt.into_iter()));
+                expander.macros = self.macros.clone();
+                expander.respect_defined = true;
+                expander.expand().unwrap();
+
+                dbg!(&expander.output);
+                expanded_condition.extend(expander.output);
+
+                // dbg!(&tt);
+                // expanded_condition.extend(self.fully_expand_token_tree(tt, false)?);
+                let mut parser = cyntax_parser::Parser::new(self.ctx, expanded_condition);
+                let condition = parser.parse_expression()?;
+                dbg!(&condition);
+
+                panic!("{}", std::mem::size_of::<Self>());
             }
             TokenTree::Else { body, opposition } => {
                 dbg!(&opposition);
@@ -287,12 +342,11 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
     pub fn expand_arg<'a, J: Iterator<Item = &'a Spanned<PreprocessingToken>>>(&mut self, arg: J) -> Vec<Spanned<PreprocessingToken>> {
         let mut expander = Expander {
             ctx: self.ctx,
-            // file_name: self.file_name,
-            // file_source: self.file_source,
             expanding: self.expanding.clone(),
             macros: self.macros.clone(),
             output: Vec::new(),
             token_trees: PrependingPeekableIterator::new(arg.map(|t| TokenTree::PreprocessorToken(t.clone())).collect::<Vec<_>>().into_iter()),
+            respect_defined: false,
         };
         dbg!(&expander.token_trees);
         expander.expand().unwrap();

@@ -54,6 +54,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "cyntax_consteval"
+version = "0.1.0"
+
+[[package]]
 name = "cyntax_errors"
 version = "0.1.0"
 dependencies = [
@@ -80,7 +84,6 @@ dependencies = [
  "cyntax_common",
  "cyntax_errors",
  "cyntax_lexer",
- "cyntax_preprocessor",
  "peekmore",
 ]
 
@@ -89,8 +92,10 @@ name = "cyntax_preprocessor"
 version = "0.1.0"
 dependencies = [
  "cyntax_common",
+ "cyntax_consteval",
  "cyntax_errors",
  "cyntax_lexer",
+ "cyntax_parser",
  "peekmore",
 ]
 

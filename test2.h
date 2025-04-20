@@ -1,4 +1,9 @@
-#define a b
+#define l left
+#define r right
+#define guard 42
+#if defined(guard)
+
 int main(int left, int right) {
-    float f = a;
+    return l + r;
 }
+#endif

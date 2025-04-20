@@ -98,7 +98,6 @@ impl<'src> Parser<'src> {
             span!(Token::Punctuator(Punctuator::MinusMinus)) => Some(PrefixOperator::Decrement),
             span!(Token::Punctuator(Punctuator::Bang)) => Some(PrefixOperator::LogicalNot),
             span!(Token::Punctuator(Punctuator::Ampersand)) => Some(PrefixOperator::Dereference),
-
             _ => None,
         }
     }
@@ -124,7 +123,6 @@ impl<'src> Parser<'src> {
             let ((), right_binding_power) = Self::prefix_binding_power(&prefix_operator);
 
             let span!(prefix_op_span, _) = self.next_token()?; // bump prefix operator
-
             let can_start_type_name = self.can_start_typename();
 
             let expression = match (&prefix_operator, can_start_type_name) {
@@ -139,6 +137,7 @@ impl<'src> Parser<'src> {
                     self.expect_token(Token::Punctuator(Punctuator::RightParen), "to close paren expression")?;
                     expr
                 }
+
                 _ => {
                     let expression = self.parse_expression_bp(right_binding_power)?;
                     prefix_op_span.until(&expression.location).into_spanned(Expression::UnaryOp(Spanned::new(prefix_op_span.clone(), prefix_operator), Box::new(expression)))
@@ -146,6 +145,17 @@ impl<'src> Parser<'src> {
             };
 
             expression
+        } else if let Ok(span!(span, Token::Identifier(identifier))) = self.peek_token().cloned() {
+            if identifier == self.ctx.ints("defined") && matches!(self.peek_token_nth(1), Ok(span!(Token::Punctuator(Punctuator::LeftParen)))) {
+                self.next_token()?; // defined
+                self.expect_token(Token::Punctuator(Punctuator::LeftParen), "openeing lparen for defined(..)")?;
+                let i = self.expect_non_typename_identifier()?;
+                let closer = self.expect_token(Token::Punctuator(Punctuator::RightParen), "closing rparen for defined(..)")?;
+                let span = span.until(&closer.location);
+                span.into_spanned(Expression::Defined(i))
+            } else {
+                span.to_spanned(Expression::Identifier(span.to_spanned(identifier)))
+            }
         } else {
             match self.next_token()? {
                 span!(span, Token::Identifier(identifier)) => span.to_spanned(Expression::Identifier(span.to_spanned(identifier))),
@@ -156,7 +166,11 @@ impl<'src> Parser<'src> {
         };
 
         while !self.next_is_semicolon() {
-            let peeked = self.peek_token()?;
+            // an expression can end on EOF when called from an #if directive, just end the loop early in that case.
+            let peeked = match self.peek_token() {
+                Ok(tok) => tok,
+                Err(_) => break,
+            };
             let post_fix_operator = Self::as_postfix_operator(peeked);
 
             if let Some(post_fix_operator) = post_fix_operator {
@@ -243,5 +257,8 @@ impl<'src> Parser<'src> {
     }
     pub fn next_is_semicolon(&mut self) -> bool {
         matches!(self.peek_token(), Ok(span!(Token::Punctuator(Punctuator::Semicolon))))
+    }
+    pub fn next_is_eof(&mut self) -> bool {
+        matches!(self.peek_token(), Err(_))
     }
 }

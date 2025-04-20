@@ -92,7 +92,7 @@ impl<'src> Iterator for Lexer<'src> {
                 let number = self.lex_number(&first_character);
                 Some(number.map(|num| PreprocessingToken::PPNumber(self.ctx.strings.get_or_intern(num))))
             }
-            // Digits can start with 0
+            // Digits can start with .
             first_character @ span!('.') if matches!(self.chars.peek(), Some(span!(digit!()))) => {
                 let number = self.lex_number(&first_character);
 
@@ -110,7 +110,7 @@ impl<'src> Iterator for Lexer<'src> {
                 }
                 self.next()
             }
-            //inline comments
+            // inline comments
             span!('/') if matches!(self.chars.peek(), Some(span!('*'))) => {
                 while let Some(span!(char_span, char)) = self.chars.next() {
                     if char == '*' && matches!(self.chars.peek(), Some(span!('/'))) {

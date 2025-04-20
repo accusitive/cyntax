@@ -23,6 +23,10 @@ impl Context {
     pub fn int<S: AsRef<str>>(&mut self, s: S) -> SymbolU32 {
         self.strings.get_or_intern(s)
     }
+    /// Interns a static string
+    pub fn ints(&mut self, s: &'static str) -> SymbolU32 {
+        self.strings.get_or_intern_static(s)
+    }
 }
 pub trait HasContext {
     fn ctx(&self) -> &Context;

@@ -6,7 +6,6 @@ edition = "2024"
 [dependencies]
 cyntax_lexer = {path = "../cyntax_lexer"}
 cyntax_common = {path = "../cyntax_common"}
-cyntax_preprocessor = {path = "../cyntax_preprocessor"}
 cyntax_errors = {path = "../cyntax_errors"}
 
 peekmore = "1.3.0"

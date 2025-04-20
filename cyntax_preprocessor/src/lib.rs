@@ -15,7 +15,7 @@ mod prepend;
 mod substitute;
 mod tree;
 
-pub struct Preprocessor<'src> {
+pub struct  Preprocessor<'src> {
     // macros and whatever
     ctx: &'src mut Context,
     token_trees: Vec<TokenTree>,
