@@ -1,5 +1,5 @@
 pub use codespan_reporting;
-use codespan_reporting::{term::termcolor::Ansi};
+use codespan_reporting::term::termcolor::Ansi;
 use cyntax_common::{ctx::HasContext, spanned::Location};
 pub enum DiagnosticSeverity {
     Error,

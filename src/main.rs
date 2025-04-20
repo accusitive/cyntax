@@ -91,6 +91,7 @@ fn main() {
 
     let mut parser = cyntax_parser::Parser::new(&mut ctx, expanded);
     let parse_result = parser.parse_translation_unit();
+
     match parse_result {
         Ok(tu) => {
             dbg!(&tu);

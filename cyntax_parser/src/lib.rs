@@ -115,7 +115,6 @@ impl<'src> Parser<'src> {
             }
             Some(Err(e)) => Err(e.clone()),
             None => Err(SimpleError(self.last_location.clone(), format!("Unexpected EOF while peeking! {}", std::backtrace::Backtrace::capture())).into_codespan_report()),
-
             // None => Err(SimpleError(self.last_location.clone(), "Unexpected EOF while peeking!".to_string()).into_codespan_report()),
         }
     }
@@ -206,7 +205,7 @@ impl<'src> Parser<'src> {
             Declarator::Parenthesized(declarator) => self.get_declarator_name(&declarator.value),
             Declarator::Function(declarator, _) => self.get_declarator_name(&declarator.value),
             Declarator::Array { base, .. } => self.get_declarator_name(&base.value),
-            Declarator::Abstract => self.ctx.ints("")
+            Declarator::Abstract => self.ctx.ints(""),
         }
     }
     pub fn declare_typedef(&mut self, declarator: &Spanned<Declarator>) -> PResult<()> {

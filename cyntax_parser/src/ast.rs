@@ -27,7 +27,7 @@ pub enum DeclarationSpecifier {
     StorageClass(StorageClassSpecifier),
     TypeSpecifier(TypeSpecifier),
     TypeQualifier(TypeQualifier),
-    FunctionSpecifier,
+    FunctionSpecifier(FunctionSpecifier),
 }
 #[derive(Debug)]
 pub enum StorageClassSpecifier {
@@ -57,6 +57,10 @@ pub enum TypeSpecifier {
 
     Enum(EnumSpecifier),
     TypedefName(Identifier),
+}
+#[derive(Debug)]
+pub enum FunctionSpecifier {
+    Inline,
 }
 #[derive(Debug)]
 pub struct StructOrUnionSpecifier {
@@ -220,7 +224,7 @@ pub enum Expression {
     Subscript(Box<Spanned<Self>>, Box<Spanned<Self>>),
     Ternary(Box<Spanned<Self>>, Box<Spanned<Self>>, Box<Spanned<Self>>),
     Sizeof(Spanned<TypeName>),
-    Null
+    Null,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -300,7 +304,7 @@ pub enum PostfixOperator {
     Decrement,
     Call,
     Subscript,
-    Ternary
+    Ternary,
 }
 
 #[derive(Debug)]

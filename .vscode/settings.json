@@ -19,6 +19,8 @@
         "stdlib.h": "c",
         "input.h": "c",
         "__fpos_t.h": "c",
-        "__stddef_size_t.h": "c"
+        "__stddef_size_t.h": "c",
+        "signal.h": "c",
+        "xproto.h": "c"
     }
 }

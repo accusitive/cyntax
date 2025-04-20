@@ -234,7 +234,9 @@ impl<'src> Iterator for Lexer<'src> {
             span!(range, ' ') => Some(Spanned::new(range, PreprocessingToken::Whitespace(Whitespace::Space))),
             span!(range, '\t') => Some(Spanned::new(range, PreprocessingToken::Whitespace(Whitespace::Tab))),
             span!(range, '\n') => Some(Spanned::new(range, PreprocessingToken::Whitespace(Whitespace::Newline))),
-            ch => self.unwrap_diagnostic(Err(cyntax_errors::errors::SimpleError(ch.location, format!("unimplemented character {}", ch.value)).into_codespan_report())),
+            // "form feed"
+            span!(range, '\u{c}') => Some(Spanned::new(range, PreprocessingToken::Whitespace(Whitespace::Space))),
+            ch => self.unwrap_diagnostic(Err(cyntax_errors::errors::SimpleError(ch.location, format!("unimplemented character {}/{}", ch.value, ch.value.escape_debug())).into_codespan_report())),
         };
 
         // Set this after lexing the token, otherwise it would always be false for non-newline tokens

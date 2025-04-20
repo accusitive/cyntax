@@ -248,7 +248,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                     return Ok(ExpandControlFlow::Rescan(*opposition));
                 }
             }
-            
+
             TokenTree::Elif { condition, body, opposition } | TokenTree::If { condition, body, opposition } => {
                 let mut expanded_condition = vec![];
 

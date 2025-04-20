@@ -116,7 +116,7 @@ impl<'src> Parser<'src> {
     /// THANKS!!! https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
     pub fn parse_expression_bp(&mut self, minimum_binding_power: u8) -> PResult<Spanned<Expression>> {
         if self.peek_token().is_err() {
-            return Ok(Spanned::new(Location::new(), Expression::Null))
+            return Ok(Spanned::new(Location::new(), Expression::Null));
         }
         let as_prefix_operator = Self::as_prefix_operator(self.peek_token()?);
 

@@ -92,6 +92,7 @@ impl<'src> Parser<'src> {
             location,
             match value {
                 // Storage-class specifiers
+                Token::Keyword(Keyword::Inline) => DeclarationSpecifier::FunctionSpecifier(FunctionSpecifier::Inline),
                 Token::Keyword(Keyword::Typedef) => DeclarationSpecifier::StorageClass(StorageClassSpecifier::Typedef),
                 Token::Keyword(Keyword::Extern) => DeclarationSpecifier::StorageClass(StorageClassSpecifier::Extern),
                 Token::Keyword(Keyword::Static) => DeclarationSpecifier::StorageClass(StorageClassSpecifier::Static),
@@ -180,14 +181,12 @@ impl<'src> Parser<'src> {
         let mut base = match self.peek_token()?.clone() {
             span!(Token::Identifier(_)) => self.expect_non_typename_identifier()?.map(|ident| Declarator::Identifier(ident)),
             span!(span, Token::Punctuator(Punctuator::LeftParen)) => {
+                self.next_token()?;
                 let d = self.parse_declarator()?;
                 self.expect_token(Token::Punctuator(Punctuator::RightParen), "to end a direct declarator")?;
                 span.into_spanned(Declarator::Parenthesized(Box::new(d)))
             }
-            span!(span, _) => {
-                span.into_spanned(Declarator::Abstract)
-            }
-            // x => return Err(SimpleError(x.location, format!("Expected direct declarator, found {:?}", x.value)).into_codespan_report()),
+            span!(span, _) => span.into_spanned(Declarator::Abstract), // x => return Err(SimpleError(x.location, format!("Expected direct declarator, found {:?}", x.value)).into_codespan_report()),
         };
         loop {
             // Function stuff
@@ -243,7 +242,9 @@ impl<'src> Parser<'src> {
         Ok(base)
     }
     pub fn parse_abstract_declarator(&mut self) -> PResult<Spanned<Declarator>> {
-        let d= self.parse_declarator()?;
+        //     return Ok(Spanned::new(self.last_location.clone(), Declarator::Abstract))
+        // }
+        let d = self.parse_declarator()?;
         // TODO: checks after parsing to make sure that it is infact abstract
         Ok(d)
     }

@@ -237,14 +237,16 @@ impl<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>> IntoTokenTree<
                     _ => todo!(),
                 }
             }
-
+            _ if directive_name == self.ctx.strings.get_or_intern_static("pragma") => return ControlLine::Empty,
             _ => {
                 let directive_range = tokens.first().unwrap().start()..tokens.last().unwrap().end();
                 let err = cyntax_errors::errors::UnknownDirective(Location {
                     range: directive_range,
                     file_id: self.ctx.current_file,
                 });
-                panic!("unknown directive {:#?}", err.into_codespan_report())
+                let n = self.ctx.res(directive_name);
+
+                panic!("unknown directive {:#?} {n}", err.into_codespan_report())
                 // panic!("{}", err.into_codespan_report().with("", self.source));
             }
         };

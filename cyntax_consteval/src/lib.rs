@@ -22,7 +22,8 @@ impl<'src> ConstantEvalutator<'src> {
         match expr {
             span!(Expression::Identifier(identifier)) if identifier.value == self.ctx.ints("true") => Ok(Value::Int(1)),
             span!(Expression::Identifier(identifier)) if identifier.value == self.ctx.ints("false") => Ok(Value::Int(0)),
-            span!(Expression::Identifier(_)) => Ok(Value::Int(1)),
+            // undefined macros expand to 0, we assume every identifier at this point is an undefined macro
+            span!(Expression::Identifier(_)) => Ok(Value::Int(0)),
             span!(Expression::IntConstant(constant)) => self.constant(constant),
             span!(Expression::StringLiteral(string)) => Self::not_const(string),
             span!(Expression::Parenthesized(expr)) => self.evaluate(expr),

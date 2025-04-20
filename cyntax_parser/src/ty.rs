@@ -207,13 +207,9 @@ impl<'src> Parser<'src> {
                 break;
             } else {
                 parameters.push(self.parse_parameter_declaration()?)
-
             }
         }
-        Ok(ParameterList {
-            parameters,
-            variadic: is_variadic,
-        })
+        Ok(ParameterList { parameters, variadic: is_variadic })
     }
     pub fn can_parse_parameter(&mut self) -> bool {
         return self.can_start_declaration_specifier() | matches!(self.peek_token(), Ok(span!(Token::Punctuator(Punctuator::DotDotDot))));
