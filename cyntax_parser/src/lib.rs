@@ -47,7 +47,7 @@ impl<'src> Iterator for TokenStream<'src> {
 
                 span!(span, PreprocessingToken::Punctuator(punc)) => return Some(Ok(Spanned::new(span, Token::Punctuator(punc)))),
                 span!(PreprocessingToken::Whitespace(_)) => continue,
-                _ => unreachable!(), // span!(PreprocessingToken::)
+                x => unreachable!("{:#?}", x), // span!(PreprocessingToken::)
             }
         }
     }
@@ -114,23 +114,35 @@ impl<'src> Parser<'src> {
                 Ok(token)
             }
             Some(Err(e)) => Err(e.clone()),
-            None => Err(SimpleError(self.last_location.clone(), "Unexpected EOF while peeking!".to_string()).into_codespan_report()),
+            None => Err(SimpleError(self.last_location.clone(), format!("Unexpected EOF while peeking! {}", std::backtrace::Backtrace::capture())).into_codespan_report()),
+
+            // None => Err(SimpleError(self.last_location.clone(), "Unexpected EOF while peeking!".to_string()).into_codespan_report()),
         }
     }
     pub fn peek_token(&mut self) -> PResult<&Spanned<Token>> {
         self.peek_token_nth(0)
     }
 
-    pub fn eat_if_next(&mut self, t: Token) -> PResult<bool> {
-        if self.peek_token()?.value == t {
-            self.next_token().unwrap();
-            Ok(true)
-        } else {
-            Ok(false)
+    pub fn eat_if_next(&mut self, expected: Token) -> PResult<bool> {
+        match self.peek_token() {
+            Ok(span!(next)) if *next == expected => {
+                self.next_token().unwrap();
+                Ok(true)
+            }
+            Ok(_) => Ok(false),
+            Err(e) => Err(e),
         }
     }
-    pub fn eat_next(&mut self, t: Token) -> PResult<Option<Spanned<Token>>> {
-        if self.peek_token()?.value == t { Ok(Some(self.next_token().unwrap())) } else { Ok(None) }
+    pub fn eat_next(&mut self, expected: Token) -> PResult<Option<Spanned<Token>>> {
+        match self.peek_token() {
+            Ok(span!(next)) if *next == expected => {
+                let next = self.next_token().unwrap();
+                Ok(Some(next))
+            }
+            Ok(_) => Ok(None),
+            Err(e) => Err(e),
+        }
+        // if self.peek_token()?.value == t { Ok(Some(self.next_token().unwrap())) } else { Ok(None) }
     }
     pub fn eat_if_same_variant(&mut self, t: Token) -> PResult<bool> {
         if std::mem::discriminant(&self.peek_token()?.value) == std::mem::discriminant(&t) {
@@ -148,6 +160,8 @@ impl<'src> Parser<'src> {
 
         match self.next_token() {
             Ok(stoken) if stoken.value == t => Ok(stoken),
+            Ok(span!(span, Token::Identifier(i))) if self.is_typedef(&i) => Err(SimpleError(span, format!("expected {:?}, found typename {:?}: {msg}", t, self.ctx.res(i))).into_codespan_report()),
+            Ok(span!(span, Token::Identifier(i))) if !self.is_typedef(&i) => Err(SimpleError(span, format!("expected {:?}, found non typename {:?}: {msg}", t, self.ctx.res(i))).into_codespan_report()),
             Ok(stoken) => Err(SimpleError(stoken.location, format!("expected {:?}, found {:?}: {msg}", t, stoken.value)).into_codespan_report()),
             Err(e) => Err(SimpleError(location, format!("expected {:?}, found EOF: {:?}", t, e)).into_codespan_report()),
         }
@@ -238,7 +252,7 @@ impl<'src> Parser<'src> {
     //     }
     // }
     pub fn consider_comma<T>(&mut self, v: &Vec<T>) -> PResult<bool> {
-        Ok(v.len() >= 1 && matches!(self.peek_token()?, span!(Token::Punctuator(Punctuator::Comma))))
+        Ok(v.len() >= 1 && matches!(self.peek_token(), Ok(span!(Token::Punctuator(Punctuator::Comma)))))
     }
     pub fn parse_translation_unit(&mut self) -> PResult<TranslationUnit> {
         self.scoped(ScopeKind::TranslationUnit, |this| {

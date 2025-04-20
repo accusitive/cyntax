@@ -219,7 +219,8 @@ pub enum Expression {
     Cast(Spanned<TypeName>, Box<Spanned<Self>>),
     Call(Box<Spanned<Self>>, Vec<Spanned<Self>>),
     Subscript(Box<Spanned<Self>>, Box<Spanned<Self>>),
-    Defined(Spanned<Identifier>),
+    Ternary(Box<Spanned<Self>>, Box<Spanned<Self>>, Box<Spanned<Self>>),
+    Null
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -299,6 +300,7 @@ pub enum PostfixOperator {
     Decrement,
     Call,
     Subscript,
+    Ternary
 }
 
 #[derive(Debug)]

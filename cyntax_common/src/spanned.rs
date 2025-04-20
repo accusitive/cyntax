@@ -24,6 +24,10 @@ impl Location {
         Self { range: 0..0, file_id: 0 }
     }
     pub fn until(&self, other: &Self) -> Self {
+        // if self.file_id == other.file_id && self.range.start < other.range.end {
+        //     panic!("WHAT");
+        // }
+        // debug_assert!(self.range.start < other.range.end);
         // assert_eq!(self.file_id, other.file_id);
         Self {
             range: self.range.start..other.range.end,

@@ -53,9 +53,27 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> HasContext for Expander<'src, 
 impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
     pub fn new(ctx: &'src mut Context, token_trees: PrependingPeekableIterator<I>) -> Self {
         let mut default_macros = HashMap::new();
-        default_macros.insert(ctx.int("__STDC_VERSION__"), MacroDefinition::Object(vec![Spanned::new(Location::new(), PreprocessingToken::PPNumber(ctx.ints("199901")))]));
+        default_macros.insert(ctx.int("__STDC_VERSION__"), MacroDefinition::Object(vec![Spanned::new(Location::new(), PreprocessingToken::PPNumber(ctx.ints("199901L")))]));
         default_macros.insert(ctx.int("__STRICT_ANSI__"), MacroDefinition::Object(vec![Spanned::new(Location::new(), PreprocessingToken::PPNumber(ctx.ints("1")))]));
-
+        default_macros.insert(ctx.int("__STDC__"), MacroDefinition::Object(vec![Spanned::new(Location::new(), PreprocessingToken::PPNumber(ctx.ints("1")))]));
+        default_macros.insert(ctx.int("__GNUC__"), MacroDefinition::Object(vec![Spanned::new(Location::new(), PreprocessingToken::PPNumber(ctx.ints("4")))]));
+        default_macros.insert(ctx.int("__clang_major__"), MacroDefinition::Object(vec![Spanned::new(Location::new(), PreprocessingToken::PPNumber(ctx.ints("18")))]));
+        default_macros.insert(ctx.int("__clang_minor__"), MacroDefinition::Object(vec![Spanned::new(Location::new(), PreprocessingToken::PPNumber(ctx.ints("1")))]));
+        default_macros.insert(ctx.int("__x86_64__"), MacroDefinition::Object(vec![Spanned::new(Location::new(), PreprocessingToken::PPNumber(ctx.ints("1")))]));
+        default_macros.insert(
+            ctx.int("__SIZE_TYPE__"),
+            MacroDefinition::Object(vec![
+                Spanned::new(Location::new(), PreprocessingToken::Identifier(ctx.ints("unsigned"))),
+                Spanned::new(Location::new(), PreprocessingToken::Identifier(ctx.ints("long"))),
+            ]),
+        );
+        default_macros.insert(
+            ctx.int("__builtin_va_list"),
+            MacroDefinition::Object(vec![
+                Spanned::new(Location::new(), PreprocessingToken::Identifier(ctx.ints("void"))),
+                Spanned::new(Location::new(), PreprocessingToken::Punctuator(Punctuator::Asterisk)),
+            ]),
+        );
         Self {
             ctx,
             token_trees,
@@ -106,7 +124,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                 if token_trees.len() == 0 {
                     return Ok(vec![]);
                 } else {
-                    dbg!(&token_trees);
+                    // dbg!(&token_trees);
                     self.token_trees.prepend_extend(token_trees.into_iter());
                     let mut result = Vec::new();
                     let tokens = self.expand_next(skip_macro_replacement)?.unwrap();
@@ -124,12 +142,16 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
             }
             TokenTree::Directive(ControlLine::Include(header_name)) => match header_name {
                 crate::tree::HeaderName::Q(span!(span, file_name)) => {
-                    let content = self.ctx.find_quoted_header(self.ctx.res(file_name)).ok_or_else(|| SimpleError(span, "Could not find quoted header".to_string()).into_codespan_report())?;
+                    let content = self
+                        .ctx
+                        .find_quoted_header(self.ctx.res(file_name))
+                        .ok_or_else(|| SimpleError(span.clone(), "Could not find quoted header".to_string()).into_codespan_report())?;
                     // let content = std::fs::read_to_string(self.ctx.strings.resolve(file_name).unwrap()).unwrap();
                     let file = self.ctx.files.add(self.ctx.strings.resolve(file_name).unwrap().to_owned(), content.clone());
                     let current_file = self.ctx.current_file;
 
                     self.ctx.current_file = file;
+
                     let lexer = cyntax_lexer::lexer::Lexer::new(self.ctx, &content);
                     let toks = lexer.collect::<Vec<_>>();
                     let trees = IntoTokenTree {
@@ -146,12 +168,13 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                     let last = tokens.last().unwrap();
                     let loc = first.location.until(&last.location);
                     let file_name = &self.ctx.files.get(first.location.file_id).unwrap().source()[loc.clone().range];
-                    let content = self.ctx.find_bracketed_header(file_name).ok_or_else(|| SimpleError(loc, "Could not find bracketed header".to_string()).into_codespan_report())?;
+                    let content = self.ctx.find_bracketed_header(file_name).ok_or_else(|| SimpleError(loc.clone(), "Could not find bracketed header".to_string()).into_codespan_report())?;
 
                     let file = self.ctx.files.add(file_name.to_string(), content.clone());
                     let current_file = self.ctx.current_file;
 
                     self.ctx.current_file = file;
+
                     let lexer = cyntax_lexer::lexer::Lexer::new(self.ctx, &content);
                     let toks = lexer.collect::<Vec<_>>();
                     let trees = IntoTokenTree {
@@ -161,11 +184,20 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                     }
                     .collect::<Vec<TokenTree>>();
                     self.ctx.current_file = current_file;
+
                     return Ok(ExpandControlFlow::RescanMany(trees));
                 }
             },
             TokenTree::Directive(control_line) => {
                 self.handle_control_line(control_line)?;
+            }
+            TokenTree::PreprocessorToken(span!(PreprocessingToken::Delimited(delimited))) => {
+                let mut v = vec![];
+                let inner_tree = delimited.inner_tokens.into_iter().map(|token| TokenTree::PreprocessorToken(token)).collect::<Vec<_>>();
+                v.push(TokenTree::PreprocessorToken(delimited.opener));
+                v.extend(inner_tree);
+                v.push(TokenTree::PreprocessorToken(delimited.closer));
+                return Ok(ExpandControlFlow::RescanMany(v));
             }
             TokenTree::Internal(InternalLeaf::MacroExpansion(macro_name, tt)) => {
                 let as_tokens = tt.into_iter().map(|token| TokenTree::PreprocessorToken(token)).collect::<Vec<_>>();
@@ -290,7 +322,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                 let nws = self.peek_non_whitespace();
                 let is_lp = matches!(nws, Some(TokenTree::PreprocessorToken(span!(PreprocessingToken::Punctuator(Punctuator::LeftParen)))));
                 let is_lp_delim = /* !is_lp && */  if let Some(TokenTree::PreprocessorToken(span!(PreprocessingToken::Delimited(d)))) = nws {
-                    matches!(d.opener, span!('('))
+                    matches!(d.opener, span!(PreprocessingToken::Punctuator(Punctuator::LeftParen)))
                 } else {
                     false
                 };
@@ -340,7 +372,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
         }
     }
 
-    pub fn next_delimited(&mut self) -> (Spanned<char>, Spanned<char>, Vec<Spanned<PreprocessingToken>>) {
+    pub fn next_delimited(&mut self) -> (Spanned<PreprocessingToken>, Spanned<PreprocessingToken>, Vec<Spanned<PreprocessingToken>>) {
         let paren = self.next_non_whitespace().unwrap();
         match paren {
             TokenTree::PreprocessorToken(ref t @ span!(PreprocessingToken::Punctuator(Punctuator::LeftParen))) => {
@@ -398,21 +430,14 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
     }
 
     pub fn collect_until_closing_delimiter(&mut self, opening_token: &Spanned<PreprocessingToken>, skip_macro_replacement: bool) -> PResult<Spanned<PreprocessingToken>> {
-        let opening_char = opening_token.map_ref(|tok| match tok {
-            PreprocessingToken::Punctuator(Punctuator::LeftParen) => '(',
-            PreprocessingToken::Punctuator(Punctuator::LeftBracket) => '[',
-            PreprocessingToken::Punctuator(Punctuator::LeftBrace) => '{',
-            c => unreachable!("{c:?} is not a valid opening char"),
-        });
-        let expected_closer: char = match opening_char.value {
-            '(' => ')',
-            '[' => ']',
-            '{' => '}',
+        let expected_closer = match opening_token.value {
+            PreprocessingToken::Punctuator(Punctuator::LeftParen) => PreprocessingToken::Punctuator(Punctuator::RightParen),
+            PreprocessingToken::Punctuator(Punctuator::LeftBracket) => PreprocessingToken::Punctuator(Punctuator::RightBracket),
+            PreprocessingToken::Punctuator(Punctuator::LeftBrace) => PreprocessingToken::Punctuator(Punctuator::RightBrace),
             _ => unreachable!(),
         };
-        let valid_closer = Punctuator::from_char(expected_closer).unwrap();
         let mut inner = vec![];
-        let mut end = opening_char.end();
+        let mut end = opening_token.end();
         while let Some(token) = self.next_token_tree() {
             if !matches!(token, TokenTree::PreprocessorToken(_)) {
                 continue;
@@ -420,11 +445,11 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
             let token = token.as_token();
             end = token.end();
             match token {
-                span!(rp, PreprocessingToken::Punctuator(ref punc @ (Punctuator::RightParen | Punctuator::RightBracket | Punctuator::RightBrace))) if *punc == valid_closer => {
+                span!(rp, ref tok @ PreprocessingToken::Punctuator((Punctuator::RightParen | Punctuator::RightBracket | Punctuator::RightBrace))) if *tok == expected_closer => {
                     return Ok(Spanned::new(
-                        opening_char.location.clone(),
+                        opening_token.location.clone(),
                         PreprocessingToken::Delimited(Box::new(Delimited {
-                            opener: opening_char,
+                            opener: opening_token.clone(),
                             closer: Spanned::new(rp.clone(), expected_closer),
                             inner_tokens: inner,
                         })),
@@ -446,7 +471,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                 range: end..end,
                 file_id: opening_token.location.file_id,
             },
-            closing_delimiter: valid_closer.to_string(),
+            closing_delimiter: expected_closer,
         }
         .into_codespan_report())
     }

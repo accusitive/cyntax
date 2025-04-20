@@ -19,7 +19,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
     pub fn parse_parameters<'func>(&mut self, parameter_token: Spanned<PreprocessingToken>) -> PResult<MacroParameterList> {
         if let span!(PreprocessingToken::Delimited(b)) = parameter_token {
             if let Delimited {
-                opener: span!('('),
+                opener: span!(PreprocessingToken::Punctuator(Punctuator::LeftParen)),
                 closer: _closer,
                 inner_tokens,
             } = *b

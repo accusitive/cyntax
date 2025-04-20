@@ -2,6 +2,8 @@ use codespan_reporting::files::{SimpleFile, SimpleFiles};
 pub use string_interner;
 use string_interner::{backend::StringBackend, symbol::SymbolU32};
 
+use crate::spanned::Spanned;
+
 pub type File = SimpleFile<String, String>;
 /// The entire parsing context
 /// This is used to store long term data that is needed between each step, string interning being the most obvious
@@ -33,9 +35,13 @@ impl Context {
     pub fn find_bracketed_header(&self, name: &str) -> Option<String> {
         if let Ok(src) = std::fs::read_to_string(name) {
             return Some(src);
-        } else if let Ok(src) = std::fs::read_to_string(format!("/usr/include/{}", name)) {
+        } else if let Ok(src) = std::fs::read_to_string(format!("/usr/lib/gcc/x86_64-linux-gnu/13/include/{}", name)) {
+            return Some(src);
+        } else if let Ok(src) = std::fs::read_to_string(format!("/usr/local/include/{}", name)) {
             return Some(src);
         } else if let Ok(src) = std::fs::read_to_string(format!("/usr/include/x86_64-linux-gnu/{}", name)) {
+            return Some(src);
+        } else if let Ok(src) = std::fs::read_to_string(format!("/usr/include/{}", name)) {
             return Some(src);
         } else {
             None

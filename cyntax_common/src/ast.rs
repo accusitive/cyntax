@@ -18,12 +18,12 @@ pub enum PreprocessingToken {
 }
 #[derive(Debug, Clone, PartialEq)]
 pub struct Delimited {
-    pub opener: Spanned<char>,
-    pub closer: Spanned<char>,
+    pub opener: Spanned<PreprocessingToken>,
+    pub closer: Spanned<PreprocessingToken>,
     pub inner_tokens: Vec<Spanned<PreprocessingToken>>,
 }
 impl PreprocessingToken {
-    pub fn as_delimited(self) -> (Spanned<char>, Spanned<char>, Vec<Spanned<PreprocessingToken>>) {
+    pub fn as_delimited(self) -> (Spanned<PreprocessingToken>, Spanned<PreprocessingToken>, Vec<Spanned<PreprocessingToken>>) {
         match self {
             PreprocessingToken::Delimited(d) => (d.opener, d.closer, d.inner_tokens),
             _ => panic!(),

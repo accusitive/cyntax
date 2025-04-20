@@ -28,7 +28,8 @@ impl ConstantEvalutator {
             span!(Expression::Cast(ty, expr)) => todo!(),
             span!(Expression::Call(target, paremeters)) => todo!(),
             span!(Expression::Subscript(spanned, spanned1)) => todo!(),
-            span!(Expression::Defined(spanned)) => todo!(),
+            span!(Expression::Ternary(cond, then, elze)) => self.ternary(cond, then, elze),
+            span!(Expression::Null) => Ok(Value::Int(0))
         }
     }
     fn not_const<T>(x: &Spanned<T>) -> PResult<Value> {
@@ -60,22 +61,22 @@ impl ConstantEvalutator {
                 let left_val = self.evaluate(left)?;
                 let right_val = self.evaluate(right)?;
                 match op {
-                    span!(InfixOperator::Add) => Ok(left_val.add(right_val)?),
-                    span!(InfixOperator::Subtract) => Ok(left_val.subtract(right_val)?),
-                    span!(InfixOperator::Multiply) => Ok(left_val.multiply(right_val)?),
-                    span!(InfixOperator::Divide) => Ok(left_val.divide(right_val)?),
+                    span!(InfixOperator::Add) => left_val.add(right_val),
+                    span!(InfixOperator::Subtract) => left_val.subtract(right_val),
+                    span!(InfixOperator::Multiply) => left_val.multiply(right_val),
+                    span!(InfixOperator::Divide) => left_val.divide(right_val),
                     span!(InfixOperator::Modulo) => todo!(),
-                    span!(InfixOperator::Less) => Ok(left_val.less(right_val)?),
-                    span!(InfixOperator::Greater) => Ok(left_val.greater(right_val)?),
-                    span!(InfixOperator::LessEqual) => Ok(left_val.less_eq(right_val)?),
-                    span!(InfixOperator::GreaterEqual) => Ok(left_val.greater_eq(right_val)?),
+                    span!(InfixOperator::Less) => left_val.less(right_val),
+                    span!(InfixOperator::Greater) => left_val.greater(right_val),
+                    span!(InfixOperator::LessEqual) => left_val.less_eq(right_val),
+                    span!(InfixOperator::GreaterEqual) => left_val.greater_eq(right_val),
                     span!(InfixOperator::Equal) => Ok(left_val.equal(right_val)?),
                     span!(InfixOperator::NotEqual) => todo!(),
                     span!(InfixOperator::BitwiseAnd) => todo!(),
                     span!(InfixOperator::BitwiseOr) => todo!(),
                     span!(InfixOperator::BitwiseXor) => todo!(),
-                    span!(InfixOperator::BitwiseShiftLeft) => todo!(),
-                    span!(InfixOperator::BitwiseShiftRight) => todo!(),
+                    span!(InfixOperator::BitwiseShiftLeft) => left_val.shl(right_val),
+                    span!(InfixOperator::BitwiseShiftRight) => left_val.shr(right_val),
                     span!(InfixOperator::Assign) => todo!(),
                     span!(InfixOperator::AddAssign) => todo!(),
                     span!(InfixOperator::SubtractAssign) => todo!(),
@@ -106,6 +107,14 @@ impl ConstantEvalutator {
             span!(PrefixOperator::Dereference) => todo!(),
             span!(PrefixOperator::Increment) => todo!(),
             span!(PrefixOperator::Decrement) => todo!(),
+        }
+    }
+    fn ternary(&mut self, cond: &Spanned<Expression>, then: &Spanned<Expression>, elze: &Spanned<Expression>) -> PResult<Value>{
+        let cond = self.evaluate(cond)?;
+        if cond.bool()? {
+            return self.evaluate(then)
+        } else {
+            return self.evaluate(elze)
         }
     }
 }
@@ -186,6 +195,16 @@ impl Value {
     pub fn bool(self) -> PResult<bool> {
         match self {
             Value::Int(value) => Ok(value != 0),
+        }
+    }
+    pub fn shl(self, other: Self) -> PResult<Self> {
+        match (self, other) {
+            (Value::Int(lv), Value::Int(right)) => Ok(Value::Int(lv << right))
+        }
+    }
+    pub fn shr(self, other: Self) -> PResult<Self> {
+        match (self, other) {
+            (Value::Int(lv), Value::Int(right)) => Ok(Value::Int(lv >> right))
         }
     }
 }

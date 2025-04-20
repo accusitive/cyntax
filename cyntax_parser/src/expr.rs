@@ -3,6 +3,7 @@ use crate::ast::{Expression, InfixOperator, Operator, PostfixOperator, PrefixOpe
 use crate::{PResult, Parser};
 use cyntax_common::ast::{Keyword, Punctuator};
 use cyntax_common::span;
+use cyntax_common::spanned::Location;
 use cyntax_errors::{Diagnostic, errors::SimpleError};
 
 impl<'src> Parser<'src> {
@@ -38,6 +39,7 @@ impl<'src> Parser<'src> {
     }
     fn postfix_binding_power(operator: &PostfixOperator) -> (u8, ()) {
         match operator {
+            PostfixOperator::Ternary => (11, ()),
             _ => (35, ()),
         }
     }
@@ -99,6 +101,7 @@ impl<'src> Parser<'src> {
             span!(Token::Punctuator(Punctuator::MinusMinus)) => Some(PostfixOperator::Decrement),
             span!(Token::Punctuator(Punctuator::LeftParen)) => Some(PostfixOperator::Call),
             span!(Token::Punctuator(Punctuator::LeftBracket)) => Some(PostfixOperator::Subscript),
+            span!(Token::Punctuator(Punctuator::Question)) => Some(PostfixOperator::Ternary),
 
             // span!(Token::Punctuator(Punctuator::LeftParen)) => Some(PostfixOperator::Call),
             _ => None,
@@ -109,6 +112,9 @@ impl<'src> Parser<'src> {
     }
     /// THANKS!!! https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
     pub fn parse_expression_bp(&mut self, minimum_binding_power: u8) -> PResult<Spanned<Expression>> {
+        if self.peek_token().is_err() {
+            return Ok(Spanned::new(Location::new(), Expression::Null))
+        }
         let as_prefix_operator = Self::as_prefix_operator(self.peek_token()?);
 
         let mut lhs = if let Some(prefix_operator) = as_prefix_operator {
@@ -167,8 +173,15 @@ impl<'src> Parser<'src> {
                     }
                     PostfixOperator::Subscript => {
                         let expr = self.parse_expression()?;
-                        self.expect_token(Token::Punctuator(Punctuator::RightBracket), "to close array subscript")?;
-                        post_fix_operator_span.until(&lhs.location).into_spanned(Expression::Subscript(Box::new(lhs), Box::new(expr)))
+                        let closer = self.expect_token(Token::Punctuator(Punctuator::RightBracket), "to close array subscript")?;
+                        lhs.location.until(&closer.location).into_spanned(Expression::Subscript(Box::new(lhs), Box::new(expr)))
+                    }
+                    PostfixOperator::Ternary => {
+                        let then = self.parse_expression()?;
+                        let seperator = self.expect_token(Token::Punctuator(Punctuator::Colon), "to seperate ternary true and false branches")?;
+                        let elze = self.parse_expression_bp(left_binding_power)?;
+
+                        lhs.location.until(&seperator.location).into_spanned(Expression::Ternary(Box::new(lhs), Box::new(then), Box::new(elze)))
                     }
                     _ => post_fix_operator_span.until(&lhs.location).into_spanned(Expression::PostfixOp(post_fix_operator_span.into_spanned(post_fix_operator), Box::new(lhs))),
                 };

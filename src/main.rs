@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{iter::once, str::FromStr};
 
 use codespan_reporting::{files::SimpleFiles, term::termcolor::Ansi};
 use colored::{ColoredString, Colorize};
@@ -40,9 +40,9 @@ fn print_tokens<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>>(ctx
                 p(format!("{}", ctx.strings.resolve(*number).unwrap()).bright_blue());
             }
             PreprocessingToken::Delimited(d) => {
-                p(format!("{}", d.opener.value).on_black());
+                print_tokens(ctx, source, std::iter::once(&d.opener));
                 print_tokens(ctx, source, d.inner_tokens.iter());
-                p(format!("{}", d.closer.value).on_black());
+                print_tokens(ctx, source, std::iter::once(&d.closer));
             }
             PreprocessingToken::ControlLine(inner) => {
                 p(format!("#").purple());
@@ -74,7 +74,7 @@ fn main() {
     let tokens: Vec<_> = lexer.collect();
 
     {
-        dbg!(&tokens);
+        // dbg!(&tokens);
         print_tokens(&ctx, source, tokens.iter());
         println!();
     }
@@ -109,9 +109,10 @@ fn main() {
             for diag in &parser.diagnostics {
                 codespan_reporting::term::emit(&mut ansi_writer, &config, &ctx.files, diag).unwrap();
             }
-            codespan_reporting::term::emit(&mut ansi_writer, &config, &ctx.files, &e).unwrap();
+            // codespan_reporting::term::emit(&mut ansi_writer, &config, &ctx.files, &e).unwrap();
 
             println!("{}", String::from_utf8(output_buffer).unwrap());
+            ctx.unwrap_diagnostic(Err::<(), _>(e));
         }
     }
 }

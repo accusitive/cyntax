@@ -17,6 +17,8 @@
         "stubs.h": "c",
         "tcc.h": "c",
         "stdlib.h": "c",
-        "input.h": "c"
+        "input.h": "c",
+        "__fpos_t.h": "c",
+        "__stddef_size_t.h": "c"
     }
 }

@@ -11,6 +11,7 @@ impl<'src> Parser<'src> {
             return Ok(None);
         }
         let specifiers = self.parse_declaration_specifiers()?;
+        dbg!(&specifiers);
         let mut init_declarators = self.parse_init_declarator_list()?;
         let mut is_typedef = false;
         for specifier in &specifiers {
@@ -128,6 +129,7 @@ impl<'src> Parser<'src> {
         let mut init_declarators = vec![];
         while self.can_start_init_declarator() || self.consider_comma(&init_declarators)? {
             if init_declarators.len() >= 1 {
+                dbg!(&init_declarators);
                 self.expect_token(Token::Punctuator(Punctuator::Comma), "to seperate init declarators")?;
             }
             init_declarators.push(self.parse_init_declarator()?);
@@ -275,7 +277,8 @@ impl<'src> Parser<'src> {
 
             Ok(start.until(&expr.location).to_spanned(Initializer::Assignemnt(expr)))
         } else {
-            Err(SimpleError(self.last_location.clone(), "failed to start initialzor".into()).into_codespan_report())
+            let peek = self.peek_token()?;
+            Err(SimpleError(peek.location.clone(), format!("failed to start initialzor {:?}", peek)).into_codespan_report())
         }
     }
     pub fn parse_initializer_list(&mut self) -> PResult<Vec<DesignatedIntiializer>> {

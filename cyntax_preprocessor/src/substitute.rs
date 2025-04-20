@@ -136,9 +136,9 @@ impl<'a, I: Debug + Iterator<Item = Spanned<PreprocessingToken>>> ArgumentSubsti
             }
             PreprocessingToken::Punctuator(punctuator) => s.push_str(&punctuator.to_string()),
             PreprocessingToken::Delimited(d) => {
-                s.push(d.opener.value);
+                Self::stringify_token(strings, &d.opener, s);
                 Self::stringify_tokens(strings, d.inner_tokens.iter(), s);
-                s.push(d.closer.value);
+                Self::stringify_token(strings, &d.closer, s);
             }
             _ => unreachable!(),
         }

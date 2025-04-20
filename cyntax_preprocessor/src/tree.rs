@@ -184,8 +184,8 @@ impl<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>> IntoTokenTree<
                         if matches!(token, span!(PreprocessingToken::Punctuator(Punctuator::RightParen))) {
                             // let end = parameters.last().map(|param: &Spanned<_>| param.end()).unwrap_or(opener.end());
                             let parameters_token = PreprocessingToken::Delimited(Box::new(Delimited {
-                                opener: opener.map_ref(|_| '('),
-                                closer: token.map_ref(|_| ')'),
+                                opener: opener.map_ref(|_| PreprocessingToken::Punctuator(Punctuator::LeftParen)),
+                                closer: token.map_ref(|_| PreprocessingToken::Punctuator(Punctuator::RightParen)),
                                 inner_tokens: parameters,
                             }));
                             skip_whitespace(&mut tokens_iter);
