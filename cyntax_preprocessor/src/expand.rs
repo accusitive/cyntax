@@ -54,19 +54,8 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
     pub fn new(ctx: &'src mut Context, token_trees: PrependingPeekableIterator<I>) -> Self {
         let mut default_macros = HashMap::new();
         default_macros.insert(ctx.int("__STDC_VERSION__"), MacroDefinition::Object(vec![Spanned::new(Location::new(), PreprocessingToken::PPNumber(ctx.ints("199901L")))]));
-        default_macros.insert(ctx.int("__STRICT_ANSI__"), MacroDefinition::Object(vec![Spanned::new(Location::new(), PreprocessingToken::PPNumber(ctx.ints("1")))]));
         default_macros.insert(ctx.int("__STDC__"), MacroDefinition::Object(vec![Spanned::new(Location::new(), PreprocessingToken::PPNumber(ctx.ints("1")))]));
-        default_macros.insert(ctx.int("__GNUC__"), MacroDefinition::Object(vec![Spanned::new(Location::new(), PreprocessingToken::PPNumber(ctx.ints("4")))]));
-        default_macros.insert(ctx.int("__clang_major__"), MacroDefinition::Object(vec![Spanned::new(Location::new(), PreprocessingToken::PPNumber(ctx.ints("18")))]));
-        default_macros.insert(ctx.int("__clang_minor__"), MacroDefinition::Object(vec![Spanned::new(Location::new(), PreprocessingToken::PPNumber(ctx.ints("1")))]));
         default_macros.insert(ctx.int("__x86_64__"), MacroDefinition::Object(vec![Spanned::new(Location::new(), PreprocessingToken::PPNumber(ctx.ints("1")))]));
-        default_macros.insert(
-            ctx.int("__SIZE_TYPE__"),
-            MacroDefinition::Object(vec![
-                Spanned::new(Location::new(), PreprocessingToken::Identifier(ctx.ints("unsigned"))),
-                Spanned::new(Location::new(), PreprocessingToken::Identifier(ctx.ints("long"))),
-            ]),
-        );
         default_macros.insert(
             ctx.int("__builtin_va_list"),
             MacroDefinition::Object(vec![
@@ -259,7 +248,8 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                     return Ok(ExpandControlFlow::Rescan(*opposition));
                 }
             }
-            TokenTree::If { condition, body, opposition } => {
+            
+            TokenTree::Elif { condition, body, opposition } | TokenTree::If { condition, body, opposition } => {
                 let mut expanded_condition = vec![];
 
                 // have to collect here so the reference to self.ctx is dropped
@@ -280,7 +270,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
 
                 let mut parser = cyntax_parser::Parser::new(self.ctx, expanded_condition);
                 let condition = parser.parse_expression()?;
-                let eval = cyntax_consteval::ConstantEvalutator::new().evaluate(&condition)?;
+                let eval = cyntax_consteval::ConstantEvalutator::new(self.ctx).evaluate(&condition)?;
 
                 if let Value::Int(1) = eval {
                     return Ok(ExpandControlFlow::RescanMany(body));
@@ -314,6 +304,10 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                     stringify_string: String::new(),
                 }
                 .flatten()
+                .map(|mut token| {
+                    token.location = span.clone();
+                    token
+                })
                 .collect::<Vec<_>>();
                 dbg!(&identifier, &output);
                 return Ok(ExpandControlFlow::Rescan(TokenTree::Internal(InternalLeaf::MacroExpansion(identifier.to_owned(), output))));

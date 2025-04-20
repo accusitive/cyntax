@@ -112,8 +112,7 @@ pub enum Declarator {
     Pointer(Spanned<Pointer>, Box<Spanned<Self>>),
     /// (declarator)
     Parenthesized(Box<Spanned<Self>>),
-    // todo: array
-    Function(Box<Spanned<Self>>, Vec<Spanned<ParameterDeclaration>>),
+    Function(Box<Spanned<Self>>, ParameterList),
     Array {
         base: Box<Spanned<Self>>,
         has_static: bool,
@@ -147,7 +146,7 @@ pub struct Declaration {
 }
 #[derive(Debug)]
 pub struct ParameterList {
-    pub parameters: Vec<ParameterDeclaration>,
+    pub parameters: Vec<Spanned<ParameterDeclaration>>,
     pub variadic: bool,
 }
 #[derive(Debug)]
@@ -220,6 +219,7 @@ pub enum Expression {
     Call(Box<Spanned<Self>>, Vec<Spanned<Self>>),
     Subscript(Box<Spanned<Self>>, Box<Spanned<Self>>),
     Ternary(Box<Spanned<Self>>, Box<Spanned<Self>>, Box<Spanned<Self>>),
+    Sizeof(Spanned<TypeName>),
     Null
 }
 

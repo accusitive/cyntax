@@ -206,7 +206,7 @@ impl<'src> Parser<'src> {
             Declarator::Parenthesized(declarator) => self.get_declarator_name(&declarator.value),
             Declarator::Function(declarator, _) => self.get_declarator_name(&declarator.value),
             Declarator::Array { base, .. } => self.get_declarator_name(&base.value),
-            Declarator::Abstract => unreachable!(),
+            Declarator::Abstract => self.ctx.ints("")
         }
     }
     pub fn declare_typedef(&mut self, declarator: &Spanned<Declarator>) -> PResult<()> {
@@ -245,12 +245,6 @@ impl<'src> Parser<'src> {
             stoken => Err(SimpleError(stoken.location, format!("expected identifier, found {:?}", stoken.value)).into_codespan_report()),
         }
     }
-    // pub fn expect_identifier(&mut self) -> PResult<Spanned<SymbolU32>> {
-    //     match self.next_token()? {
-    //         span!(span, Token::Identifier(identifier)) => Ok(Spanned::new(span, identifier)),
-    //         stoken => Err(SimpleError(stoken.location, format!("expected identifier, found {:?}", stoken.value)).into_codespan_report()),
-    //     }
-    // }
     pub fn consider_comma<T>(&mut self, v: &Vec<T>) -> PResult<bool> {
         Ok(v.len() >= 1 && matches!(self.peek_token(), Ok(span!(Token::Punctuator(Punctuator::Comma)))))
     }

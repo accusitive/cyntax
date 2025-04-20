@@ -143,11 +143,16 @@ impl<'src> Parser<'src> {
     pub fn can_start_declarator(&mut self) -> bool {
         match self.peek_token().cloned() {
             Ok(span!(Token::Identifier(identifier))) if !self.is_typedef(&identifier) => true,
-            Ok(span!(Token::Punctuator(Punctuator::Asterisk) | Token::Punctuator(Punctuator::LeftParen))) => true,
+            Ok(span!(Token::Punctuator(Punctuator::Asterisk | Punctuator::LeftParen | Punctuator::LeftBracket))) => true,
             _ => false,
         }
+    }
+    pub fn can_start_abstract_declarator(&mut self) -> bool {
+        match self.peek_token().cloned() {
+            Ok(span!(Token::Punctuator(Punctuator::Asterisk | Punctuator::LeftParen | Punctuator::LeftBracket))) => true,
 
-        // return matches!(, Ok()));
+            _ => false,
+        }
     }
     pub fn parse_init_declarator(&mut self) -> PResult<Spanned<InitDeclarator>> {
         let declarator = self.parse_declarator()?;
@@ -158,6 +163,7 @@ impl<'src> Parser<'src> {
             Ok(Spanned::new(declarator.location.clone(), InitDeclarator { declarator, initializer: None }))
         }
     }
+    /// NOTE: this parses both abstract and non abstract declarators, i don't know of a syntax where this distinction matters though. this can be verified at the hir_lower step
     pub fn parse_declarator(&mut self) -> PResult<Spanned<Declarator>> {
         if self.can_start_pointer()? {
             let ptr = self.parse_pointer()?;
@@ -172,13 +178,16 @@ impl<'src> Parser<'src> {
 
     pub fn parse_direct_declarator(&mut self) -> PResult<Spanned<Declarator>> {
         let mut base = match self.peek_token()?.clone() {
-            span!(span, Token::Identifier(identifier)) => self.expect_non_typename_identifier()?.map(|ident| Declarator::Identifier(ident)),
+            span!(Token::Identifier(_)) => self.expect_non_typename_identifier()?.map(|ident| Declarator::Identifier(ident)),
             span!(span, Token::Punctuator(Punctuator::LeftParen)) => {
                 let d = self.parse_declarator()?;
                 self.expect_token(Token::Punctuator(Punctuator::RightParen), "to end a direct declarator")?;
                 span.into_spanned(Declarator::Parenthesized(Box::new(d)))
             }
-            x => return Err(SimpleError(x.location, format!("Expected direct declarator, found {:?}", x.value)).into_codespan_report()),
+            span!(span, _) => {
+                span.into_spanned(Declarator::Abstract)
+            }
+            // x => return Err(SimpleError(x.location, format!("Expected direct declarator, found {:?}", x.value)).into_codespan_report()),
         };
         loop {
             // Function stuff
@@ -234,35 +243,9 @@ impl<'src> Parser<'src> {
         Ok(base)
     }
     pub fn parse_abstract_declarator(&mut self) -> PResult<Spanned<Declarator>> {
-        if self.can_start_pointer()? {
-            let ptr = self.parse_pointer()?;
-            let declarator = self.parse_direct_abstract_declarator()?;
-
-            Ok(Spanned::new(ptr.location.until(&declarator.location), Declarator::Pointer(ptr, Box::new(declarator))))
-        } else {
-            let declarator = self.parse_direct_abstract_declarator()?;
-            Ok(declarator)
-        }
-    }
-    pub fn parse_direct_abstract_declarator(&mut self) -> PResult<Spanned<Declarator>> {
-        let start = self.last_location.clone();
-
-        let mut base = if self.eat_if_next(Token::Punctuator(Punctuator::LeftParen))? {
-            Spanned::new(start.until(&self.last_location), Declarator::Parenthesized(Box::new(self.parse_abstract_declarator()?)))
-        } else {
-            Spanned::new(start.until(&self.last_location), Declarator::Abstract)
-        };
-
-        // Function stuff
-        if self.eat_if_next(Token::Punctuator(Punctuator::LeftParen))? {
-            let params = self.parse_parameter_type_list()?;
-            let rp = self.expect_token(Token::Punctuator(Punctuator::RightParen), "to end an abstract function declarator")?;
-            let span = start.until(&rp.location);
-
-            base = Spanned::new(span, Declarator::Function(Box::new(base), params));
-        }
-        // todo: Array staff
-        Ok(base)
+        let d= self.parse_declarator()?;
+        // TODO: checks after parsing to make sure that it is infact abstract
+        Ok(d)
     }
     pub fn parse_initializer(&mut self) -> PResult<Spanned<Initializer>> {
         let start = self.last_location.clone();

@@ -35,7 +35,7 @@ impl<'a, I: Debug + Iterator<Item = Spanned<PreprocessingToken>>> Iterator for A
 
     fn next(&mut self) -> Option<Self::Item> {
         let token = self.replacements.next();
-        dbg!(&token);
+        // dbg!(&token);
         let token = token?;
 
         match &token {

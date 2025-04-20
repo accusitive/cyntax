@@ -1,4 +1,4 @@
-use cyntax_common::{span, spanned::Spanned};
+use cyntax_common::{ctx::Context, span, spanned::Spanned};
 use cyntax_errors::{Diagnostic, errors::SimpleError};
 use cyntax_parser::{
     ast::{Expression, InfixOperator, PrefixOperator},
@@ -7,18 +7,22 @@ use cyntax_parser::{
 
 type PResult<T> = Result<T, cyntax_errors::codespan_reporting::diagnostic::Diagnostic<usize>>;
 #[derive(Debug)]
-pub struct ConstantEvalutator {}
+pub struct ConstantEvalutator<'src> {
+    ctx: &'src mut Context,
+}
 #[derive(Debug, Clone, Copy)]
 pub enum Value {
     Int(i64),
 }
-impl ConstantEvalutator {
-    pub fn new() -> Self {
-        Self {}
+impl<'src> ConstantEvalutator<'src> {
+    pub fn new(ctx: &'src mut Context) -> Self {
+        Self { ctx }
     }
     pub fn evaluate(&mut self, expr: &Spanned<Expression>) -> PResult<Value> {
         match expr {
-            span!(Expression::Identifier(identifier)) => Self::not_const(identifier),
+            span!(Expression::Identifier(identifier)) if identifier.value == self.ctx.ints("true") => Ok(Value::Int(1)),
+            span!(Expression::Identifier(identifier)) if identifier.value == self.ctx.ints("false") => Ok(Value::Int(0)),
+            span!(Expression::Identifier(_)) => Ok(Value::Int(1)),
             span!(Expression::IntConstant(constant)) => self.constant(constant),
             span!(Expression::StringLiteral(string)) => Self::not_const(string),
             span!(Expression::Parenthesized(expr)) => self.evaluate(expr),
@@ -29,7 +33,8 @@ impl ConstantEvalutator {
             span!(Expression::Call(target, paremeters)) => todo!(),
             span!(Expression::Subscript(spanned, spanned1)) => todo!(),
             span!(Expression::Ternary(cond, then, elze)) => self.ternary(cond, then, elze),
-            span!(Expression::Null) => Ok(Value::Int(0))
+            span!(Expression::Sizeof(type_name)) => todo!(),
+            span!(Expression::Null) => Ok(Value::Int(0)),
         }
     }
     fn not_const<T>(x: &Spanned<T>) -> PResult<Value> {
@@ -71,7 +76,7 @@ impl ConstantEvalutator {
                     span!(InfixOperator::LessEqual) => left_val.less_eq(right_val),
                     span!(InfixOperator::GreaterEqual) => left_val.greater_eq(right_val),
                     span!(InfixOperator::Equal) => Ok(left_val.equal(right_val)?),
-                    span!(InfixOperator::NotEqual) => todo!(),
+                    span!(InfixOperator::NotEqual) => Ok(left_val.equal(right_val)?.not()?),
                     span!(InfixOperator::BitwiseAnd) => todo!(),
                     span!(InfixOperator::BitwiseOr) => todo!(),
                     span!(InfixOperator::BitwiseXor) => todo!(),
@@ -109,13 +114,9 @@ impl ConstantEvalutator {
             span!(PrefixOperator::Decrement) => todo!(),
         }
     }
-    fn ternary(&mut self, cond: &Spanned<Expression>, then: &Spanned<Expression>, elze: &Spanned<Expression>) -> PResult<Value>{
+    fn ternary(&mut self, cond: &Spanned<Expression>, then: &Spanned<Expression>, elze: &Spanned<Expression>) -> PResult<Value> {
         let cond = self.evaluate(cond)?;
-        if cond.bool()? {
-            return self.evaluate(then)
-        } else {
-            return self.evaluate(elze)
-        }
+        if cond.bool()? { return self.evaluate(then) } else { return self.evaluate(elze) }
     }
 }
 impl Value {
@@ -199,12 +200,12 @@ impl Value {
     }
     pub fn shl(self, other: Self) -> PResult<Self> {
         match (self, other) {
-            (Value::Int(lv), Value::Int(right)) => Ok(Value::Int(lv << right))
+            (Value::Int(lv), Value::Int(right)) => Ok(Value::Int(lv << right)),
         }
     }
     pub fn shr(self, other: Self) -> PResult<Self> {
         match (self, other) {
-            (Value::Int(lv), Value::Int(right)) => Ok(Value::Int(lv >> right))
+            (Value::Int(lv), Value::Int(right)) => Ok(Value::Int(lv >> right)),
         }
     }
 }

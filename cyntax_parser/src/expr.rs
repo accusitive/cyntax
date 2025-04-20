@@ -1,3 +1,5 @@
+use std::path::Prefix;
+
 use crate::Spanned;
 use crate::ast::{Expression, InfixOperator, Operator, PostfixOperator, PrefixOperator, Token, TypeName};
 use crate::{PResult, Parser};
@@ -92,6 +94,7 @@ impl<'src> Parser<'src> {
             span!(Token::Punctuator(Punctuator::MinusMinus)) => Some(PrefixOperator::Decrement),
             span!(Token::Punctuator(Punctuator::Bang)) => Some(PrefixOperator::LogicalNot),
             span!(Token::Punctuator(Punctuator::Ampersand)) => Some(PrefixOperator::Dereference),
+            span!(Token::Keyword(Keyword::Sizeof)) => Some(PrefixOperator::SizeOf),
             _ => None,
         }
     }
@@ -124,6 +127,12 @@ impl<'src> Parser<'src> {
             let can_start_type_name = self.can_start_typename();
 
             let expression = match (&prefix_operator, can_start_type_name) {
+                (PrefixOperator::SizeOf, _) => {
+                    let _ = self.expect_token(Token::Punctuator(Punctuator::LeftParen), "to open sizeof expression")?;
+                    let type_name = self.parse_typename()?;
+                    let closer = self.expect_token(Token::Punctuator(Punctuator::RightParen), "to close sizeof expression")?;
+                    prefix_op_span.until(&closer.location).into_spanned(Expression::Sizeof(type_name))
+                }
                 (PrefixOperator::CastOrParen, true) => {
                     let type_name = self.parse_typename()?;
                     self.expect_token(Token::Punctuator(Punctuator::RightParen), "to close cast expression")?;

@@ -189,7 +189,7 @@ impl Punctuator {
             Punctuator::Left => "<".to_string(),
             Punctuator::Right => ">".to_string(),
             Punctuator::LeftEqual => "<=".to_string(),
-            Punctuator::RightEqual => "".to_string(),
+            Punctuator::RightEqual => ">=".to_string(),
             Punctuator::EqualEqual => "==".to_string(),
             Punctuator::BangEqual => "!=".to_string(),
             Punctuator::Caret => "^".to_string(),

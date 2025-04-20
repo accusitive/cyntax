@@ -4,6 +4,7 @@ use cyntax_common::spanned::Spanned;
 use cyntax_errors::errors::SimpleWarning;
 use cyntax_errors::{Diagnostic, errors::SimpleError};
 
+use crate::ast::ParameterList;
 use crate::{
     PResult, Parser,
     ast::{self, EnumDeclaration, EnumSpecifier, ParameterDeclaration, Pointer, SpecifierQualifier, StructDeclarator, StructOrUnionDeclaration, StructOrUnionSpecifier, Token, TypeQualifier, TypeSpecifier},
@@ -182,41 +183,66 @@ impl<'src> Parser<'src> {
         ))
     }
 
-    pub fn parse_parameter_list(&mut self) -> PResult<Vec<Spanned<ParameterDeclaration>>> {
+    // pub fn parse_parameter_list(&mut self) -> PResult<Vec<Spanned<ParameterDeclaration>>> {
+    //     let mut parameters = vec![];
+
+    //     while self.can_parse_parameter() || self.consider_comma(&parameters)? {
+    //         if parameters.len() >= 1 {
+    //             self.expect_token(Token::Punctuator(Punctuator::Comma), "to seperate parameters")?;
+    //         }
+    //         parameters.push(self.parse_parameter_declaration()?)
+    //     }
+    //     Ok(parameters)
+    // }
+    pub fn parse_parameter_type_list(&mut self) -> PResult<ParameterList> {
         let mut parameters = vec![];
+        let mut is_variadic = false;
 
         while self.can_parse_parameter() || self.consider_comma(&parameters)? {
             if parameters.len() >= 1 {
                 self.expect_token(Token::Punctuator(Punctuator::Comma), "to seperate parameters")?;
             }
-            parameters.push(self.parse_parameter_declaration(false)?)
-        }
-        Ok(parameters)
-    }
-    pub fn parse_parameter_type_list(&mut self) -> PResult<Vec<Spanned<ParameterDeclaration>>> {
-        let mut parameters = vec![];
+            if self.eat_if_next(Token::Punctuator(Punctuator::DotDotDot))? {
+                is_variadic = true;
+                break;
+            } else {
+                parameters.push(self.parse_parameter_declaration()?)
 
-        while self.can_parse_parameter() || self.consider_comma(&parameters)? {
-            if parameters.len() >= 1 {
-                self.expect_token(Token::Punctuator(Punctuator::Comma), "to seperate parameters")?;
             }
-            parameters.push(self.parse_parameter_declaration(true)?)
         }
-        Ok(parameters)
+        Ok(ParameterList {
+            parameters,
+            variadic: is_variadic,
+        })
     }
     pub fn can_parse_parameter(&mut self) -> bool {
-        return self.can_start_declaration_specifier();
+        return self.can_start_declaration_specifier() | matches!(self.peek_token(), Ok(span!(Token::Punctuator(Punctuator::DotDotDot))));
     }
-    pub fn parse_parameter_declaration(&mut self, allow_abstract: bool) -> PResult<Spanned<ParameterDeclaration>> {
+    pub fn parse_parameter_declaration(&mut self) -> PResult<Spanned<ParameterDeclaration>> {
         let start = self.last_location.clone();
         let specifiers = self.parse_declaration_specifiers()?;
-        let declarator = if self.can_start_declarator() { Some(self.parse_declarator()?) } else { None };
+
+        let declarator = if self.can_start_declarator() {
+            Some(self.parse_declarator()?)
+        } else if self.can_start_abstract_declarator() {
+            Some(self.parse_abstract_declarator()?)
+        } else {
+            None
+        };
+        dbg!(&self.peek_token(), &declarator);
+
+        // let declarator = if allow_abstract || self.can_start_declarator() {
+        //     Some(self.parse_declarator()?)
+        // } else {
+        //     None
+        // };
+
         if let Some(declarator) = &declarator {
             self.declare_identifier(declarator)?;
         }
-        if declarator.is_none() && !allow_abstract {
-            return Err(SimpleError(start, "this declaration does not allow abstract declarators".to_string()).into_codespan_report());
-        }
+        // if declarator.is_none() && !allow_abstract {
+        //     return Err(SimpleError(start, "this declaration does not allow abstract declarators".to_string()).into_codespan_report());
+        // }
 
         let range = start.as_fallback_for_vec(&specifiers);
         Ok(Spanned::new(range, ParameterDeclaration { specifiers, declarator: declarator }))
