@@ -1,12 +1,12 @@
 use crate::ast::*;
 use constant::{ConstantParser, IntConstant};
+use cyntax_common::span;
 use cyntax_common::{
     ast::*,
     ctx::{Context, string_interner::symbol::SymbolU32},
     spanned::{Location, Spanned},
 };
 use cyntax_errors::{Diagnostic, errors::SimpleError};
-use cyntax_common::span;
 use peekmore::PeekMore;
 use std::{
     collections::{HashMap, HashSet},
@@ -195,7 +195,7 @@ impl<'src> Parser<'src> {
             Declarator::Abstract => unreachable!(),
         }
     }
-    pub fn declare_typedef(&mut self, declarator: &Spanned<Declarator>) -> PResult<()>{
+    pub fn declare_typedef(&mut self, declarator: &Spanned<Declarator>) -> PResult<()> {
         let declarator_name = self.get_declarator_name(&declarator.value);
         if self.is_object(&declarator_name) {
             return Err(SimpleError(self.last_location.clone(), format!("{} is alerady declared as an object", self.ctx.res(declarator_name))).into_codespan_report());
@@ -205,8 +205,7 @@ impl<'src> Parser<'src> {
 
         Ok(())
     }
-    pub fn declare_identifier(&mut self, declarator: &Spanned<Declarator>) -> PResult<()>{
-        
+    pub fn declare_identifier(&mut self, declarator: &Spanned<Declarator>) -> PResult<()> {
         let declarator_name = self.get_declarator_name(&declarator.value);
         if self.is_typedef(&declarator_name) {
             return Err(SimpleError(self.last_location.clone(), format!("{} is alerady declared as a typedef", self.ctx.res(declarator_name))).into_codespan_report());

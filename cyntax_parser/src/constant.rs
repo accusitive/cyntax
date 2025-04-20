@@ -1,6 +1,9 @@
 use std::str::Chars;
 
-use cyntax_common::{span, spanned::{Location, Spanned}};
+use cyntax_common::{
+    span,
+    spanned::{Location, Spanned},
+};
 use cyntax_errors::{Diagnostic, errors::SimpleError};
 use peekmore::{PeekMore, PeekMoreIterator};
 
@@ -32,7 +35,7 @@ pub struct Suffix {
 pub struct IntConstant {
     pub number: String,
     pub suffix: Suffix,
-    pub base: u8
+    pub base: u8,
 }
 pub struct ConstantParser<'a> {
     last_location: usize,
@@ -59,7 +62,11 @@ impl<'a> ConstantParser<'a> {
         while let Some(_) = self.chars.peek() {
             self.handle_next_char()?
         }
-        Ok(IntConstant { number: self.number_part, suffix: self.suffix, base: self.base })
+        Ok(IntConstant {
+            number: self.number_part,
+            suffix: self.suffix,
+            base: self.base,
+        })
     }
     fn next_char(&mut self) -> Option<Spanned<char>> {
         let char = self.chars.next()?;

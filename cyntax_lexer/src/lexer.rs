@@ -41,7 +41,6 @@ macro_rules! opening_delimiter {
     };
 }
 
-
 pub use digit;
 pub use identifier;
 pub use nondigit;

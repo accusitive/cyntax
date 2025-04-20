@@ -1,12 +1,12 @@
 use cyntax_common::ast::{Keyword, Punctuator};
+use cyntax_common::span;
 use cyntax_common::spanned::Spanned;
 use cyntax_errors::errors::SimpleWarning;
 use cyntax_errors::{Diagnostic, errors::SimpleError};
-use cyntax_common::span;
 
 use crate::{
     PResult, Parser,
-    ast::{self, EnumDeclaration, EnumSpecifier, ParameterDeclaration, Pointer, SpecifierQualifier, StructOrUnionDeclaration, StructDeclarator, StructOrUnionSpecifier, Token, TypeQualifier, TypeSpecifier},
+    ast::{self, EnumDeclaration, EnumSpecifier, ParameterDeclaration, Pointer, SpecifierQualifier, StructDeclarator, StructOrUnionDeclaration, StructOrUnionSpecifier, Token, TypeQualifier, TypeSpecifier},
 };
 
 impl<'src> Parser<'src> {
@@ -213,7 +213,7 @@ impl<'src> Parser<'src> {
         let declarator = if self.can_start_declarator() { Some(self.parse_declarator()?) } else { None };
         if let Some(declarator) = &declarator {
             self.declare_identifier(declarator)?;
-        } 
+        }
         if declarator.is_none() && !allow_abstract {
             return Err(SimpleError(start, "this declaration does not allow abstract declarators".to_string()).into_codespan_report());
         }

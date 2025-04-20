@@ -1,8 +1,8 @@
 use cyntax_common::ast::{Keyword, Punctuator};
+use cyntax_common::span;
 use cyntax_common::spanned::Spanned;
 use cyntax_errors::Diagnostic;
 use cyntax_errors::errors::SimpleError;
-use cyntax_common::span;
 
 use crate::ast::{BlockItem, ForInit, Initializer, IterationStatement, Statement, Token};
 use crate::{PResult, Parser};

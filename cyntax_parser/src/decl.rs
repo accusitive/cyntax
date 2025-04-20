@@ -1,7 +1,7 @@
 use crate::ast::*;
 use crate::{PResult, Parser};
-use cyntax_common::{ast::*, span};
 use cyntax_common::spanned::Spanned;
+use cyntax_common::{ast::*, span};
 use cyntax_errors::Diagnostic;
 use cyntax_errors::errors::SimpleError;
 /// Declarations, Declarators, Init declarators, stuff of that sort

@@ -1,7 +1,10 @@
 use std::iter::Peekable;
 
 use cyntax_common::{
-    ast::{Delimited, PreprocessingToken, Punctuator, Whitespace}, ctx::{string_interner::symbol::SymbolU32, Context, HasContext}, span, spanned::{Location, Spanned}
+    ast::{Delimited, PreprocessingToken, Punctuator, Whitespace},
+    ctx::{Context, HasContext, string_interner::symbol::SymbolU32},
+    span,
+    spanned::{Location, Spanned},
 };
 use cyntax_errors::{Diagnostic, UnwrapDiagnostic};
 
@@ -234,7 +237,7 @@ impl<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>> IntoTokenTree<
                     _ => todo!(),
                 }
             }
-            
+
             _ => {
                 let directive_range = tokens.first().unwrap().start()..tokens.last().unwrap().end();
                 let err = cyntax_errors::errors::UnknownDirective(Location {
@@ -341,7 +344,7 @@ pub enum InternalLeaf {
 
     BeginExpandingMacro(SymbolU32),
     FinishExpandingMacro(SymbolU32),
-    Many(Vec<Spanned<PreprocessingToken>>)
+    Many(Vec<Spanned<PreprocessingToken>>),
 }
 impl TokenTree {
     pub fn as_token(&self) -> Spanned<PreprocessingToken> {

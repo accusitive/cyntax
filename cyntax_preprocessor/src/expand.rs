@@ -1,5 +1,8 @@
 use cyntax_common::{
-    ast::{Delimited, PreprocessingToken, Punctuator}, ctx::{string_interner::symbol::SymbolU32, Context, HasContext}, span, spanned::{Location, Spanned}
+    ast::{Delimited, PreprocessingToken, Punctuator},
+    ctx::{Context, HasContext, string_interner::symbol::SymbolU32},
+    span,
+    spanned::{Location, Spanned},
 };
 use cyntax_consteval::Value;
 use cyntax_errors::errors::SimpleError;
@@ -175,20 +178,18 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                     Some(TokenTree::PreprocessorToken(span!(PreprocessingToken::Punctuator(Punctuator::LeftParen)))) => {
                         let inner = self.next_delimited();
                         if inner.2.len() != 1 {
-                            return Err(SimpleError(inner.0.location.until(&inner.1.location), "defined(..) operator must have exactly 1 identifier inside.".to_string()).into_codespan_report())
+                            return Err(SimpleError(inner.0.location.until(&inner.1.location), "defined(..) operator must have exactly 1 identifier inside.".to_string()).into_codespan_report());
                         }
                         assert_eq!(inner.2.len(), 1);
                         if let Some(span!(PreprocessingToken::Identifier(ident))) = &inner.2.get(0) {
                             let result = if self.macros.get(ident).is_some() { one } else { zero };
                             return Ok(ExpandControlFlow::Return(vec![Spanned::new(defined_span.clone(), PreprocessingToken::PPNumber(result))]));
                         } else {
-                            return Err(SimpleError(inner.0.location.until(&inner.1.location), "Token directly following `defined(` must be an identifier, with a following `)`.".to_string()).into_codespan_report())
+                            return Err(SimpleError(inner.0.location.until(&inner.1.location), "Token directly following `defined(` must be an identifier, with a following `)`.".to_string()).into_codespan_report());
                         }
                     }
-                    Some(TokenTree::PreprocessorToken(span!(span, _token))) => {
-                        return Err(SimpleError(span.clone(), "Token directly following `defined` must be an identifier, optionally wrapped in parenthesis".to_string()).into_codespan_report())
-                    }
-                    _ => panic!("WHAT?")
+                    Some(TokenTree::PreprocessorToken(span!(span, _token))) => return Err(SimpleError(span.clone(), "Token directly following `defined` must be an identifier, optionally wrapped in parenthesis".to_string()).into_codespan_report()),
+                    _ => panic!("WHAT?"),
                 }
             }
             TokenTree::PreprocessorToken(span!(span, PreprocessingToken::Identifier(identifier))) if self.expanding.contains(&identifier) => {
@@ -240,9 +241,9 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                 let eval = cyntax_consteval::ConstantEvalutator::new().evaluate(&condition)?;
 
                 if let Value::Int(1) = eval {
-                    return Ok(ExpandControlFlow::RescanMany(body))
+                    return Ok(ExpandControlFlow::RescanMany(body));
                 } else {
-                    return Ok(ExpandControlFlow::Rescan(*opposition))
+                    return Ok(ExpandControlFlow::Rescan(*opposition));
                 }
             }
             TokenTree::Else { body, opposition } => {

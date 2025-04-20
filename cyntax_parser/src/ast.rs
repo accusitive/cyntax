@@ -76,7 +76,7 @@ pub struct StructOrUnionDeclaration {
 #[derive(Debug)]
 pub struct EnumDeclaration {
     pub identifier: Spanned<Identifier>,
-    pub value: Option<Spanned<Expression>>
+    pub value: Option<Spanned<Expression>>,
 }
 #[derive(Debug)]
 pub struct StructDeclarator {
@@ -219,7 +219,7 @@ pub enum Expression {
     Cast(Spanned<TypeName>, Box<Spanned<Self>>),
     Call(Box<Spanned<Self>>, Vec<Spanned<Self>>),
     Subscript(Box<Spanned<Self>>, Box<Spanned<Self>>),
-    Defined(Spanned<Identifier>)
+    Defined(Spanned<Identifier>),
 }
 
 #[derive(Debug, PartialEq, Clone)]

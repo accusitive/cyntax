@@ -44,45 +44,37 @@ impl<'src> Parser<'src> {
 
     pub fn as_infix_operator(token: &Spanned<Token>) -> Option<InfixOperator> {
         match token {
-            span!(Token::Punctuator(Punctuator::Plus)) => Some(InfixOperator::Add),
-            span!(Token::Punctuator(Punctuator::Minus)) => Some(InfixOperator::Subtract),
-            span!(Token::Punctuator(Punctuator::Asterisk)) => Some(InfixOperator::Multiply),
-            span!(Token::Punctuator(Punctuator::Ampersand)) => Some(InfixOperator::BitwiseAnd),
-            span!(Token::Punctuator(Punctuator::PipePipe)) => Some(InfixOperator::LogicalOr),
-            span!(Token::Punctuator(Punctuator::Pipe)) => Some(InfixOperator::BitwiseOr),
-            span!(Token::Punctuator(Punctuator::Slash)) => Some(InfixOperator::Divide),
-            span!(Token::Punctuator(Punctuator::AndAnd)) => Some(InfixOperator::LogicalAnd),
-            span!(Token::Punctuator(Punctuator::Caret)) => Some(InfixOperator::BitwiseXor),
-            span!(Token::Punctuator(Punctuator::EqualEqual)) => Some(InfixOperator::Equal),
-            span!(Token::Punctuator(Punctuator::Percent)) => Some(InfixOperator::Modulo),
-            span!(Token::Punctuator(Punctuator::Equal)) => Some(InfixOperator::Assign),
-
-            span!(Token::Punctuator(Punctuator::Right)) => Some(InfixOperator::Greater),
-            span!(Token::Punctuator(Punctuator::RightEqual)) => Some(InfixOperator::GreaterEqual),
-            span!(Token::Punctuator(Punctuator::Left)) => Some(InfixOperator::Less),
-            span!(Token::Punctuator(Punctuator::LeftEqual)) => Some(InfixOperator::LessEqual),
-
             span!(Token::Punctuator(Punctuator::Dot)) => Some(InfixOperator::Access),
             span!(Token::Punctuator(Punctuator::Arrow)) => Some(InfixOperator::IndirectAccess),
+            span!(Token::Punctuator(Punctuator::Asterisk)) => Some(InfixOperator::Multiply),
+            span!(Token::Punctuator(Punctuator::Slash)) => Some(InfixOperator::Divide),
+            span!(Token::Punctuator(Punctuator::Percent)) => Some(InfixOperator::Modulo),
+            span!(Token::Punctuator(Punctuator::Plus)) => Some(InfixOperator::Add),
+            span!(Token::Punctuator(Punctuator::Minus)) => Some(InfixOperator::Subtract),
             span!(Token::Punctuator(Punctuator::LeftLeft)) => Some(InfixOperator::BitwiseShiftLeft),
             span!(Token::Punctuator(Punctuator::RightRight)) => Some(InfixOperator::BitwiseShiftRight),
-
+            span!(Token::Punctuator(Punctuator::Left)) => Some(InfixOperator::Less),
             span!(Token::Punctuator(Punctuator::LeftEqual)) => Some(InfixOperator::LessEqual),
+            span!(Token::Punctuator(Punctuator::Right)) => Some(InfixOperator::Greater),
             span!(Token::Punctuator(Punctuator::RightEqual)) => Some(InfixOperator::GreaterEqual),
+            span!(Token::Punctuator(Punctuator::EqualEqual)) => Some(InfixOperator::Equal),
             span!(Token::Punctuator(Punctuator::BangEqual)) => Some(InfixOperator::NotEqual),
-
+            span!(Token::Punctuator(Punctuator::Ampersand)) => Some(InfixOperator::BitwiseAnd),
+            span!(Token::Punctuator(Punctuator::Caret)) => Some(InfixOperator::BitwiseXor),
+            span!(Token::Punctuator(Punctuator::Pipe)) => Some(InfixOperator::BitwiseOr),
+            span!(Token::Punctuator(Punctuator::AndAnd)) => Some(InfixOperator::LogicalAnd),
+            span!(Token::Punctuator(Punctuator::PipePipe)) => Some(InfixOperator::LogicalOr),
+            span!(Token::Punctuator(Punctuator::Equal)) => Some(InfixOperator::Assign),
             span!(Token::Punctuator(Punctuator::PlusEqual)) => Some(InfixOperator::AddAssign),
             span!(Token::Punctuator(Punctuator::MinusEqual)) => Some(InfixOperator::SubtractAssign),
             span!(Token::Punctuator(Punctuator::AsteriskEqual)) => Some(InfixOperator::MultiplyAssign),
-            span!(Token::Punctuator(Punctuator::PercentEqual)) => Some(InfixOperator::ModuloAssign),
             span!(Token::Punctuator(Punctuator::SlashEqual)) => Some(InfixOperator::DivideAssign),
-
+            span!(Token::Punctuator(Punctuator::PercentEqual)) => Some(InfixOperator::ModuloAssign),
             span!(Token::Punctuator(Punctuator::LeftLeftEqual)) => Some(InfixOperator::BitwiseShiftLeftAssign),
             span!(Token::Punctuator(Punctuator::RightRightEqual)) => Some(InfixOperator::BitwiseShiftRightAssign),
-
             span!(Token::Punctuator(Punctuator::AndEqual)) => Some(InfixOperator::BitwiseAndAssign),
-            span!(Token::Punctuator(Punctuator::PipeEqual)) => Some(InfixOperator::BitwiseOrAssign),
             span!(Token::Punctuator(Punctuator::CaretEqual)) => Some(InfixOperator::BitwiseXorAssign),
+            span!(Token::Punctuator(Punctuator::PipeEqual)) => Some(InfixOperator::BitwiseOrAssign),
 
             _ => None,
         }
@@ -137,7 +129,6 @@ impl<'src> Parser<'src> {
                     self.expect_token(Token::Punctuator(Punctuator::RightParen), "to close paren expression")?;
                     expr
                 }
-
                 _ => {
                     let expression = self.parse_expression_bp(right_binding_power)?;
                     prefix_op_span.until(&expression.location).into_spanned(Expression::UnaryOp(Spanned::new(prefix_op_span.clone(), prefix_operator), Box::new(expression)))

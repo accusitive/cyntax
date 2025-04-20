@@ -1,9 +1,13 @@
 use std::{collections::HashMap, fmt::Debug};
 
 use cyntax_common::{
-    ast::{PreprocessingToken, Punctuator}, ctx::{
-        string_interner::{backend::StringBackend, symbol::SymbolU32}, Context
-    }, span, spanned::{Location, Spanned}
+    ast::{PreprocessingToken, Punctuator},
+    ctx::{
+        Context,
+        string_interner::{backend::StringBackend, symbol::SymbolU32},
+    },
+    span,
+    spanned::{Location, Spanned},
 };
 use cyntax_lexer::lexer::Lexer;
 
