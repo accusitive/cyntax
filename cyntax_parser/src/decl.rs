@@ -12,8 +12,7 @@ impl<'src> Parser<'src> {
             return Ok(None);
         }
         let specifiers = self.parse_declaration_specifiers()?;
-
-        let mut init_declarators = self.parse_init_declarators()?;
+        let mut init_declarators = self.parse_init_declarator_list()?;
         let mut is_typedef = false;
         for specifier in &specifiers {
             if matches!(specifier, span!(DeclarationSpecifier::StorageClass(StorageClassSpecifier::Typedef))) {
@@ -22,7 +21,11 @@ impl<'src> Parser<'src> {
         }
         if is_typedef {
             for declarator in &init_declarators {
-                self.declare_typedef(declarator);
+                self.declare_typedef(&declarator.value.declarator)?;
+            }
+        } else {
+            for declarator in &init_declarators {
+                self.declare_identifier(&declarator.value.declarator)?;
             }
         }
 
@@ -48,18 +51,21 @@ impl<'src> Parser<'src> {
 
         let mut is_typedef = false;
 
-        let init_declarators = self.parse_init_declarators()?;
+        let init_declarators = self.parse_init_declarator_list()?;
 
         for specifier in &specifiers {
             if matches!(specifier, span!(DeclarationSpecifier::StorageClass(StorageClassSpecifier::Typedef))) {
                 is_typedef = true;
+                break;
             }
         }
         for declarator in &init_declarators {
             location = location.until(&declarator.location);
 
             if is_typedef {
-                self.declare_typedef(declarator);
+                self.declare_typedef(&declarator.value.declarator)?;
+            } else {
+                self.declare_identifier(&declarator.value.declarator)?;
             }
         }
         Ok(location.into_spanned(Declaration { specifiers, init_declarators }))
@@ -119,7 +125,7 @@ impl<'src> Parser<'src> {
             },
         ))
     }
-    pub fn parse_init_declarators(&mut self) -> PResult<Vec<Spanned<InitDeclarator>>> {
+    pub fn parse_init_declarator_list(&mut self) -> PResult<Vec<Spanned<InitDeclarator>>> {
         let mut init_declarators = vec![];
         while self.can_start_init_declarator() || self.consider_comma(&init_declarators)? {
             if init_declarators.len() >= 1 {
@@ -134,7 +140,13 @@ impl<'src> Parser<'src> {
         self.can_start_declarator()
     }
     pub fn can_start_declarator(&mut self) -> bool {
-        return matches!(self.peek_token(), Ok(span!(Token::Punctuator(Punctuator::Asterisk) | Token::Identifier(_) | Token::Punctuator(Punctuator::LeftParen))));
+        match self.peek_token().cloned() {
+            Ok(span!(Token::Identifier(identifier))) if !self.is_typedef(&identifier) => true,
+            Ok(span!(Token::Punctuator(Punctuator::Asterisk) | Token::Punctuator(Punctuator::LeftParen))) => true,
+            _ => false,
+        }
+
+        // return matches!(, Ok()));
     }
     pub fn parse_init_declarator(&mut self) -> PResult<Spanned<InitDeclarator>> {
         let declarator = self.parse_declarator()?;
@@ -158,12 +170,12 @@ impl<'src> Parser<'src> {
     }
 
     pub fn parse_direct_declarator(&mut self) -> PResult<Spanned<Declarator>> {
-        let mut base = match self.next_token()? {
-            span!(span, Token::Identifier(identifier)) => Spanned::new(span, Declarator::Identifier(identifier.clone())),
+        let mut base = match self.peek_token()?.clone() {
+            span!(span, Token::Identifier(identifier)) => self.expect_non_typename_identifier()?.map(|ident| Declarator::Identifier(ident)),
             span!(span, Token::Punctuator(Punctuator::LeftParen)) => {
                 let d = self.parse_declarator()?;
                 self.expect_token(Token::Punctuator(Punctuator::RightParen), "to end a direct declarator")?;
-                Spanned::new(span, Declarator::Parenthesized(Box::new(d)))
+                span.into_spanned(Declarator::Parenthesized(Box::new(d)))
             }
             x => return Err(SimpleError(x.location, format!("Expected direct declarator, found {:?}", x.value)).into_codespan_report()),
         };
@@ -301,7 +313,7 @@ impl<'src> Parser<'src> {
     }
     pub fn parse_designator(&mut self) -> PResult<Designator> {
         if self.eat_if_next(Token::Punctuator(Punctuator::Dot))? {
-            let identifier = self.expect_identifier()?;
+            let identifier = self.expect_non_typename_identifier()?;
             Ok(Designator::Identifier(identifier))
         } else if self.eat_if_next(Token::Punctuator(Punctuator::LeftBracket))? {
             unimplemented!("need to implement expression parsing for this")

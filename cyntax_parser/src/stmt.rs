@@ -68,7 +68,7 @@ impl<'src> Parser<'src> {
             let stmt = self.parse_statement()?;
             crate::ast::LabeledStatement::Default(Box::new(stmt))
         } else {
-            let identifier = self.expect_identifier()?;
+            let identifier = self.expect_non_typename_identifier()?;
             self.expect_token(Token::Punctuator(Punctuator::Colon), &format!("to seperate `{}` case and it's statement", self.ctx.res(identifier.value)))?;
             self.check_stmt_not_declaration()?;
             let stmt = self.parse_statement()?;
@@ -83,6 +83,7 @@ impl<'src> Parser<'src> {
     }
 
     pub fn parse_compound_statement(&mut self) -> PResult<Statement> {
+        self.push_scope(crate::ScopeKind::Block);
         self.expect_token(Token::Punctuator(Punctuator::LeftBrace), "to open compound statement")?;
         let mut block_items = vec![];
         while self.can_start_block_item() {
@@ -90,6 +91,7 @@ impl<'src> Parser<'src> {
             block_items.push(block_item);
         }
         self.expect_token(Token::Punctuator(Punctuator::RightBrace), "after compound stmt")?;
+        self.pop_scope();
 
         Ok(Statement::Compound(block_items))
     }
@@ -201,7 +203,7 @@ impl<'src> Parser<'src> {
     pub fn parse_jump_statement(&mut self) -> PResult<Statement> {
         let jump_stmt = match self.next_token()? {
             span!(Token::Keyword(Keyword::Goto)) => {
-                let identifier = self.expect_identifier()?;
+                let identifier = self.expect_non_typename_identifier()?;
                 self.expect_token(Token::Punctuator(Punctuator::Semicolon), "after goto statement")?;
                 Statement::Goto(identifier)
             }

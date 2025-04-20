@@ -60,7 +60,7 @@ pub enum TypeSpecifier {
 }
 #[derive(Debug)]
 pub struct StructOrUnionSpecifier {
-    pub identifier: Option<Identifier>,
+    pub tag: Option<Identifier>,
     pub declarations: Vec<StructOrUnionDeclaration>,
 }
 #[derive(Debug)]

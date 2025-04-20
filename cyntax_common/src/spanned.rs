@@ -44,7 +44,7 @@ impl<T> Spanned<T> {
     pub fn new(location: Location, value: T) -> Spanned<T> {
         Spanned { value: value, location }
     }
-    pub fn map<U: Clone, F: FnMut(T) -> U>(self, mut f: F) -> Spanned<U> {
+    pub fn map<U, F: FnMut(T) -> U>(self, mut f: F) -> Spanned<U> {
         Spanned {
             location: self.location.clone(),
             value: f(self.value),
@@ -72,7 +72,7 @@ impl<T> Spanned<T> {
         self.location.range.end
     }
 }
-impl<T: PartialEq + Clone> PartialEq for Spanned<T> {
+impl<T: PartialEq> PartialEq for Spanned<T> {
     fn eq(&self, other: &Self) -> bool {
         self.value == other.value
     }

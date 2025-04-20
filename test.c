@@ -1,12 +1,7 @@
-enum Test{ 
-    RED,
-    BLUE = RED,
-    GREEN = 150,
-    YELLOW = RED + GREEN * BLUE - 100,
+typedef int i32;
+struct i32
+{
 };
-
-enum {
-    Look,
-    Its,
-    Anonymous =3
-};
+int main(int i32)
+{
+}

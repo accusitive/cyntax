@@ -8,7 +8,12 @@ use cyntax_common::{
 use cyntax_errors::{Diagnostic, errors::SimpleError};
 use cyntax_lexer::span;
 use peekmore::PeekMore;
-use std::{collections::HashSet, fmt::Debug, str::FromStr, vec::IntoIter};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Debug,
+    str::FromStr,
+    vec::IntoIter,
+};
 
 #[macro_use]
 pub mod patterns;
@@ -53,7 +58,22 @@ impl<'src> TokenStream<'src> {
         ConstantParser::new(location.clone(), self.ctx.strings.resolve(number).unwrap()).lex()
     }
 }
-type Scope = HashSet<Identifier>;
+#[derive(Debug)]
+pub enum IdentifierKind {
+    Typename,
+    Identifier,
+}
+#[derive(Debug)]
+pub enum ScopeKind {
+    Global,
+    TranslationUnit,
+    Block,
+}
+#[derive(Debug)]
+pub struct Scope {
+    pub identifiers: HashMap<Identifier, IdentifierKind>,
+    pub kind: ScopeKind,
+}
 #[derive(Debug)]
 pub struct Parser<'src> {
     pub ctx: &'src mut Context,
@@ -71,7 +91,10 @@ impl<'src> Parser<'src> {
             token_stream: i.peekmore(),
             last_location: Location::new(),
             diagnostics: vec![],
-            scopes: vec![],
+            scopes: vec![Scope {
+                identifiers: HashMap::new(),
+                kind: ScopeKind::Global,
+            }],
         }
     }
     pub fn next_token(&mut self) -> PResult<Spanned<Token>> {
@@ -172,31 +195,71 @@ impl<'src> Parser<'src> {
             Declarator::Abstract => unreachable!(),
         }
     }
-    pub fn declare_typedef(&mut self, init_declarator: &Spanned<InitDeclarator>) {
-        let declarator_name = self.get_declarator_name(&init_declarator.value.declarator.value);
-        self.scopes.last_mut().unwrap().insert(declarator_name);
-        dbg!(&self.scopes);
+    pub fn declare_typedef(&mut self, declarator: &Spanned<Declarator>) -> PResult<()>{
+        let declarator_name = self.get_declarator_name(&declarator.value);
+        if self.is_object(&declarator_name) {
+            return Err(SimpleError(self.last_location.clone(), format!("{} is alerady declared as an object", self.ctx.res(declarator_name))).into_codespan_report());
+        }
+        self.scopes.last_mut().unwrap().identifiers.insert(declarator_name, IdentifierKind::Typename);
+        println!("declared {} as typedef", self.ctx.res(declarator_name));
+
+        Ok(())
+    }
+    pub fn declare_identifier(&mut self, declarator: &Spanned<Declarator>) -> PResult<()>{
+        
+        let declarator_name = self.get_declarator_name(&declarator.value);
+        if self.is_typedef(&declarator_name) {
+            return Err(SimpleError(self.last_location.clone(), format!("{} is alerady declared as a typedef", self.ctx.res(declarator_name))).into_codespan_report());
+        }
+        self.scopes.last_mut().unwrap().identifiers.insert(declarator_name, IdentifierKind::Identifier);
+        println!("declared {} as identifier", self.ctx.res(declarator_name));
+        Ok(())
     }
     pub fn is_typedef(&self, identifier: &Identifier) -> bool {
-        self.scopes.iter().any(|scope| scope.contains(identifier))
+        self.scopes.iter().any(|scope| scope.identifiers.get(identifier).map(|t| matches!(t, IdentifierKind::Typename)).unwrap_or(false))
     }
-    pub fn expect_identifier(&mut self) -> PResult<Spanned<SymbolU32>> {
+    pub fn is_object(&self, identifier: &Identifier) -> bool {
+        self.scopes.iter().any(|scope| scope.identifiers.get(identifier).map(|t| matches!(t, IdentifierKind::Identifier)).unwrap_or(false))
+    }
+    pub fn is_declared(&self, identifier: &Identifier) -> bool {
+        self.scopes.iter().any(|scope| scope.identifiers.contains_key(identifier))
+    }
+    pub fn expect_non_typename_identifier(&mut self) -> PResult<Spanned<SymbolU32>> {
         match self.next_token()? {
-            span!(span, Token::Identifier(identifier)) => Ok(Spanned::new(span, identifier)),
+            span!(loc, Token::Identifier(identifier)) if !self.is_typedef(&identifier) => Ok(Spanned::new(loc, identifier)),
+            span!(loc, Token::Identifier(identifier)) if self.is_typedef(&identifier) => Err(SimpleError(loc, format!("expected identifier, found typename {:?}", self.ctx.res(identifier))).into_codespan_report()),
+
             stoken => Err(SimpleError(stoken.location, format!("expected identifier, found {:?}", stoken.value)).into_codespan_report()),
         }
     }
+    // pub fn expect_identifier(&mut self) -> PResult<Spanned<SymbolU32>> {
+    //     match self.next_token()? {
+    //         span!(span, Token::Identifier(identifier)) => Ok(Spanned::new(span, identifier)),
+    //         stoken => Err(SimpleError(stoken.location, format!("expected identifier, found {:?}", stoken.value)).into_codespan_report()),
+    //     }
+    // }
     pub fn consider_comma<T>(&mut self, v: &Vec<T>) -> PResult<bool> {
         Ok(v.len() >= 1 && matches!(self.peek_token()?, span!(Token::Punctuator(Punctuator::Comma))))
     }
     pub fn parse_translation_unit(&mut self) -> PResult<TranslationUnit> {
-        self.scopes.push(HashSet::new());
-        let mut external_declarations = vec![];
-        while let Some(external_declaration) = self.parse_external_declaration()? {
-            external_declarations.push(external_declaration);
-        }
-        self.scopes.pop();
-        Ok(TranslationUnit { external_declarations })
+        self.scoped(ScopeKind::TranslationUnit, |this| {
+            let mut external_declarations = vec![];
+            while let Some(external_declaration) = this.parse_external_declaration()? {
+                external_declarations.push(external_declaration);
+            }
+            Ok(TranslationUnit { external_declarations })
+        })
     }
-    
+    pub fn push_scope(&mut self, kind: ScopeKind) {
+        self.scopes.push(Scope { identifiers: HashMap::new(), kind });
+    }
+    pub fn pop_scope(&mut self) {
+        self.scopes.pop().expect("Tried to pop scope when none existed");
+    }
+    pub fn scoped<T, F: FnMut(&mut Self) -> T>(&mut self, kind: ScopeKind, mut f: F) -> T {
+        self.push_scope(kind);
+        let value = f(self);
+        self.pop_scope();
+        value
+    }
 }

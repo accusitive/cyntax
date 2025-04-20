@@ -11,8 +11,8 @@ use crate::{
 
 impl<'src> Parser<'src> {
     pub fn parse_struct_or_union_type_specifier(&mut self, is_union: bool) -> PResult<ast::TypeSpecifier> {
-        let name = if let span!(Token::Identifier(identifer)) = self.peek_token()? { Some(identifer.clone()) } else { None };
-        if name.is_some() {
+        let tag = if let span!(Token::Identifier(identifer)) = self.peek_token()? { Some(identifer.clone()) } else { None };
+        if tag.is_some() {
             self.next_token()?;
         }
 
@@ -22,15 +22,15 @@ impl<'src> Parser<'src> {
             self.expect_token(Token::Punctuator(Punctuator::RightBrace), "to close struct type specifier")?;
             dbg!(&self.peek_token());
             if is_union {
-                Ok(ast::TypeSpecifier::Union(StructOrUnionSpecifier { identifier: name, declarations: vec![] }))
+                Ok(ast::TypeSpecifier::Union(StructOrUnionSpecifier { tag, declarations: vec![] }))
             } else {
-                Ok(ast::TypeSpecifier::Union(StructOrUnionSpecifier { identifier: name, declarations }))
+                Ok(ast::TypeSpecifier::Union(StructOrUnionSpecifier { tag, declarations }))
             }
         } else {
             if is_union {
-                Ok(ast::TypeSpecifier::Union(StructOrUnionSpecifier { identifier: name, declarations: vec![] }))
+                Ok(ast::TypeSpecifier::Union(StructOrUnionSpecifier { tag, declarations: vec![] }))
             } else {
-                Ok(ast::TypeSpecifier::Union(StructOrUnionSpecifier { identifier: name, declarations: vec![] }))
+                Ok(ast::TypeSpecifier::Union(StructOrUnionSpecifier { tag, declarations: vec![] }))
             }
         }
     }
@@ -89,7 +89,7 @@ impl<'src> Parser<'src> {
                     break;
                 }
             }
-            let identifier = self.expect_identifier()?;
+            let identifier = self.expect_non_typename_identifier()?;
             let expression = if self.eat_if_next(Token::Punctuator(Punctuator::Equal))? { Some(self.parse_expression()?) } else { None };
 
             enum_declarations.push(EnumDeclaration { identifier: identifier, value: expression })
@@ -208,10 +208,12 @@ impl<'src> Parser<'src> {
         return self.can_start_declaration_specifier();
     }
     pub fn parse_parameter_declaration(&mut self, allow_abstract: bool) -> PResult<Spanned<ParameterDeclaration>> {
-        //todo: abstract declarator
         let start = self.last_location.clone();
         let specifiers = self.parse_declaration_specifiers()?;
         let declarator = if self.can_start_declarator() { Some(self.parse_declarator()?) } else { None };
+        if let Some(declarator) = &declarator {
+            self.declare_identifier(declarator)?;
+        } 
         if declarator.is_none() && !allow_abstract {
             return Err(SimpleError(start, "this declaration does not allow abstract declarators".to_string()).into_codespan_report());
         }
