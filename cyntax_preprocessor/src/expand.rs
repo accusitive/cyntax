@@ -174,19 +174,21 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                     }
                     Some(TokenTree::PreprocessorToken(span!(PreprocessingToken::Punctuator(Punctuator::LeftParen)))) => {
                         let inner = self.next_delimited();
+                        if inner.2.len() != 1 {
+                            return Err(SimpleError(inner.0.location.until(&inner.1.location), "defined(..) operator must have exactly 1 identifier inside.".to_string()).into_codespan_report())
+                        }
                         assert_eq!(inner.2.len(), 1);
-                        dbg!(&inner);
-                        if let span!(PreprocessingToken::Identifier(ident)) = &inner.2[0] {
+                        if let Some(span!(PreprocessingToken::Identifier(ident))) = &inner.2.get(0) {
                             let result = if self.macros.get(ident).is_some() { one } else { zero };
                             return Ok(ExpandControlFlow::Return(vec![Spanned::new(defined_span.clone(), PreprocessingToken::PPNumber(result))]));
                         } else {
-                            todo!()
+                            return Err(SimpleError(inner.0.location.until(&inner.1.location), "Token directly following `defined(` must be an identifier, with a following `)`.".to_string()).into_codespan_report())
                         }
                     }
-                    _ => {
-                        // Handle the case where the next non-whitespace token doesn't match either pattern
-                        todo!()
+                    Some(TokenTree::PreprocessorToken(span!(span, _token))) => {
+                        return Err(SimpleError(span.clone(), "Token directly following `defined` must be an identifier, optionally wrapped in parenthesis".to_string()).into_codespan_report())
                     }
+                    _ => panic!("WHAT?")
                 }
             }
             TokenTree::PreprocessorToken(span!(span, PreprocessingToken::Identifier(identifier))) if self.expanding.contains(&identifier) => {
@@ -229,16 +231,12 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                 let mut expander = Expander::new(self.ctx, PrependingPeekableIterator::new(itt.into_iter()));
                 expander.macros = self.macros.clone();
                 expander.respect_defined = true;
-                expander.expand().unwrap();
+                expander.expand()?;
 
-                dbg!(&expander.output);
                 expanded_condition.extend(expander.output);
 
-                // dbg!(&tt);
-                // expanded_condition.extend(self.fully_expand_token_tree(tt, false)?);
                 let mut parser = cyntax_parser::Parser::new(self.ctx, expanded_condition);
                 let condition = parser.parse_expression()?;
-                dbg!(&condition);
                 let eval = cyntax_consteval::ConstantEvalutator::new().evaluate(&condition)?;
 
                 if let Value::Int(1) = eval {
@@ -246,8 +244,6 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                 } else {
                     return Ok(ExpandControlFlow::Rescan(*opposition))
                 }
-
-                // panic!("{}", std::mem::size_of::<Self>());
             }
             TokenTree::Else { body, opposition } => {
                 dbg!(&opposition);

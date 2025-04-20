@@ -8,6 +8,7 @@ use cyntax_parser::{
 type PResult<T> = Result<T, cyntax_errors::codespan_reporting::diagnostic::Diagnostic<usize>>;
 #[derive(Debug)]
 pub struct ConstantEvalutator {}
+#[derive(Debug, Clone, Copy)]
 pub enum Value {
     Int(i64),
 }
@@ -38,23 +39,26 @@ impl ConstantEvalutator {
         Ok(Value::Int(val))
     }
     fn bin_op(&mut self, op: &Spanned<InfixOperator>, left: &Spanned<Expression>, right: &Spanned<Expression>) -> PResult<Value> {
-        let left = self.evaluate(left)?;
-        let right = self.evaluate(right)?;
+        let left_val = self.evaluate(left)?;
+        let right_val = self.evaluate(right)?;
 
         match op {
-            span!(InfixOperator::Add) => Ok(left.add(right)?),
-            span!(InfixOperator::Subtract) => todo!(),
-            span!(InfixOperator::Multiply) => todo!(),
-            span!(InfixOperator::Divide) => todo!(),
+            span!(InfixOperator::Add) => Ok(left_val.add(right_val)?),
+            span!(InfixOperator::Subtract) => Ok(left_val.subtract(right_val)?),
+            span!(InfixOperator::Multiply) => Ok(left_val.multiply(right_val)?),
+            span!(InfixOperator::Divide) => Ok(left_val.divide(right_val)?),
             span!(InfixOperator::Modulo) => todo!(),
             span!(InfixOperator::Less) => todo!(),
             span!(InfixOperator::Greater) => todo!(),
             span!(InfixOperator::LessEqual) => todo!(),
             span!(InfixOperator::GreaterEqual) => todo!(),
-            span!(InfixOperator::Equal) => Ok(left.equal(right)?),
+            span!(InfixOperator::Equal) => Ok(left_val.equal(right_val)?),
             span!(InfixOperator::NotEqual) => todo!(),
             span!(InfixOperator::LogicalAnd) => todo!(),
-            span!(InfixOperator::LogicalOr) => todo!(),
+            span!(InfixOperator::LogicalOr) => {
+                let x = left_val.equal(Value::Int(1))?.bool()? || right_val.equal(Value::Int(1))?.bool()?;
+                Ok(Value::from_bool(x))
+            }
             span!(InfixOperator::BitwiseAnd) => todo!(),
             span!(InfixOperator::BitwiseOr) => todo!(),
             span!(InfixOperator::BitwiseXor) => todo!(),
@@ -76,9 +80,10 @@ impl ConstantEvalutator {
         }
     }
     fn un_op(&mut self, op: &Spanned<PrefixOperator>, expr: &Spanned<Expression>) -> PResult<Value> {
-        match op.value{
-            span!(PrefixOperator::Plus) => todo!(),
-            span!(PrefixOperator::Minus) => todo!(),
+        let expr_val = self.evaluate(expr)?;
+        match op {
+            span!(PrefixOperator::Plus) => Ok(expr_val), // Unary plus is a no-op for integers
+            span!(PrefixOperator::Minus) => expr_val.negate(),
             span!(PrefixOperator::LogicalNot) => todo!(),
             span!(PrefixOperator::BitwiseNot) => todo!(),
             span!(PrefixOperator::SizeOf) => todo!(),
@@ -90,14 +95,55 @@ impl ConstantEvalutator {
     }
 }
 impl Value {
+    pub fn one() -> Self {
+        Self::Int(1)
+    }
+    pub fn zero() -> Self {
+        Self::Int(0)
+    }
+    pub fn from_bool(b: bool) -> Self {
+        if b { Self::one() } else { Self::zero() }
+    }
     pub fn add(self, other: Self) -> PResult<Self> {
         match (self, other) {
             (Value::Int(lv), Value::Int(rv)) => Ok(Value::Int(lv + rv)),
         }
     }
+    pub fn subtract(self, other: Self) -> PResult<Self> {
+        match (self, other) {
+            (Value::Int(lv), Value::Int(rv)) => Ok(Value::Int(lv - rv)),
+        }
+    }
+    pub fn multiply(self, other: Self) -> PResult<Self> {
+        match (self, other) {
+            (Value::Int(lv), Value::Int(rv)) => Ok(Value::Int(lv * rv)),
+        }
+    }
+    pub fn divide(self, other: Self) -> PResult<Self> {
+        match (self, other) {
+            (Value::Int(lv), Value::Int(rv)) => {
+                if rv == 0 {
+                    // Consider returning an error Diagnostic here for division by zero
+                    panic!("divide by zero")
+                } else {
+                    Ok(Value::Int(lv / rv))
+                }
+            }
+        }
+    }
     pub fn equal(self, other: Self) -> PResult<Self> {
         match (self, other) {
             (Value::Int(lv), Value::Int(rv)) => Ok(if lv == rv { Value::Int(1) } else { Value::Int(0) }),
+        }
+    }
+    pub fn negate(self) -> PResult<Self> {
+        match self {
+            Value::Int(v) => Ok(Value::Int(-v)),
+        }
+    }
+    pub fn bool(self) -> PResult<bool> {
+        match self {
+            Value::Int(value) => Ok(value != 0),
         }
     }
 }

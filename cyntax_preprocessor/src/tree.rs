@@ -331,7 +331,6 @@ pub enum TokenTree {
         opposition: Box<TokenTree>,
     },
     Endif,
-
     PreprocessorToken(Spanned<PreprocessingToken>),
     Internal(InternalLeaf),
 }

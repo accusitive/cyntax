@@ -2,8 +2,8 @@ use crate::Spanned;
 use crate::ast::{Expression, InfixOperator, Operator, PostfixOperator, PrefixOperator, Token, TypeName};
 use crate::{PResult, Parser};
 use cyntax_common::ast::{Keyword, Punctuator};
-use cyntax_errors::{Diagnostic, errors::SimpleError};
 use cyntax_common::span;
+use cyntax_errors::{Diagnostic, errors::SimpleError};
 
 impl<'src> Parser<'src> {
     fn prefix_binding_power(operator: &PrefixOperator) -> ((), u8) {
@@ -145,17 +145,6 @@ impl<'src> Parser<'src> {
             };
 
             expression
-        } else if let Ok(span!(span, Token::Identifier(identifier))) = self.peek_token().cloned() {
-            if identifier == self.ctx.ints("defined") && matches!(self.peek_token_nth(1), Ok(span!(Token::Punctuator(Punctuator::LeftParen)))) {
-                self.next_token()?; // defined
-                self.expect_token(Token::Punctuator(Punctuator::LeftParen), "openeing lparen for defined(..)")?;
-                let i = self.expect_non_typename_identifier()?;
-                let closer = self.expect_token(Token::Punctuator(Punctuator::RightParen), "closing rparen for defined(..)")?;
-                let span = span.until(&closer.location);
-                span.into_spanned(Expression::Defined(i))
-            } else {
-                span.to_spanned(Expression::Identifier(span.to_spanned(identifier)))
-            }
         } else {
             match self.next_token()? {
                 span!(span, Token::Identifier(identifier)) => span.to_spanned(Expression::Identifier(span.to_spanned(identifier))),
