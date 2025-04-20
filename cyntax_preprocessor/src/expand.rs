@@ -52,11 +52,15 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> HasContext for Expander<'src, 
 }
 impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
     pub fn new(ctx: &'src mut Context, token_trees: PrependingPeekableIterator<I>) -> Self {
+        let mut default_macros = HashMap::new();
+        default_macros.insert(ctx.int("__STDC_VERSION__"), MacroDefinition::Object(vec![Spanned::new(Location::new(), PreprocessingToken::PPNumber(ctx.ints("199901")))]));
+        default_macros.insert(ctx.int("__STRICT_ANSI__"), MacroDefinition::Object(vec![Spanned::new(Location::new(), PreprocessingToken::PPNumber(ctx.ints("1")))]));
+
         Self {
             ctx,
             token_trees,
             output: Vec::new(),
-            macros: HashMap::new(),
+            macros: default_macros,
             expanding: HashSet::new(),
             respect_defined: false,
         }
@@ -99,13 +103,16 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                 Ok(self.expand_next(skip_macro_replacement)?.unwrap())
             }
             ExpandControlFlow::RescanMany(token_trees) => {
-                assert!(token_trees.len() > 0);
-                dbg!(&token_trees);
-                self.token_trees.prepend_extend(token_trees.into_iter());
-                let mut result = Vec::new();
-                let tokens = self.expand_next(skip_macro_replacement)?.unwrap();
-                result.extend(tokens);
-                Ok(result)
+                if token_trees.len() == 0 {
+                    return Ok(vec![]);
+                } else {
+                    dbg!(&token_trees);
+                    self.token_trees.prepend_extend(token_trees.into_iter());
+                    let mut result = Vec::new();
+                    let tokens = self.expand_next(skip_macro_replacement)?.unwrap();
+                    result.extend(tokens);
+                    Ok(result)
+                }
             }
         }
     }
@@ -116,8 +123,9 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                 return Err(cyntax_errors::errors::ErrorDirective(range, message).into_codespan_report());
             }
             TokenTree::Directive(ControlLine::Include(header_name)) => match header_name {
-                crate::tree::HeaderName::Q(file_name) => {
-                    let content = std::fs::read_to_string(self.ctx.strings.resolve(file_name).unwrap()).unwrap();
+                crate::tree::HeaderName::Q(span!(span, file_name)) => {
+                    let content = self.ctx.find_quoted_header(self.ctx.res(file_name)).ok_or_else(|| SimpleError(span, "Could not find quoted header".to_string()).into_codespan_report())?;
+                    // let content = std::fs::read_to_string(self.ctx.strings.resolve(file_name).unwrap()).unwrap();
                     let file = self.ctx.files.add(self.ctx.strings.resolve(file_name).unwrap().to_owned(), content.clone());
                     let current_file = self.ctx.current_file;
 
@@ -131,27 +139,29 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                     }
                     .collect::<Vec<TokenTree>>();
                     self.ctx.current_file = current_file;
-
                     return Ok(ExpandControlFlow::RescanMany(trees));
                 }
-                crate::tree::HeaderName::H(_tokens) => {
-                    todo!();
-                    // let first = tokens.first().unwrap();
-                    // let last = tokens.last().unwrap();
-                    // let range = first.range.start..last.range.end;
-                    // let file_name = &self.file_source[range];
+                crate::tree::HeaderName::H(tokens) => {
+                    let first = tokens.first().unwrap();
+                    let last = tokens.last().unwrap();
+                    let loc = first.location.until(&last.location);
+                    let file_name = &self.ctx.files.get(first.location.file_id).unwrap().source()[loc.clone().range];
+                    let content = self.ctx.find_bracketed_header(file_name).ok_or_else(|| SimpleError(loc, "Could not find bracketed header".to_string()).into_codespan_report())?;
 
-                    // let content = std::fs::read_to_string(file_name).unwrap();
-                    // let lexer = cyntax_lexer::lexer::Lexer::new(&file_name, &content);
-                    // let toks = lexer.collect::<Vec<_>>();
-                    // let trees = IntoTokenTree {
-                    //     source: &content,
-                    //     tokens: toks.iter().peekable(),
-                    //     expecting_opposition: false,
-                    // }
-                    // .collect::<Vec<TokenTree>>();
+                    let file = self.ctx.files.add(file_name.to_string(), content.clone());
+                    let current_file = self.ctx.current_file;
 
-                    // return Ok(ExpandControlFlow::RescanMany(trees));
+                    self.ctx.current_file = file;
+                    let lexer = cyntax_lexer::lexer::Lexer::new(self.ctx, &content);
+                    let toks = lexer.collect::<Vec<_>>();
+                    let trees = IntoTokenTree {
+                        ctx: self.ctx,
+                        tokens: toks.iter().peekable(),
+                        expecting_opposition: false,
+                    }
+                    .collect::<Vec<TokenTree>>();
+                    self.ctx.current_file = current_file;
+                    return Ok(ExpandControlFlow::RescanMany(trees));
                 }
             },
             TokenTree::Directive(control_line) => {

@@ -232,7 +232,7 @@ impl<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>> IntoTokenTree<
                         let inner = tokens_iter.take_while(|tok| !matches!(tok, span!(PreprocessingToken::Punctuator(Punctuator::Right)))).collect::<Vec<_>>();
                         return ControlLine::Include(HeaderName::H(inner));
                     }
-                    Some(span!(PreprocessingToken::StringLiteral(string))) => return ControlLine::Include(HeaderName::Q(string)),
+                    Some(span!(span, PreprocessingToken::StringLiteral(string))) => return ControlLine::Include(HeaderName::Q(span.into_spanned(string))),
                     // TODO: error
                     _ => todo!(),
                 }
@@ -294,7 +294,7 @@ pub enum ControlLine {
 #[derive(Debug, Clone)]
 pub enum HeaderName {
     /// "header-name.h"
-    Q(SymbolU32),
+    Q(Spanned<SymbolU32>),
     /// <header-name.h>
     H(Vec<Spanned<PreprocessingToken>>),
 }
@@ -339,12 +339,9 @@ pub enum TokenTree {
 }
 #[derive(Debug, Clone)]
 pub enum InternalLeaf {
-    // Delimited(Spanned<char>, Spanned<char>, Vec<TokenTree<'src>>),
     MacroExpansion(SymbolU32, Vec<Spanned<PreprocessingToken>>),
-
     BeginExpandingMacro(SymbolU32),
     FinishExpandingMacro(SymbolU32),
-    Many(Vec<Spanned<PreprocessingToken>>),
 }
 impl TokenTree {
     pub fn as_token(&self) -> Spanned<PreprocessingToken> {

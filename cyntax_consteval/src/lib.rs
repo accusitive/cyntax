@@ -39,44 +39,59 @@ impl ConstantEvalutator {
         Ok(Value::Int(val))
     }
     fn bin_op(&mut self, op: &Spanned<InfixOperator>, left: &Spanned<Expression>, right: &Spanned<Expression>) -> PResult<Value> {
-        let left_val = self.evaluate(left)?;
-        let right_val = self.evaluate(right)?;
-
         match op {
-            span!(InfixOperator::Add) => Ok(left_val.add(right_val)?),
-            span!(InfixOperator::Subtract) => Ok(left_val.subtract(right_val)?),
-            span!(InfixOperator::Multiply) => Ok(left_val.multiply(right_val)?),
-            span!(InfixOperator::Divide) => Ok(left_val.divide(right_val)?),
-            span!(InfixOperator::Modulo) => todo!(),
-            span!(InfixOperator::Less) => todo!(),
-            span!(InfixOperator::Greater) => todo!(),
-            span!(InfixOperator::LessEqual) => todo!(),
-            span!(InfixOperator::GreaterEqual) => todo!(),
-            span!(InfixOperator::Equal) => Ok(left_val.equal(right_val)?),
-            span!(InfixOperator::NotEqual) => todo!(),
-            span!(InfixOperator::LogicalAnd) => todo!(),
-            span!(InfixOperator::LogicalOr) => {
-                let x = left_val.equal(Value::Int(1))?.bool()? || right_val.equal(Value::Int(1))?.bool()?;
-                Ok(Value::from_bool(x))
+            span!(InfixOperator::LogicalAnd) => {
+                let left_val = self.evaluate(left)?;
+                if !left_val.bool()? {
+                    return Ok(Value::from_bool(false));
+                }
+                let right_val = self.evaluate(right)?;
+                Ok(Value::from_bool(right_val.bool()?))
             }
-            span!(InfixOperator::BitwiseAnd) => todo!(),
-            span!(InfixOperator::BitwiseOr) => todo!(),
-            span!(InfixOperator::BitwiseXor) => todo!(),
-            span!(InfixOperator::BitwiseShiftLeft) => todo!(),
-            span!(InfixOperator::BitwiseShiftRight) => todo!(),
-            span!(InfixOperator::Assign) => todo!(),
-            span!(InfixOperator::AddAssign) => todo!(),
-            span!(InfixOperator::SubtractAssign) => todo!(),
-            span!(InfixOperator::MultiplyAssign) => todo!(),
-            span!(InfixOperator::DivideAssign) => todo!(),
-            span!(InfixOperator::ModuloAssign) => todo!(),
-            span!(InfixOperator::BitwiseAndAssign) => todo!(),
-            span!(InfixOperator::BitwiseOrAssign) => todo!(),
-            span!(InfixOperator::BitwiseXorAssign) => todo!(),
-            span!(InfixOperator::BitwiseShiftRightAssign) => todo!(),
-            span!(InfixOperator::BitwiseShiftLeftAssign) => todo!(),
-            span!(InfixOperator::Access) => todo!(),
-            span!(InfixOperator::IndirectAccess) => todo!(),
+            span!(InfixOperator::LogicalOr) => {
+                let left_val = self.evaluate(left)?;
+                if left_val.bool()? {
+                    return Ok(Value::from_bool(true));
+                }
+                let right_val = self.evaluate(right)?;
+                Ok(Value::from_bool(right_val.bool()?))
+            }
+            _ => {
+                let left_val = self.evaluate(left)?;
+                let right_val = self.evaluate(right)?;
+                match op {
+                    span!(InfixOperator::Add) => Ok(left_val.add(right_val)?),
+                    span!(InfixOperator::Subtract) => Ok(left_val.subtract(right_val)?),
+                    span!(InfixOperator::Multiply) => Ok(left_val.multiply(right_val)?),
+                    span!(InfixOperator::Divide) => Ok(left_val.divide(right_val)?),
+                    span!(InfixOperator::Modulo) => todo!(),
+                    span!(InfixOperator::Less) => Ok(left_val.less(right_val)?),
+                    span!(InfixOperator::Greater) => Ok(left_val.greater(right_val)?),
+                    span!(InfixOperator::LessEqual) => Ok(left_val.less_eq(right_val)?),
+                    span!(InfixOperator::GreaterEqual) => Ok(left_val.greater_eq(right_val)?),
+                    span!(InfixOperator::Equal) => Ok(left_val.equal(right_val)?),
+                    span!(InfixOperator::NotEqual) => todo!(),
+                    span!(InfixOperator::BitwiseAnd) => todo!(),
+                    span!(InfixOperator::BitwiseOr) => todo!(),
+                    span!(InfixOperator::BitwiseXor) => todo!(),
+                    span!(InfixOperator::BitwiseShiftLeft) => todo!(),
+                    span!(InfixOperator::BitwiseShiftRight) => todo!(),
+                    span!(InfixOperator::Assign) => todo!(),
+                    span!(InfixOperator::AddAssign) => todo!(),
+                    span!(InfixOperator::SubtractAssign) => todo!(),
+                    span!(InfixOperator::MultiplyAssign) => todo!(),
+                    span!(InfixOperator::DivideAssign) => todo!(),
+                    span!(InfixOperator::ModuloAssign) => todo!(),
+                    span!(InfixOperator::BitwiseAndAssign) => todo!(),
+                    span!(InfixOperator::BitwiseOrAssign) => todo!(),
+                    span!(InfixOperator::BitwiseXorAssign) => todo!(),
+                    span!(InfixOperator::BitwiseShiftRightAssign) => todo!(),
+                    span!(InfixOperator::BitwiseShiftLeftAssign) => todo!(),
+                    span!(InfixOperator::Access) => todo!(),
+                    span!(InfixOperator::IndirectAccess) => todo!(),
+                    _ => unreachable!(),
+                }
+            }
         }
     }
     fn un_op(&mut self, op: &Spanned<PrefixOperator>, expr: &Spanned<Expression>) -> PResult<Value> {
@@ -84,7 +99,7 @@ impl ConstantEvalutator {
         match op {
             span!(PrefixOperator::Plus) => Ok(expr_val), // Unary plus is a no-op for integers
             span!(PrefixOperator::Minus) => expr_val.negate(),
-            span!(PrefixOperator::LogicalNot) => todo!(),
+            span!(PrefixOperator::LogicalNot) => expr_val.not(),
             span!(PrefixOperator::BitwiseNot) => todo!(),
             span!(PrefixOperator::SizeOf) => todo!(),
             span!(PrefixOperator::CastOrParen) => todo!(),
@@ -136,9 +151,36 @@ impl Value {
             (Value::Int(lv), Value::Int(rv)) => Ok(if lv == rv { Value::Int(1) } else { Value::Int(0) }),
         }
     }
+    pub fn greater(self, other: Self) -> PResult<Self> {
+        match (self, other) {
+            (Value::Int(lv), Value::Int(rv)) => Ok(if lv > rv { Value::Int(1) } else { Value::Int(0) }),
+        }
+    }
+    pub fn greater_eq(self, other: Self) -> PResult<Self> {
+        match (self, other) {
+            (Value::Int(lv), Value::Int(rv)) => Ok(if lv >= rv { Value::Int(1) } else { Value::Int(0) }),
+        }
+    }
+    pub fn less_eq(self, other: Self) -> PResult<Self> {
+        match (self, other) {
+            (Value::Int(lv), Value::Int(rv)) => Ok(if lv <= rv { Value::Int(1) } else { Value::Int(0) }),
+        }
+    }
+    pub fn less(self, other: Self) -> PResult<Self> {
+        match (self, other) {
+            (Value::Int(lv), Value::Int(rv)) => Ok(if lv < rv { Value::Int(1) } else { Value::Int(0) }),
+        }
+    }
     pub fn negate(self) -> PResult<Self> {
         match self {
             Value::Int(v) => Ok(Value::Int(-v)),
+        }
+    }
+    pub fn not(self) -> PResult<Self> {
+        match self {
+            Value::Int(1) => Ok(Value::Int(0)),
+            Value::Int(0) => Ok(Value::Int(1)),
+            Value::Int(_) => panic!("todo: real error here. just curious if its ever triggered"),
         }
     }
     pub fn bool(self) -> PResult<bool> {

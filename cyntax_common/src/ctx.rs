@@ -27,6 +27,20 @@ impl Context {
     pub fn ints(&mut self, s: &'static str) -> SymbolU32 {
         self.strings.get_or_intern_static(s)
     }
+    pub fn find_quoted_header(&self, name: &str) -> Option<String> {
+        std::fs::read_to_string(name).ok()
+    }
+    pub fn find_bracketed_header(&self, name: &str) -> Option<String> {
+        if let Ok(src) = std::fs::read_to_string(name) {
+            return Some(src);
+        } else if let Ok(src) = std::fs::read_to_string(format!("/usr/include/{}", name)) {
+            return Some(src);
+        } else if let Ok(src) = std::fs::read_to_string(format!("/usr/include/x86_64-linux-gnu/{}", name)) {
+            return Some(src);
+        } else {
+            None
+        }
+    }
 }
 pub trait HasContext {
     fn ctx(&self) -> &Context;

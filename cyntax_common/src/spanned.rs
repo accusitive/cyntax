@@ -24,7 +24,7 @@ impl Location {
         Self { range: 0..0, file_id: 0 }
     }
     pub fn until(&self, other: &Self) -> Self {
-        assert_eq!(self.file_id, other.file_id);
+        // assert_eq!(self.file_id, other.file_id);
         Self {
             range: self.range.start..other.range.end,
             file_id: self.file_id,

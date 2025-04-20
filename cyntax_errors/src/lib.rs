@@ -21,7 +21,7 @@ pub trait Diagnostic: Sized {
     fn labels(&self) -> Vec<Label> {
         vec![]
     }
-    fn into_codespan_report(&self) -> codespan_reporting::diagnostic::Diagnostic<usize> {
+    fn into_codespan_report(self) -> codespan_reporting::diagnostic::Diagnostic<usize> {
         let diag = match self.severity() {
             DiagnosticSeverity::Error => codespan_reporting::diagnostic::Diagnostic::error(),
             DiagnosticSeverity::Warning => codespan_reporting::diagnostic::Diagnostic::warning(),
