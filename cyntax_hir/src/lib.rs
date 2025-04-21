@@ -39,9 +39,9 @@ pub enum ExpressionKind<'hir> {
 }
 #[derive(Debug)]
 pub struct Statement<'hir> {
-    id: usize,
-    span: Location,
-    kind: StatementKind<'hir>
+    pub id: usize,
+    pub span: Location,
+    pub kind: StatementKind<'hir>
 }
 #[derive(Debug)]
 pub enum StatementKind<'hir> {
@@ -49,7 +49,7 @@ pub enum StatementKind<'hir> {
 }
 #[derive(Debug)]
 pub enum BlockItem<'hir> {
-    Declaration,
+    Declaration(&'hir Declaration<'hir>),
     Statement(&'hir Statement<'hir>)
 }
 

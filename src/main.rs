@@ -106,7 +106,7 @@ fn main() {
             let arena = cyntax_ast_lower::Bump::new();
             let mut lower = cyntax_ast_lower::AstLower::new(&mut ctx, &arena);
             let hir = lower.lower_translation_unit(&tu);
-            WithContext { ctx: &mut ctx }.unwrap_diagnostic(hir);
+            dbg!(&WithContext { ctx: &mut ctx }.unwrap_diagnostic(hir));
         }
         Err(e) => {
             let mut output_buffer = Vec::new();

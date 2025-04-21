@@ -3,7 +3,7 @@ use std::collections::HashMap;
 pub use bumpalo::Bump;
 use cyntax_common::{ctx::Context, span, spanned::Spanned};
 use cyntax_errors::{Diagnostic, errors::SimpleError};
-use cyntax_hir::{self as hir, Expression, HirId};
+use cyntax_hir::{self as hir, Expression, HirId, Statement};
 use cyntax_parser::ast::{self, Identifier};
 
 pub type PResult<T> = Result<T, cyntax_errors::codespan_reporting::diagnostic::Diagnostic<usize>>;
@@ -61,6 +61,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
         self.next_id += 1;
         id
     }
+    fn declare_declaration(&mut self, decl: &ast::InitDeclarator) {}
     pub fn lower_translation_unit(&mut self, unit: &ast::TranslationUnit) -> PResult<hir::TranslationUnit<'hir>> {
         self.push_scope();
         let mut d = vec![];
@@ -74,30 +75,83 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
     }
     pub fn lower_external_declaration(&mut self, external_declation: &ast::ExternalDeclaration) -> PResult<Vec<&'hir hir::ExternalDeclaration<'hir>>> {
         match external_declation {
-            ast::ExternalDeclaration::FunctionDefinition(function_definition) => Ok(vec![self.arena.alloc(hir::ExternalDeclaration::X)]),
+            ast::ExternalDeclaration::FunctionDefinition(function_definition) => {
+                self.lower_statement(&function_definition.body)?;
+                Ok(vec![self.arena.alloc(hir::ExternalDeclaration::X)])
+            }
             ast::ExternalDeclaration::Declaration(declaration) => {
                 // self.ensure_enough_typespecifiers
                 let mut d = vec![];
                 for init_declarator in &declaration.init_declarators {
-                    let id = self.next_id();
                     let init = match &init_declarator.value.initializer {
                         Some(init) => Some(self.lower_initializer(init)?),
                         None => None,
                     };
-
+                    let id = self.next_id();
+                    if let Some(identifier) = init_declarator.value.declarator.value.get_identifier() {
+                        self.scopes.last_mut().unwrap().ordinary.insert(identifier, id);
+                    }
                     let declaration = hir::Declaration { id, loc: init_declarator.location.clone(), init };
-                    let alloced: &'hir _ = self.arena.alloc(hir::ExternalDeclaration::Declaration(declaration));
-                    d.push(alloced);
+                    let declaration: &'hir _ = self.arena.alloc(hir::ExternalDeclaration::Declaration(declaration));
+                    d.push(declaration);
                 }
                 Ok(d)
             }
         }
     }
+    // pub fn lower_declaration(&mut self, declaration: &Spanned<ast::Declaration>) -> PResult<&'hir hir::Declaration<'hir>>
     pub fn lower_initializer(&mut self, initializer: &Spanned<ast::Initializer>) -> PResult<&'hir hir::Initializer<'hir>> {
         match initializer {
             span!(ast::Initializer::Assignemnt(assignment)) => Ok(self.arena.alloc(hir::Initializer::Assignment(self.lower_expression(assignment)?))),
             span!(ast::Initializer::List(designated_intiializers)) => todo!(),
         }
+    }
+    pub fn lower_statement(&mut self, statement: &Spanned<ast::Statement>) -> PResult<&'hir hir::Statement<'hir>> {
+        let kind = match &statement.value {
+            ast::Statement::Labeled(labeled_statement) => todo!(),
+            ast::Statement::Compound(block_items) => {
+                self.push_scope();
+                let mut hir_block_items = vec![];
+                for item in block_items {
+                    match item {
+                        ast::BlockItem::Declaration(declaration) => {
+                            for init_declarator in &declaration.value.init_declarators {
+                                let init = match &init_declarator.value.initializer {
+                                    Some(init) => Some(self.lower_initializer(init)?),
+                                    None => None,
+                                };
+                                let id = self.next_id();
+                                if let Some(identifier) = init_declarator.value.declarator.value.get_identifier() {
+                                    self.scopes.last_mut().unwrap().ordinary.insert(identifier, id);
+                                }
+                                let declaration = hir::Declaration { id, loc: init_declarator.location.clone(), init };
+                                let declaration: &'hir _ = self.arena.alloc(declaration);
+
+                                hir_block_items.push(hir::BlockItem::Declaration(declaration));
+                            }
+                        }
+                        ast::BlockItem::Statement(statement) => {
+                            hir_block_items.push(hir::BlockItem::Statement(self.lower_statement(&statement)?));
+                        }
+                    }
+                }
+                self.pop_scope();
+                let i = self.arena.alloc_slice_fill_iter(hir_block_items.into_iter());
+                hir::StatementKind::Compound(i)
+            }
+            ast::Statement::Expression(spanned) => todo!(),
+            ast::Statement::Iteration(iteration_statement) => todo!(),
+            ast::Statement::Goto(spanned) => todo!(),
+            ast::Statement::Continue => todo!(),
+            ast::Statement::Break => todo!(),
+            ast::Statement::Error => todo!(),
+            ast::Statement::Return(spanned) => todo!(),
+            ast::Statement::If(spanned, statement, statement1) => todo!(),
+            ast::Statement::Switch(spanned, statement) => todo!(),
+        };
+
+        let id = self.next_id();
+        Ok(self.arena.alloc(Statement { id, span: statement.location.clone(), kind }))
     }
     pub fn lower_expression(&mut self, expression: &Spanned<ast::Expression>) -> PResult<&'hir hir::Expression<'hir>> {
         let kind = match &expression.value {

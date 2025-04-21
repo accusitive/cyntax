@@ -20,7 +20,7 @@ pub enum ExternalDeclaration {
 pub struct FunctionDefinition {
     pub specifiers: Vec<Spanned<DeclarationSpecifier>>,
     pub declarator: Spanned<Declarator>,
-    pub body: Statement, // pub declaration_list: Vec<Declaration>,
+    pub body: Spanned<Statement>,
 }
 #[derive(Debug)]
 pub enum DeclarationSpecifier {
@@ -164,24 +164,24 @@ pub enum Statement {
     Break,
     Error,
     Return(Option<Spanned<Expression>>),
-    If(Spanned<Expression>, Box<Statement>, Option<Box<Statement>>),
-    Switch(Spanned<Expression>, Box<Statement>),
+    If(Spanned<Expression>, Box<Spanned<Statement>>, Option<Box<Spanned<Statement>>>),
+    Switch(Spanned<Expression>, Box<Spanned<Statement>>),
 }
 #[derive(Debug)]
 pub enum LabeledStatement {
-    Identifier(Spanned<Identifier>, Box<Statement>),
-    Case(Spanned<Expression>, Box<Statement>),
-    Default(Box<Statement>),
+    Identifier(Spanned<Identifier>, Box<Spanned<Statement>>),
+    Case(Spanned<Expression>, Box<Spanned<Statement>>),
+    Default(Box<Spanned<Statement>>),
 }
 #[derive(Debug)]
 pub enum IterationStatement {
-    While(Spanned<Expression>, Box<Statement>),
-    DoWhile(Box<Statement>, Spanned<Expression>),
+    While(Spanned<Expression>, Box<Spanned<Statement>>),
+    DoWhile(Box<Spanned<Statement>>, Spanned<Expression>),
     ForLoop {
         init: Option<ForInit>,
         condition: Option<Spanned<Expression>>,
         update: Option<Spanned<Expression>>,
-        body: Box<Statement>,
+        body: Box<Spanned<Statement>>,
     },
 }
 #[derive(Debug)]
@@ -192,7 +192,7 @@ pub enum ForInit {
 #[derive(Debug)]
 pub enum BlockItem {
     Declaration(Spanned<Declaration>),
-    Statement(Statement),
+    Statement(Spanned<Statement>),
 }
 #[derive(Debug)]
 pub enum Initializer {
