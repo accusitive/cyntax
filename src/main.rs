@@ -103,9 +103,10 @@ fn main() {
             }
             println!("{}", String::from_utf8(output_buffer).unwrap());
 
-            let mut lower = cyntax_ast_lower::AstLower::new(&mut ctx);
-            let tu = lower.lower_translation_unit(&tu);
-            dbg!(&tu);
+            let arena = cyntax_ast_lower::Bump::new();
+            let mut lower = cyntax_ast_lower::AstLower::new(&mut ctx, &arena);
+            let hir = lower.lower_translation_unit(&tu);
+            WithContext { ctx: &mut ctx }.unwrap_diagnostic(hir);
         }
         Err(e) => {
             let mut output_buffer = Vec::new();
@@ -120,7 +121,12 @@ fn main() {
             ctx.unwrap_diagnostic(Err::<(), _>(e));
         }
     }
-
-
-
+}
+struct WithContext<'src> {
+    ctx: &'src mut Context,
+}
+impl<'src> HasContext for WithContext<'src> {
+    fn ctx(&self) -> &Context {
+        self.ctx
+    }
 }
