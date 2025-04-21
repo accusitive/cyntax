@@ -204,7 +204,6 @@ impl<'src> Parser<'src> {
         let jump_stmt = match self.next_token()? {
             span!(Token::Keyword(Keyword::Goto)) => {
                 let identifier = self.expect_non_typename_identifier()?;
-                self.expect_token(Token::Punctuator(Punctuator::Semicolon), "after goto statement")?;
                 Statement::Goto(identifier)
             }
             span!(Token::Keyword(Keyword::Continue)) => Statement::Continue,

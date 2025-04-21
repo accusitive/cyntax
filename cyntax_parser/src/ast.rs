@@ -312,3 +312,16 @@ pub struct TypeName {
     pub specifier_qualifiers: Vec<SpecifierQualifier>,
     pub declarator: Spanned<Declarator>,
 }
+
+impl Declarator{
+    pub fn get_identifier(&self) -> Option<Identifier> {
+        match self {
+            Declarator::Identifier(identifier) => Some(identifier.clone()),
+            Declarator::Pointer(_, declarator) => declarator.value.get_identifier(),
+            Declarator::Parenthesized(declarator) => declarator.value.get_identifier(),
+            Declarator::Function(declarator, _) => declarator.value.get_identifier(),
+            Declarator::Array { base, .. } => base.value.get_identifier(),
+            Declarator::Abstract => None,
+        }
+    }
+}

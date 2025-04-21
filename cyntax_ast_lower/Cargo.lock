@@ -20,29 +20,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "colored"
-version = "3.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fde0e0ec90c9dfb3b4b1a0891a7dcd0e2bffde2f7efed5fe7c9bb00e5bfb915e"
-dependencies = [
- "windows-sys",
-]
-
-[[package]]
-name = "cyntax"
-version = "0.1.0"
-dependencies = [
- "codespan-reporting",
- "colored",
- "cyntax_ast_lower",
- "cyntax_common",
- "cyntax_errors",
- "cyntax_lexer",
- "cyntax_parser",
- "cyntax_preprocessor",
-]
-
-[[package]]
 name = "cyntax_ast_lower"
 version = "0.1.0"
 dependencies = [
@@ -62,15 +39,6 @@ dependencies = [
  "string-interner",
  "strum",
  "strum_macros",
-]
-
-[[package]]
-name = "cyntax_consteval"
-version = "0.1.0"
-dependencies = [
- "cyntax_common",
- "cyntax_errors",
- "cyntax_parser",
 ]
 
 [[package]]
@@ -113,18 +81,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cyntax_preprocessor"
-version = "0.1.0"
-dependencies = [
- "cyntax_common",
- "cyntax_consteval",
- "cyntax_errors",
- "cyntax_lexer",
- "cyntax_parser",
- "peekmore",
-]
-
-[[package]]
 name = "foldhash"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -153,9 +109,9 @@ checksum = "9163e1259760e83d528d1b3171e5100c1767f10c52e1c4d6afad26e63d47d758"
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.94"
+version = "1.0.95"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a31971752e70b8b2686d7e46ec17fb38dad4051d94024c88df49b667caea9c84"
+checksum = "02b3e5e68a3a1a02aad3ec490a98007cbc13c37cbe84a3cd7b8e406d76e7f778"
 dependencies = [
  "unicode-ident",
 ]
@@ -197,9 +153,9 @@ dependencies = [
 
 [[package]]
 name = "smallvec"
-version = "1.14.0"
+version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7fcf8323ef1faaee30a44a340193b1ac6814fd9b7b4e88e9d4519a3e4abe1cfd"
+checksum = "8917285742e9f3e1683f0a9c4e6b57960b7314d0b08d30d1ecd426713ee2eee9"
 
 [[package]]
 name = "string-interner"

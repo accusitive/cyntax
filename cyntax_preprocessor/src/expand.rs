@@ -278,6 +278,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                 }
             }
             TokenTree::Else { body, opposition } => {
+                // todo: deal with `else if`, its terrible but needs to be supported
                 return Ok(ExpandControlFlow::RescanMany(body));
             }
             _ => {

@@ -102,6 +102,10 @@ fn main() {
                 codespan_reporting::term::emit(&mut ansi_writer, &config, &ctx.files, diag).unwrap();
             }
             println!("{}", String::from_utf8(output_buffer).unwrap());
+
+            let mut lower = cyntax_ast_lower::AstLower::new(&mut ctx);
+            let tu = lower.lower_translation_unit(&tu);
+            dbg!(&tu);
         }
         Err(e) => {
             let mut output_buffer = Vec::new();
@@ -116,4 +120,7 @@ fn main() {
             ctx.unwrap_diagnostic(Err::<(), _>(e));
         }
     }
+
+
+
 }

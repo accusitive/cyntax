@@ -12,12 +12,7 @@ impl<'src> Parser<'src> {
         }
         let specifiers = self.parse_declaration_specifiers()?;
         let mut init_declarators = self.parse_init_declarator_list()?;
-        let mut is_typedef = false;
-        for specifier in &specifiers {
-            if matches!(specifier, span!(DeclarationSpecifier::StorageClass(StorageClassSpecifier::Typedef))) {
-                is_typedef = true;
-            }
-        }
+        let is_typedef = specifiers.iter().any(|specifier| matches!(specifier, span!(DeclarationSpecifier::StorageClass(StorageClassSpecifier::Typedef))));
         if is_typedef {
             for declarator in &init_declarators {
                 self.declare_typedef(&declarator.value.declarator)?;

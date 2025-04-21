@@ -197,33 +197,28 @@ impl<'src> Parser<'src> {
             }
         }
     }
-    pub fn get_declarator_name(&mut self, declarator: &Declarator) -> Identifier {
-        match declarator {
-            Declarator::Identifier(identifier) => identifier.clone(),
-            Declarator::Pointer(_, declarator) => self.get_declarator_name(&declarator.value),
-            Declarator::Parenthesized(declarator) => self.get_declarator_name(&declarator.value),
-            Declarator::Function(declarator, _) => self.get_declarator_name(&declarator.value),
-            Declarator::Array { base, .. } => self.get_declarator_name(&base.value),
-            Declarator::Abstract => self.ctx.ints(""),
-        }
-    }
+
     pub fn declare_typedef(&mut self, declarator: &Spanned<Declarator>) -> PResult<()> {
-        let declarator_name = self.get_declarator_name(&declarator.value);
-        if self.is_object(&declarator_name) {
-            return Err(SimpleError(self.last_location.clone(), format!("{} is alerady declared as an object", self.ctx.res(declarator_name))).into_codespan_report());
+        // let declarator_name = self.get_declarator_name(&declarator.value);
+        if let Some(declarator_name) = declarator.value.get_identifier() {
+            if self.is_object(&declarator_name) {
+                return Err(SimpleError(self.last_location.clone(), format!("{} is alerady declared as an object", self.ctx.res(declarator_name))).into_codespan_report());
+            }
+            self.scopes.last_mut().unwrap().identifiers.insert(declarator_name, IdentifierKind::Typename);
+            println!("declared {} as typedef", self.ctx.res(declarator_name));
         }
-        self.scopes.last_mut().unwrap().identifiers.insert(declarator_name, IdentifierKind::Typename);
-        println!("declared {} as typedef", self.ctx.res(declarator_name));
 
         Ok(())
     }
     pub fn declare_identifier(&mut self, declarator: &Spanned<Declarator>) -> PResult<()> {
-        let declarator_name = self.get_declarator_name(&declarator.value);
-        if self.is_typedef(&declarator_name) {
-            return Err(SimpleError(self.last_location.clone(), format!("{} is alerady declared as a typedef", self.ctx.res(declarator_name))).into_codespan_report());
+        if let Some(declarator_name) = declarator.value.get_identifier() {
+            if self.is_typedef(&declarator_name) {
+                return Err(SimpleError(self.last_location.clone(), format!("{} is alerady declared as a typedef", self.ctx.res(declarator_name))).into_codespan_report());
+            }
+            self.scopes.last_mut().unwrap().identifiers.insert(declarator_name, IdentifierKind::Identifier);
+            println!("declared {} as identifier", self.ctx.res(declarator_name));
         }
-        self.scopes.last_mut().unwrap().identifiers.insert(declarator_name, IdentifierKind::Identifier);
-        println!("declared {} as identifier", self.ctx.res(declarator_name));
+
         Ok(())
     }
     pub fn is_typedef(&self, identifier: &Identifier) -> bool {
