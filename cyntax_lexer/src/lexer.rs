@@ -231,8 +231,9 @@ impl<'src> Iterator for Lexer<'src> {
                 Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::CaretEqual)))
             }
             span!(range, punctuator) if Punctuator::is_punctuation(punctuator) => Some(Spanned::new(range, PreprocessingToken::Punctuator(Punctuator::from_char(punctuator).unwrap()))),
-            span!(range, ' ') => Some(Spanned::new(range, PreprocessingToken::Whitespace(Whitespace::Space))),
-            span!(range, '\t') => Some(Spanned::new(range, PreprocessingToken::Whitespace(Whitespace::Tab))),
+            // return early, so we dont clobber "at_start_of_line"
+            span!(range, ' ') => return Some(Spanned::new(range, PreprocessingToken::Whitespace(Whitespace::Space))),
+            span!(range, '\t') => return Some(Spanned::new(range, PreprocessingToken::Whitespace(Whitespace::Tab))),
             span!(range, '\n') => Some(Spanned::new(range, PreprocessingToken::Whitespace(Whitespace::Newline))),
             // "form feed"
             span!(range, '\u{c}') => Some(Spanned::new(range, PreprocessingToken::Whitespace(Whitespace::Space))),

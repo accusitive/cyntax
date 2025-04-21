@@ -26,7 +26,6 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
             {
                 let no_whitespace = inner_tokens.iter().filter(|token| !matches!(token, span!(PreprocessingToken::Whitespace(_))));
                 let mut parameters = self.split_delimited(no_whitespace);
-                dbg!(&parameters);
                 let mut is_variadic = false;
                 for idx in 0..parameters.len() {
                     macro_rules! p {

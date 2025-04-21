@@ -167,7 +167,6 @@ impl<'src> Parser<'src> {
     }
     pub fn maybe_recover<T: Debug, F: FnMut(&mut Self) -> PResult<T>, E: FnOnce(&Self) -> T>(&mut self, mut f: F, e: E, recovery_char: Token) -> T {
         let v = f(self);
-        dbg!(&v);
         match v {
             Ok(value) => value,
             Err(err) => {

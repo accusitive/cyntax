@@ -224,7 +224,6 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                 }
             }
             TokenTree::PreprocessorToken(span!(span, PreprocessingToken::Identifier(identifier))) if self.expanding.contains(&identifier) => {
-                dbg!(&identifier, &self.expanding);
                 return Ok(ExpandControlFlow::Return(vec![Spanned::new(span.clone(), PreprocessingToken::BlueIdentifier(identifier.clone()))]));
             }
             TokenTree::PreprocessorToken(span!(span, PreprocessingToken::Identifier(identifier))) if !skip_macro_replacement => {
@@ -279,7 +278,6 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                 }
             }
             TokenTree::Else { body, opposition } => {
-                dbg!(&opposition);
                 return Ok(ExpandControlFlow::RescanMany(body));
             }
             _ => {
@@ -309,7 +307,6 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                     token
                 })
                 .collect::<Vec<_>>();
-                dbg!(&identifier, &output);
                 return Ok(ExpandControlFlow::Rescan(TokenTree::Internal(InternalLeaf::MacroExpansion(identifier.to_owned(), output))));
             }
             Some(MacroDefinition::Function { parameter_list, replacement_list }) => {
@@ -327,7 +324,6 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                     if (arguments.len() < parameter_list.parameters.len()) || (!parameter_list.variadic && (arguments.len() > parameter_list.parameters.len())) {
                         return Err(SimpleError(opener.location.until(&closer.location), format!("Expected {} parameters, found {}", parameter_list.parameters.len(), arguments.len())).into_codespan_report());
                     }
-                    dbg!(&arguments);
 
                     let mut expanded_args = vec![];
 
@@ -355,6 +351,10 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                         stringify_string: String::new(),
                     }
                     .flatten()
+                    .map(|mut token| {
+                        token.location = span.clone();
+                        token
+                    })
                     .collect::<Vec<_>>();
 
                     return Ok(ExpandControlFlow::RescanMany(vec![TokenTree::Internal(InternalLeaf::MacroExpansion(identifier.to_owned(), output))]));
@@ -387,13 +387,11 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
             token_trees: PrependingPeekableIterator::new(arg.map(|t| TokenTree::PreprocessorToken(t.clone())).collect::<Vec<_>>().into_iter()),
             respect_defined: false,
         };
-        dbg!(&expander.token_trees);
         expander.expand().unwrap();
         expander.output
     }
 
     pub fn handle_control_line(&mut self, control_line: ControlLine) -> PResult<()> {
-        dbg!(&control_line);
         match control_line {
             ControlLine::DefineFunction { macro_name, parameters, replacement_list } => {
                 self.handle_define_function(macro_name, parameters, &replacement_list)?;
@@ -458,7 +456,6 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
                 }
             }
         }
-        dbg!(&inner);
         Err(UnmatchedDelimiter {
             opening_delimiter_location: opening_token.location.clone(),
             potential_closing_delimiter_location: Location {

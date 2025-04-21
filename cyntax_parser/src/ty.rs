@@ -21,7 +21,6 @@ impl<'src> Parser<'src> {
             let declarations = self.parse_struct_declaration_list()?;
 
             self.expect_token(Token::Punctuator(Punctuator::RightBrace), "to close struct type specifier")?;
-            dbg!(&self.peek_token());
             if is_union {
                 Ok(ast::TypeSpecifier::Union(StructOrUnionSpecifier { tag, declarations: vec![] }))
             } else {
@@ -43,7 +42,6 @@ impl<'src> Parser<'src> {
             if let Some((specifier_qualifiers, declarators)) = self.maybe_recover(
                 |this| {
                     let specifier_qualifiers = this.parse_specifier_qualifier_list()?;
-                    dbg!(&specifier_qualifiers);
                     if !specifier_qualifiers.iter().any(|sq| matches!(sq, SpecifierQualifier::Specifier(_))) {
                         return Err(SimpleError(this.last_location.clone(), "Struct declarations must have atleast one specifier".to_string()).into_codespan_report());
                     }
@@ -225,7 +223,6 @@ impl<'src> Parser<'src> {
         } else {
             None
         };
-        dbg!(&self.peek_token(), &declarator);
 
         // let declarator = if allow_abstract || self.can_start_declarator() {
         //     Some(self.parse_declarator()?)
