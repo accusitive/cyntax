@@ -29,7 +29,7 @@ pub enum DeclarationSpecifier {
     TypeQualifier(TypeQualifier),
     FunctionSpecifier(FunctionSpecifier),
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum StorageClassSpecifier {
     Typedef,
     Extern,
@@ -258,7 +258,7 @@ pub enum PrefixOperator {
     Increment,
     Decrement,
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum InfixOperator {
     Add,
     Subtract,

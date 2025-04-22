@@ -1,4 +1,5 @@
 use cyntax_common::spanned::{Location, Spanned};
+use cyntax_parser::ast::InfixOperator;
 pub type HirId = usize;
 
 #[derive(Debug)]
@@ -8,12 +9,12 @@ pub struct TranslationUnit<'hir> {
 #[derive(Debug)]
 pub enum ExternalDeclaration<'hir> {
     FunctionDefinition(FunctionDefinition<'hir>),
-    Declaration(Declaration<'hir>),
+    Declaration(&'hir Declaration<'hir>),
     X
 }
 #[derive(Debug)]
 pub struct FunctionDefinition<'hir> {
-    body: Statement<'hir>
+    pub body: &'hir Statement<'hir>
 }
 #[derive(Debug)]
 pub struct Declaration<'hir> {
@@ -34,8 +35,8 @@ pub struct Expression<'hir> {
 #[derive(Debug)]
 pub enum ExpressionKind<'hir> {
     Constant(Spanned<cyntax_parser::constant::IntConstant>),
-    Add(&'hir Expression<'hir>, &'hir Expression<'hir>),
-    Identifier(HirId)
+    BinaryOp(Spanned<InfixOperator>, &'hir Expression<'hir>, &'hir Expression<'hir>),
+    DeclarationReference(HirId)
 }
 #[derive(Debug)]
 pub struct Statement<'hir> {
@@ -45,7 +46,8 @@ pub struct Statement<'hir> {
 }
 #[derive(Debug)]
 pub enum StatementKind<'hir> {
-    Compound(&'hir [BlockItem<'hir>])
+    Compound(&'hir [BlockItem<'hir>]),
+    Expression(&'hir Expression<'hir>)
 }
 #[derive(Debug)]
 pub enum BlockItem<'hir> {

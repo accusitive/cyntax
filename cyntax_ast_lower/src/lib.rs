@@ -1,11 +1,14 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Deref};
 
 pub use bumpalo::Bump;
 use cyntax_common::{ctx::Context, span, spanned::Spanned};
 use cyntax_errors::{Diagnostic, errors::SimpleError};
-use cyntax_hir::{self as hir, Expression, HirId, Statement};
-use cyntax_parser::ast::{self, Identifier};
+use cyntax_hir::{self as hir, HirId};
+use cyntax_parser::ast::Identifier;
+pub use cyntax_parser::ast as ast;
+use ty::DeclarationSpecifierParser;
 
+mod ty;
 pub type PResult<T> = Result<T, cyntax_errors::codespan_reporting::diagnostic::Diagnostic<usize>>;
 
 #[derive(Debug)]
@@ -19,7 +22,7 @@ pub struct AstLower<'src, 'hir> {
 #[derive(Debug)]
 pub struct HirMap<'hir> {
     // probably expression?
-    ordinary: HashMap<HirId, &'hir Expression<'hir>>,
+    ordinary: HashMap<HirId, &'hir hir::Declaration<'hir>>,
     // a type probably?
     typedefs: HashMap<HirId, ()>,
     // etc
@@ -61,7 +64,6 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
         self.next_id += 1;
         id
     }
-    fn declare_declaration(&mut self, decl: &ast::InitDeclarator) {}
     pub fn lower_translation_unit(&mut self, unit: &ast::TranslationUnit) -> PResult<hir::TranslationUnit<'hir>> {
         self.push_scope();
         let mut d = vec![];
@@ -76,24 +78,32 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
     pub fn lower_external_declaration(&mut self, external_declation: &ast::ExternalDeclaration) -> PResult<Vec<&'hir hir::ExternalDeclaration<'hir>>> {
         match external_declation {
             ast::ExternalDeclaration::FunctionDefinition(function_definition) => {
-                self.lower_statement(&function_definition.body)?;
-                Ok(vec![self.arena.alloc(hir::ExternalDeclaration::X)])
+                let body = self.lower_statement(&function_definition.body)?;
+                Ok(vec![self.arena.alloc(hir::ExternalDeclaration::FunctionDefinition(hir::FunctionDefinition { body }))])
             }
             ast::ExternalDeclaration::Declaration(declaration) => {
-                // self.ensure_enough_typespecifiers
+                // let mut parser = DeclarationSpecifierParser::new(declaration.specifiers.iter());
+                // parser.parse()?;
+                // dbg!(&parser);
+
                 let mut d = vec![];
                 for init_declarator in &declaration.init_declarators {
+                    let id = self.next_id();
+                    if let Some(identifier) = init_declarator.value.declarator.value.get_identifier() {
+                        self.scopes.last_mut().unwrap().ordinary.insert(identifier, id);
+                        // self.find_in_scope(&init_declarator.location.to_spanned(identifier)).unwrap();
+                    }
                     let init = match &init_declarator.value.initializer {
                         Some(init) => Some(self.lower_initializer(init)?),
                         None => None,
                     };
-                    let id = self.next_id();
-                    if let Some(identifier) = init_declarator.value.declarator.value.get_identifier() {
-                        self.scopes.last_mut().unwrap().ordinary.insert(identifier, id);
-                    }
+
                     let declaration = hir::Declaration { id, loc: init_declarator.location.clone(), init };
-                    let declaration: &'hir _ = self.arena.alloc(hir::ExternalDeclaration::Declaration(declaration));
-                    d.push(declaration);
+                    let declaration: &'hir _ = self.arena.alloc(declaration);
+                    self.map.ordinary.insert(id, declaration);
+
+                    let external_decl: &'hir _ = self.arena.alloc(hir::ExternalDeclaration::Declaration(declaration));
+                    d.push(external_decl);
                 }
                 Ok(d)
             }
@@ -115,17 +125,24 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                 for item in block_items {
                     match item {
                         ast::BlockItem::Declaration(declaration) => {
+                            let parser = DeclarationSpecifierParser::new(declaration.value.specifiers.iter());
+                            let parsed = parser.parse()?;
+                            dbg!(&parsed);
                             for init_declarator in &declaration.value.init_declarators {
-                                let init = match &init_declarator.value.initializer {
-                                    Some(init) => Some(self.lower_initializer(init)?),
-                                    None => None,
-                                };
+                                // Declare it before lowering initializer, otherwise `int a = 0 + a;` doesnt work
                                 let id = self.next_id();
                                 if let Some(identifier) = init_declarator.value.declarator.value.get_identifier() {
                                     self.scopes.last_mut().unwrap().ordinary.insert(identifier, id);
                                 }
+
+                                let init = match &init_declarator.value.initializer {
+                                    Some(init) => Some(self.lower_initializer(init)?),
+                                    None => None,
+                                };
+
                                 let declaration = hir::Declaration { id, loc: init_declarator.location.clone(), init };
                                 let declaration: &'hir _ = self.arena.alloc(declaration);
+                                self.map.ordinary.insert(id, declaration);
 
                                 hir_block_items.push(hir::BlockItem::Declaration(declaration));
                             }
@@ -136,10 +153,9 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                     }
                 }
                 self.pop_scope();
-                let i = self.arena.alloc_slice_fill_iter(hir_block_items.into_iter());
-                hir::StatementKind::Compound(i)
+                hir::StatementKind::Compound(self.arena.alloc_slice_fill_iter(hir_block_items.into_iter()))
             }
-            ast::Statement::Expression(spanned) => todo!(),
+            ast::Statement::Expression(expression) => hir::StatementKind::Expression(self.arena.alloc(self.lower_expression(expression)?)),
             ast::Statement::Iteration(iteration_statement) => todo!(),
             ast::Statement::Goto(spanned) => todo!(),
             ast::Statement::Continue => todo!(),
@@ -151,18 +167,22 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
         };
 
         let id = self.next_id();
-        Ok(self.arena.alloc(Statement { id, span: statement.location.clone(), kind }))
+        Ok(self.arena.alloc(hir::Statement { id, span: statement.location.clone(), kind }))
     }
     pub fn lower_expression(&mut self, expression: &Spanned<ast::Expression>) -> PResult<&'hir hir::Expression<'hir>> {
         let kind = match &expression.value {
             ast::Expression::Identifier(identifier) => {
                 let hir_id = self.find_in_scope(identifier)?;
-                hir::ExpressionKind::Identifier(hir_id)
+                hir::ExpressionKind::DeclarationReference(hir_id)
             }
             ast::Expression::IntConstant(constant) => hir::ExpressionKind::Constant(constant.clone()),
             ast::Expression::StringLiteral(literal) => todo!(),
             ast::Expression::Parenthesized(expr) => todo!(),
-            ast::Expression::BinOp(op, lhs, rhs) => todo!(),
+            ast::Expression::BinOp(op, lhs, rhs) => {
+                let lhs = self.lower_expression(lhs.deref())?;
+                let rhs = self.lower_expression(rhs.deref())?;
+                hir::ExpressionKind::BinaryOp(op.clone(), lhs, rhs)
+            }
             ast::Expression::UnaryOp(op, expr) => todo!(),
             ast::Expression::PostfixOp(op, expr) => todo!(),
             ast::Expression::Cast(type_name, expr) => todo!(),
@@ -182,7 +202,8 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
         self.scopes.pop();
     }
     fn find_in_scope(&mut self, identifier: &Spanned<Identifier>) -> PResult<HirId> {
-        for scope in &self.scopes {
+        // reversed, because the newest scope has priority over the 2nd newest
+        for scope in self.scopes.iter().rev() {
             if let Some(&id) = scope.ordinary.get(&identifier.value) {
                 return Ok(id);
             }

@@ -11,9 +11,9 @@ pub enum LabelKind {
     Help,
 }
 pub struct Label {
-    kind: LabelKind,
-    location: Location,
-    message: String,
+    pub kind: LabelKind,
+    pub location: Location,
+    pub message: String,
 }
 pub trait Diagnostic: Sized {
     fn title<'a>(&self) -> &'a str;
@@ -39,7 +39,6 @@ pub trait Diagnostic: Sized {
         diag
     }
 }
-
 impl<T, C: HasContext> UnwrapDiagnostic<T> for C {
     fn unwrap_with_diagnostic<F: FnOnce(&mut Self) -> Result<T, codespan_reporting::diagnostic::Diagnostic<usize>>>(&mut self, value: F) -> T {
         let result = value(self);
