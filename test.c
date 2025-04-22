@@ -6,7 +6,10 @@
 // int a = 5;
 int main()
 {
-    typedef int *intptr;
+    typedef const int intptr;
 
-    intptr i;
+    intptr i = 5;
+    // i = 10;
+
+    // int (a)(int, int**);
 }

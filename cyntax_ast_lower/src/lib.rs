@@ -1,11 +1,15 @@
-use std::{collections::HashMap, ops::Deref};
+use std::{collections::HashMap, ops::Deref, ptr};
 
 pub use bumpalo::Bump;
-use cyntax_common::{ctx::Context, span, spanned::Spanned};
+use cyntax_common::{
+    ctx::Context,
+    span,
+    spanned::{Location, Spanned},
+};
 use cyntax_errors::{Diagnostic, errors::SimpleError};
-use cyntax_hir::{self as hir, HirId};
+use cyntax_hir::{self as hir, DerivedTy, HirId, ParsedDeclarationSpecifiers, TypeSpecifierStateMachine};
+pub use cyntax_parser::ast;
 use cyntax_parser::ast::Identifier;
-pub use cyntax_parser::ast as ast;
 use ty::DeclarationSpecifierParser;
 
 mod ty;
@@ -24,7 +28,7 @@ pub struct HirMap<'hir> {
     // probably expression?
     ordinary: HashMap<HirId, &'hir hir::Declaration<'hir>>,
     // a type probably?
-    typedefs: HashMap<HirId, ()>,
+    typedefs: HashMap<HirId, &'hir hir::Declaration<'hir>>,
     // etc
     tags: HashMap<HirId, ()>,
     // etc, i dont even think this needs anything; labels have practically no data
@@ -82,12 +86,14 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                 Ok(vec![self.arena.alloc(hir::ExternalDeclaration::FunctionDefinition(hir::FunctionDefinition { body }))])
             }
             ast::ExternalDeclaration::Declaration(declaration) => {
-                // let mut parser = DeclarationSpecifierParser::new(declaration.specifiers.iter());
-                // parser.parse()?;
+                let parser = DeclarationSpecifierParser::new(declaration.specifiers.iter(), &self.scopes);
+                let specifiers = parser.parse()?;
                 // dbg!(&parser);
 
                 let mut d = vec![];
                 for init_declarator in &declaration.init_declarators {
+                    let lowered_ty = self.lower_ty(&specifiers, &init_declarator.value.declarator)?;
+
                     let id = self.next_id();
                     if let Some(identifier) = init_declarator.value.declarator.value.get_identifier() {
                         self.scopes.last_mut().unwrap().ordinary.insert(identifier, id);
@@ -98,7 +104,12 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                         None => None,
                     };
 
-                    let declaration = hir::Declaration { id, loc: init_declarator.location.clone(), init };
+                    let declaration = hir::Declaration {
+                        id,
+                        loc: init_declarator.location.clone(),
+                        init,
+                        specifiers: lowered_ty,
+                    };
                     let declaration: &'hir _ = self.arena.alloc(declaration);
                     self.map.ordinary.insert(id, declaration);
 
@@ -116,6 +127,59 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
             span!(ast::Initializer::List(designated_intiializers)) => todo!(),
         }
     }
+    fn lower_ty(&mut self, base: &ParsedDeclarationSpecifiers, declarator: &Spanned<ast::Declarator>) -> PResult<DerivedTy> {
+        let mut ty = if let TypeSpecifierStateMachine::Typedef(name) = base.specifiers {
+            let decl = self.map.typedefs.get(&name).unwrap();
+            decl.specifiers.clone()
+        } else {
+            DerivedTy::Base(base.clone())
+        };
+
+        let mut next = Some(declarator);
+        while let Some(next_declarator) = next {
+            match &next_declarator.value {
+                // Nop
+                ast::Declarator::Abstract | ast::Declarator::Identifier(_) => {
+                    next = None;
+                }
+
+                // *decl
+                ast::Declarator::Pointer(ptr_info, ptr_to) => {
+                    let mut ptr = Some(&ptr_info.value);
+                    while let Some(p) = ptr {
+                        ty = DerivedTy::Pointer(p.type_qualifiers.clone(), Box::new(ty));
+                        ptr = p.ptr.as_ref().map(|boxed| &boxed.value);
+                    }
+                    next = Some(ptr_to.deref());
+                }
+
+                // (decl)
+                ast::Declarator::Parenthesized(spanned) => next = Some(&spanned.deref()),
+
+                // decl(int a)
+                ast::Declarator::Function(spanned, parameter_list) => {
+                    let mut parameters = vec![];
+                    for param in &parameter_list.parameters {
+                        let spec = DeclarationSpecifierParser::new(param.value.specifiers.iter(), &self.scopes).parse()?;
+                        let d = self.lower_ty(&spec, param.value.declarator.as_ref().unwrap_or(&Spanned::new(Location::new(), ast::Declarator::Abstract)))?;
+                        parameters.push(d);
+                    }
+                    ty = DerivedTy::Function { return_ty: Box::new(ty), parameters };
+                    next = Some(spanned);
+                }
+                // decl[]
+                ast::Declarator::Array {
+                    base,
+                    has_static,
+                    has_star,
+                    type_qualifiers,
+                    expr,
+                } => todo!(),
+            }
+        }
+
+        Ok(ty)
+    }
     pub fn lower_statement(&mut self, statement: &Spanned<ast::Statement>) -> PResult<&'hir hir::Statement<'hir>> {
         let kind = match &statement.value {
             ast::Statement::Labeled(labeled_statement) => todo!(),
@@ -125,28 +189,46 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                 for item in block_items {
                     match item {
                         ast::BlockItem::Declaration(declaration) => {
-                            let parser = DeclarationSpecifierParser::new(declaration.value.specifiers.iter());
-                            let parsed = parser.parse()?;
-                            dbg!(&parsed);
+                            let parser = DeclarationSpecifierParser::new(declaration.value.specifiers.iter(), &self.scopes);
+                            let specifiers = parser.parse()?;
+                            dbg!(&specifiers);
                             for init_declarator in &declaration.value.init_declarators {
-
+                                let lowered_ty = self.lower_ty(&specifiers, &init_declarator.value.declarator)?;
+                                dbg!(&lowered_ty);
                                 // let derived = parsed.derive(&init_declarator.value.declarator.value);
                                 // dbg!(&init_declarator.value.declarator, &derived);
 
                                 // Declare it before lowering initializer, otherwise `int a = 0 + a;` doesnt work
                                 let id = self.next_id();
                                 if let Some(identifier) = init_declarator.value.declarator.value.get_identifier() {
-                                    self.scopes.last_mut().unwrap().ordinary.insert(identifier, id);
+                                    let is_typedef = matches!(&specifiers.class, Some(ast::StorageClassSpecifier::Typedef));
+
+                                    if is_typedef {
+                                        self.scopes.last_mut().unwrap().typedefs.insert(identifier, id);
+                                    } else {
+                                        self.scopes.last_mut().unwrap().ordinary.insert(identifier, id);
+                                    }
                                 }
 
                                 let init = match &init_declarator.value.initializer {
                                     Some(init) => Some(self.lower_initializer(init)?),
                                     None => None,
                                 };
+                                let is_typedef = matches!(&specifiers.class, Some(ast::StorageClassSpecifier::Typedef));
 
-                                let declaration = hir::Declaration { id, loc: init_declarator.location.clone(), init };
+                                let declaration = hir::Declaration {
+                                    id,
+                                    loc: init_declarator.location.clone(),
+                                    init,
+                                    specifiers: lowered_ty,
+                                };
                                 let declaration: &'hir _ = self.arena.alloc(declaration);
-                                self.map.ordinary.insert(id, declaration);
+
+                                if is_typedef {
+                                    self.map.typedefs.insert(id, declaration);
+                                } else {
+                                    self.map.ordinary.insert(id, declaration);
+                                }
 
                                 hir_block_items.push(hir::BlockItem::Declaration(declaration));
                             }
@@ -213,5 +295,14 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
             }
         }
         Err(SimpleError(identifier.location.clone(), format!("could not find identifier `{}` in scope", self.ctx.res(identifier.value))).into_codespan_report())
+    }
+    fn find_typedef_in_scope(&mut self, identifier: &Spanned<Identifier>) -> PResult<HirId> {
+        // reversed, because the newest scope has priority over the 2nd newest
+        for scope in self.scopes.iter().rev() {
+            if let Some(&id) = scope.typedefs.get(&identifier.value) {
+                return Ok(id);
+            }
+        }
+        Err(SimpleError(identifier.location.clone(), format!("could not find typedef `{}` in scope", self.ctx.res(identifier.value))).into_codespan_report())
     }
 }

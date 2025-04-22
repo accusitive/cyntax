@@ -6,11 +6,11 @@ use std::ops::Deref;
 // type specifiers shall be one of the following sets (delimited by commas, when there is
 // more than one set on a line); the type specifiers may occur in any order, possibly
 // intermixed with the other declaration specifiers.
-use crate::PResult;
+use crate::{PResult, Scope};
 use cyntax_common::spanned::{Location, Spanned};
 use cyntax_errors::{Diagnostic, Label, errors::SimpleError};
-use cyntax_hir::HirId;
-use cyntax_parser::ast;
+use cyntax_hir::{HirId, ParsedDeclarationSpecifiers, TyQualifiers, TypeSpecifierStateMachine};
+use cyntax_parser::ast::{self, Identifier};
 // 6.7.2 Type specifiers
 // — void
 // — char
@@ -36,7 +36,7 @@ use cyntax_parser::ast;
 // — enum specifier
 // — typedef name
 // #[derive(Debug)]
-// pub enum TySpecifier {
+// pub enum DataType {
 //     Void,
 //     I8,
 //     U8,
@@ -57,60 +57,23 @@ use cyntax_parser::ast;
 //     Typedef(HirId),
 // }
 
-#[derive(Debug, Clone)]
-#[rustfmt::skip]
-enum TypeSpecifierStateMachine {
-    None,
-    Void,
-    Char,
-    SignedChar,
-    UnsignedChar,
-    Short, SignedShort, ShortInt, SignedShortInt,
-    UnsignedShort, UnsignedShortInt,
-    Int, Signed, SignedInt,
-    Unsigned, UnsignedInt,
-    Long, SignedLong, LongInt, SignedLongInt,
-    UnsignedLong, UnsignedLongInt,
-    LongLong, SignedLongLong, LongLongInt, SignedLongLongInt, UnsignedLongLong, UnsignedLongLongInt,
-    Float,
-    Double,
-    LongDouble,
-    StructOrUnion,
-    Enum,
-    Typedef,
-    Bool,
-    FloatComplex,
-    DoubleComplex,
-    LongDoubleComplex,
-}
 
 #[derive(Debug)]
 pub struct DeclarationSpecifierParser<'a, I: Iterator<Item = &'a Spanned<ast::DeclarationSpecifier>>> {
     pub input: I,
     class: Option<&'a ast::StorageClassSpecifier>,
     base_type: TypeSpecifierStateMachine,
-    qualifier: TyQualifiers,
-    
-}
-#[derive(Debug, Clone)]
-pub struct TyQualifiers {
-    conzt: bool,
-    restrict: bool,
-    volatile: bool,
-}
-#[derive(Debug, Clone)]
-pub struct ParsedDeclarationSpecifiers {
-    pub class: Option<ast::StorageClassSpecifier>,
-    pub specifiers: TypeSpecifierStateMachine,
     pub qualifier: TyQualifiers,
+    scopes: &'a Vec<Scope>
 }
 impl<'a, I: Iterator<Item = &'a Spanned<ast::DeclarationSpecifier>>> DeclarationSpecifierParser<'a, I> {
-    pub fn new(input: I) -> Self {
+    pub fn new(input: I, scopes: &'a Vec<Scope>) -> Self {
         Self {
             input,
             class: None,
             base_type: TypeSpecifierStateMachine::None,
             qualifier: TyQualifiers { conzt: false, restrict: false, volatile: false },
+            scopes
         }
     }
     pub fn parse(mut self) -> PResult<ParsedDeclarationSpecifiers> {
@@ -134,6 +97,11 @@ impl<'a, I: Iterator<Item = &'a Spanned<ast::DeclarationSpecifier>>> Declaration
                     ast::TypeSpecifier::Signed => self.base_type = self.base_type.signed(loc)?,
                     ast::TypeSpecifier::Unsigned => self.base_type = self.base_type.unsigned(loc)?,
                     ast::TypeSpecifier::Bool => self.base_type = self.base_type.bool(loc)?,
+                    ast::TypeSpecifier::TypedefName(typedef_name) =>{
+                        let t = self.find_typedef_in_scope(&loc, typedef_name)?;
+
+                        self.base_type = self.base_type.typedef_name(loc, t)?;
+                    }
                     x => unimplemented!("{x:?}"),
                 },
                 ast::DeclarationSpecifier::TypeQualifier(type_qualifier) => match type_qualifier {
@@ -154,200 +122,13 @@ impl<'a, I: Iterator<Item = &'a Spanned<ast::DeclarationSpecifier>>> Declaration
             qualifier: self.qualifier,
         })
     }
-}
-// impl ParsedDeclarationSpecifiers {
-//     pub fn derive(&self, declarator: &ast::Declarator) -> DerivedTy{
-//         match declarator {
-//             ast::Declarator::Identifier(symbol_u32) => DerivedTy::Base(self.clone()),
-//             ast::Declarator::Pointer(ptr, spanned1) =>{
-//                 let mut next = Some(ptr);
-//                 let mut base =  self.derive(&spanned1.value);
-//                 while let Some(next_ptr) = next {
-//                     base = DerivedTy::Pointer(next_ptr.value.clone(), Box::new(base));
-//                     next = next_ptr.value.ptr.as_deref();
-//                 }
-//                 base
-//             }
-//             ast::Declarator::Parenthesized(spanned) => todo!(),
-//             ast::Declarator::Function(spanned, parameter_list) => todo!(),
-//             ast::Declarator::Array { base, has_static, has_star, type_qualifiers, expr } => {
-
-//             },
-//             ast::Declarator::Abstract => todo!(),
-//         }
-//     }
-// }
-#[derive(Debug)]
-pub enum DerivedTy {
-    Base(ParsedDeclarationSpecifiers),
-    Pointer(ast::Pointer, Box<Self>)
-}
-impl<'a> Diagnostic for TypeSpecifierStateMachineError<'a> {
-    fn title<'b>(&self) -> &'b str {
-        "error while parsing type specifiers"
-    }
-
-    fn severity(&self) -> cyntax_errors::DiagnosticSeverity {
-        cyntax_errors::DiagnosticSeverity::Error
-    }
-    fn labels(&self) -> Vec<cyntax_errors::Label> {
-        match self {
-            TypeSpecifierStateMachineError::InvalidTransition(state, location, transition) => {
-                vec![cyntax_errors::Label {
-                    kind: cyntax_errors::LabelKind::Primary,
-                    location: location.clone(),
-                    message: format!("{} is not a valid transition for state {:?}", transition, state),
-                }]
+    fn find_typedef_in_scope(&mut self, loc: &Location, identifier: &Identifier) -> PResult<HirId> {
+        // reversed, because the newest scope has priority over the 2nd newest
+        for scope in self.scopes.iter().rev() {
+            if let Some(&id) = scope.typedefs.get(&identifier) {
+                return Ok(id);
             }
         }
-    }
-}
-
-enum TypeSpecifierStateMachineError<'a> {
-    InvalidTransition(&'a TypeSpecifierStateMachine, Location, &'a str),
-}
-
-impl TypeSpecifierStateMachine {
-    pub fn void(&self, loc: Location) -> PResult<Self> {
-        match self {
-            TypeSpecifierStateMachine::None => Ok(Self::Void),
-            _ => Err(TypeSpecifierStateMachineError::InvalidTransition(self, loc, "void").into_codespan_report()),
-        }
-    }
-
-    pub fn char(&self, loc: Location) -> PResult<Self> {
-        match self {
-            TypeSpecifierStateMachine::None => Ok(Self::Char),
-            TypeSpecifierStateMachine::Signed => Ok(Self::SignedChar),
-            TypeSpecifierStateMachine::Unsigned => Ok(Self::UnsignedChar),
-            _ => Err(TypeSpecifierStateMachineError::InvalidTransition(self, loc, "char").into_codespan_report()),
-        }
-    }
-
-    pub fn signed(&self, loc: Location) -> PResult<Self> {
-        match self {
-            TypeSpecifierStateMachine::None => Ok(Self::Signed),
-            TypeSpecifierStateMachine::Char => Ok(Self::SignedChar),
-            TypeSpecifierStateMachine::Short => Ok(Self::SignedShort),
-            TypeSpecifierStateMachine::ShortInt => Ok(Self::SignedShortInt),
-            TypeSpecifierStateMachine::Int => Ok(Self::SignedInt),
-            TypeSpecifierStateMachine::Long => Ok(Self::SignedLong),
-            TypeSpecifierStateMachine::LongInt => Ok(Self::SignedLongInt),
-            TypeSpecifierStateMachine::LongLong => Ok(Self::SignedLongLong),
-            TypeSpecifierStateMachine::LongLongInt => Ok(Self::SignedLongLongInt),
-            _ => Err(TypeSpecifierStateMachineError::InvalidTransition(self, loc, "signed").into_codespan_report()),
-        }
-    }
-
-    pub fn unsigned(&self, loc: Location) -> PResult<Self> {
-        match self {
-            TypeSpecifierStateMachine::None => Ok(Self::Unsigned),
-            TypeSpecifierStateMachine::Char => Ok(Self::UnsignedChar),
-            TypeSpecifierStateMachine::Short => Ok(Self::UnsignedShort),
-            TypeSpecifierStateMachine::ShortInt => Ok(Self::UnsignedShortInt),
-            TypeSpecifierStateMachine::Int => Ok(Self::UnsignedInt),
-            TypeSpecifierStateMachine::Long => Ok(Self::UnsignedLong),
-            TypeSpecifierStateMachine::LongInt => Ok(Self::UnsignedLongInt),
-            TypeSpecifierStateMachine::LongLong => Ok(Self::UnsignedLongLong),
-            TypeSpecifierStateMachine::LongLongInt => Ok(Self::UnsignedLongLongInt),
-            _ => Err(TypeSpecifierStateMachineError::InvalidTransition(self, loc, "unsigned").into_codespan_report()),
-        }
-    }
-
-    pub fn short(&self, loc: Location) -> PResult<Self> {
-        match self {
-            TypeSpecifierStateMachine::None => Ok(Self::Short),
-            TypeSpecifierStateMachine::Signed => Ok(Self::SignedShort),
-            TypeSpecifierStateMachine::Unsigned => Ok(Self::UnsignedShort),
-            _ => Err(TypeSpecifierStateMachineError::InvalidTransition(self, loc, "short").into_codespan_report()),
-        }
-    }
-
-    pub fn int(&self, loc: Location) -> PResult<Self> {
-        match self {
-            TypeSpecifierStateMachine::None => Ok(Self::Int),
-            TypeSpecifierStateMachine::Signed => Ok(Self::SignedInt),
-            TypeSpecifierStateMachine::Unsigned => Ok(Self::UnsignedInt),
-            TypeSpecifierStateMachine::Short => Ok(Self::ShortInt),
-            TypeSpecifierStateMachine::SignedShort => Ok(Self::SignedShortInt),
-            TypeSpecifierStateMachine::UnsignedShort => Ok(Self::UnsignedShortInt),
-            TypeSpecifierStateMachine::Long => Ok(Self::LongInt),
-            TypeSpecifierStateMachine::SignedLong => Ok(Self::SignedLongInt),
-            TypeSpecifierStateMachine::UnsignedLong => Ok(Self::UnsignedLongInt),
-            TypeSpecifierStateMachine::LongLong => Ok(Self::LongLongInt),
-            TypeSpecifierStateMachine::SignedLongLong => Ok(Self::SignedLongLongInt),
-            TypeSpecifierStateMachine::UnsignedLongLong => Ok(Self::UnsignedLongLongInt),
-            _ => Err(TypeSpecifierStateMachineError::InvalidTransition(self, loc, "int").into_codespan_report()),
-        }
-    }
-
-    pub fn long(&self, loc: Location) -> PResult<Self> {
-        match self {
-            TypeSpecifierStateMachine::None => Ok(Self::Long),
-            TypeSpecifierStateMachine::Signed => Ok(Self::SignedLong),
-            TypeSpecifierStateMachine::Unsigned => Ok(Self::UnsignedLong),
-            TypeSpecifierStateMachine::Int => Ok(Self::LongInt),
-            TypeSpecifierStateMachine::SignedInt => Ok(Self::SignedLongInt),
-            TypeSpecifierStateMachine::UnsignedInt => Ok(Self::UnsignedLongInt),
-            TypeSpecifierStateMachine::Long => Ok(Self::LongLong),
-            TypeSpecifierStateMachine::SignedLong => Ok(Self::SignedLongLong),
-            TypeSpecifierStateMachine::UnsignedLong => Ok(Self::UnsignedLongLong),
-            TypeSpecifierStateMachine::LongInt => Ok(Self::LongLongInt),
-            TypeSpecifierStateMachine::SignedLongInt => Ok(Self::SignedLongLongInt),
-            TypeSpecifierStateMachine::UnsignedLongInt => Ok(Self::UnsignedLongLongInt),
-            _ => Err(TypeSpecifierStateMachineError::InvalidTransition(self, loc, "long").into_codespan_report()),
-        }
-    }
-
-    pub fn float(&self, loc: Location) -> PResult<Self> {
-        match self {
-            TypeSpecifierStateMachine::None => Ok(Self::Float),
-            _ => Err(TypeSpecifierStateMachineError::InvalidTransition(self, loc, "float").into_codespan_report()),
-        }
-    }
-
-    pub fn double(&self, loc: Location) -> PResult<Self> {
-        match self {
-            TypeSpecifierStateMachine::None => Ok(Self::Double),
-            TypeSpecifierStateMachine::Long => Ok(Self::LongDouble),
-            _ => Err(TypeSpecifierStateMachineError::InvalidTransition(self, loc, "double").into_codespan_report()),
-        }
-    }
-
-    pub fn struct_or_union(&self, loc: Location) -> PResult<Self> {
-        match self {
-            TypeSpecifierStateMachine::None => Ok(Self::StructOrUnion),
-            _ => Err(TypeSpecifierStateMachineError::InvalidTransition(self, loc, "struct").into_codespan_report()),
-        }
-    }
-
-    pub fn enum_specifier(&self, loc: Location) -> PResult<Self> {
-        match self {
-            TypeSpecifierStateMachine::None => Ok(Self::Enum),
-            _ => Err(TypeSpecifierStateMachineError::InvalidTransition(self, loc, "enum").into_codespan_report()),
-        }
-    }
-
-    pub fn typedef_name(&self, loc: Location) -> PResult<Self> {
-        match self {
-            TypeSpecifierStateMachine::None => Ok(Self::Typedef),
-            _ => Err(TypeSpecifierStateMachineError::InvalidTransition(self, loc, "typedef").into_codespan_report()),
-        }
-    }
-
-    pub fn bool(&self, loc: Location) -> PResult<Self> {
-        match self {
-            TypeSpecifierStateMachine::None => Ok(Self::Bool),
-            _ => Err(TypeSpecifierStateMachineError::InvalidTransition(self, loc, "bool").into_codespan_report()),
-        }
-    }
-
-    pub fn complex(&self, loc: Location) -> PResult<Self> {
-        match self {
-            TypeSpecifierStateMachine::Float => Ok(Self::FloatComplex),
-            TypeSpecifierStateMachine::Double => Ok(Self::DoubleComplex),
-            TypeSpecifierStateMachine::LongDouble => Ok(Self::LongDoubleComplex),
-            _ => Err(TypeSpecifierStateMachineError::InvalidTransition(self, loc, "_complex").into_codespan_report()),
-        }
+        Err(SimpleError(loc.clone(), format!("could not find typedef in scope")).into_codespan_report())
     }
 }
