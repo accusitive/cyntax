@@ -60,10 +60,10 @@ use cyntax_parser::ast::{self, Identifier};
 
 #[derive(Debug)]
 pub struct DeclarationSpecifierParser<'a, I: Iterator<Item = &'a Spanned<ast::DeclarationSpecifier>>> {
-    pub input: I,
+    input: I,
     class: Option<&'a ast::StorageClassSpecifier>,
     base_type: TypeSpecifierStateMachine,
-    pub qualifier: TyQualifiers,
+    qualifier: TyQualifiers,
     scopes: &'a Vec<Scope>
 }
 impl<'a, I: Iterator<Item = &'a Spanned<ast::DeclarationSpecifier>>> DeclarationSpecifierParser<'a, I> {

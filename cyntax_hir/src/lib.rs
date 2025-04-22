@@ -69,6 +69,11 @@ pub struct ParsedDeclarationSpecifiers {
     pub specifiers: TypeSpecifierStateMachine,
     pub qualifier: TyQualifiers,
 }
+#[derive(Debug, Clone)]
+pub struct SpecifierQualifiers {
+    pub specifiers: TypeSpecifierStateMachine,
+    pub qualifier: TyQualifiers,
+}
 #[derive(Debug)]
 pub struct Ty<'hir> {
     pub id: HirId,
@@ -76,9 +81,10 @@ pub struct Ty<'hir> {
 }
 #[derive(Debug, Clone)]
 pub enum TyKind<'hir> {
-    Base(ParsedDeclarationSpecifiers),
+    Base(SpecifierQualifiers),
     Pointer(Vec<Spanned<ast::TypeQualifier>>, Box<TyKind<'hir>>),
     Function { return_ty: Box<TyKind<'hir>>, parameters: &'hir [&'hir Ty<'hir>] },
+    Array(Box<Self>, &'hir Expression<'hir>)
 }
 
 #[derive(Debug, Clone)]

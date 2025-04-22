@@ -7,7 +7,7 @@ use cyntax_common::{
     spanned::{Location, Spanned},
 };
 use cyntax_errors::{Diagnostic, errors::SimpleError};
-use cyntax_hir::{self as hir, HirId, ParsedDeclarationSpecifiers, Ty, TyKind, TypeSpecifierStateMachine};
+use cyntax_hir::{self as hir, HirId, ParsedDeclarationSpecifiers, SpecifierQualifiers, Ty, TyKind, TypeSpecifierStateMachine};
 pub use cyntax_parser::ast;
 use cyntax_parser::ast::Identifier;
 use ty::DeclarationSpecifierParser;
@@ -86,38 +86,49 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                 Ok(vec![self.arena.alloc(hir::ExternalDeclaration::FunctionDefinition(hir::FunctionDefinition { body }))])
             }
             ast::ExternalDeclaration::Declaration(declaration) => {
-                let parser = DeclarationSpecifierParser::new(declaration.specifiers.iter(), &self.scopes);
-                let specifiers = parser.parse()?;
-
-                let mut d = vec![];
-                for init_declarator in &declaration.init_declarators {
-                    let lowered_ty = self.lower_ty(&specifiers, &init_declarator.value.declarator)?;
-
-                    let id = self.next_id();
-                    if let Some(identifier) = init_declarator.value.declarator.value.get_identifier() {
-                        self.scopes.last_mut().unwrap().ordinary.insert(identifier, id);
-                        // self.find_in_scope(&init_declarator.location.to_spanned(identifier)).unwrap();
-                    }
-                    let init = match &init_declarator.value.initializer {
-                        Some(init) => Some(self.lower_initializer(init)?),
-                        None => None,
-                    };
-
-                    let declaration = hir::Declaration {
-                        id,
-                        loc: init_declarator.location.clone(),
-                        init,
-                        ty: lowered_ty,
-                    };
-                    let declaration: &'hir _ = self.arena.alloc(declaration);
-                    self.map.ordinary.insert(id, declaration);
-
-                    let external_decl: &'hir _ = self.arena.alloc(hir::ExternalDeclaration::Declaration(declaration));
-                    d.push(external_decl);
-                }
-                Ok(d)
+                let declarations: Vec<&'hir _> = self.lower_declaration(declaration)?;
+                let external_declarations: Vec<&'hir _> = declarations.into_iter().map(|declaration| &*self.arena.alloc(hir::ExternalDeclaration::Declaration(declaration))).collect::<Vec<_>>();
+                Ok(external_declarations)
             }
         }
+    }
+    pub fn lower_declaration(&mut self, declaration: &ast::Declaration) -> PResult<Vec<&'hir hir::Declaration<'hir>>> {
+        let parser = DeclarationSpecifierParser::new(declaration.specifiers.iter(), &self.scopes);
+        let specifiers = parser.parse()?;
+        let mut d = vec![];
+        for init_declarator in &declaration.init_declarators {
+            let lowered_ty = self.lower_ty(&specifiers, &init_declarator.value.declarator)?;
+
+            let id = self.next_id();
+            let is_typedef = matches!(&specifiers.class, Some(ast::StorageClassSpecifier::Typedef));
+            if let Some(identifier) = init_declarator.value.declarator.value.get_identifier() {
+                // self.scopes.last_mut().unwrap().ordinary.insert(identifier, id);
+                if is_typedef {
+                    self.scopes.last_mut().unwrap().typedefs.insert(identifier, id);
+                } else {
+                    self.scopes.last_mut().unwrap().ordinary.insert(identifier, id);
+                }
+            }
+            let init = match &init_declarator.value.initializer {
+                Some(init) => Some(self.lower_initializer(init)?),
+                None => None,
+            };
+            let declaration = hir::Declaration {
+                id,
+                loc: init_declarator.location.clone(),
+                init,
+                ty: lowered_ty,
+            };
+            let declaration: &'hir _ = self.arena.alloc(declaration);
+            if is_typedef {
+                self.map.typedefs.insert(id, declaration);
+            } else {
+                self.map.ordinary.insert(id, declaration);
+            }
+            d.push(declaration);
+        }
+
+        Ok(d)
     }
     // pub fn lower_declaration(&mut self, declaration: &Spanned<ast::Declaration>) -> PResult<&'hir hir::Declaration<'hir>>
     pub fn lower_initializer(&mut self, initializer: &Spanned<ast::Initializer>) -> PResult<&'hir hir::Initializer<'hir>> {
@@ -131,9 +142,14 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
 
         let mut kind = if let TypeSpecifierStateMachine::Typedef(name) = base.specifiers {
             let decl = self.map.typedefs.get(&name).unwrap();
+            // cloning here is kinda sad but I don't see a way around it? we need a &ParsedDeclarationSpecifiers since we share it between declarators
             decl.ty.kind.clone()
         } else {
-            TyKind::Base(base.clone())
+            // cloning here is fine honestly, these types are so cheap
+            TyKind::Base(SpecifierQualifiers {
+                specifiers: base.specifiers.clone(),
+                qualifier: base.qualifier.clone(),
+            })
         };
 
         let mut next = Some(declarator);
@@ -145,20 +161,20 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                 }
 
                 // *decl
-                ast::Declarator::Pointer(ptr_info, ptr_to) => {
+                ast::Declarator::Pointer(ptr_info, inner) => {
                     let mut ptr = Some(&ptr_info.value);
                     while let Some(p) = ptr {
                         kind = TyKind::Pointer(p.type_qualifiers.clone(), Box::new(kind));
                         ptr = p.ptr.as_ref().map(|boxed| &boxed.value);
                     }
-                    next = Some(ptr_to.deref());
+                    next = Some(inner.deref());
                 }
 
                 // (decl)
-                ast::Declarator::Parenthesized(spanned) => next = Some(&spanned.deref()),
+                ast::Declarator::Parenthesized(inner) => next = Some(&inner.deref()),
 
                 // decl(int a)
-                ast::Declarator::Function(spanned, parameter_list) => {
+                ast::Declarator::Function(inner, parameter_list) => {
                     let mut parameters = vec![];
                     for param in &parameter_list.parameters {
                         let spec = DeclarationSpecifierParser::new(param.value.specifiers.iter(), &self.scopes).parse()?;
@@ -168,7 +184,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                     let parameters: &'hir _ = self.arena.alloc_slice_fill_iter(parameters.into_iter());
 
                     kind = TyKind::Function { return_ty: Box::new(kind), parameters };
-                    next = Some(spanned);
+                    next = Some(inner);
                 }
                 // decl[]
                 ast::Declarator::Array {
@@ -177,7 +193,10 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                     has_star,
                     type_qualifiers,
                     expr,
-                } => todo!(),
+                } => {
+                    kind = TyKind::Array(Box::new(kind), self.lower_expression(expr.as_ref().unwrap())?);
+                    next = Some(base);
+                }
             }
         }
         let ty: &'hir _ = self.arena.alloc(Ty { id, kind: kind });
@@ -192,49 +211,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                 for item in block_items {
                     match item {
                         ast::BlockItem::Declaration(declaration) => {
-                            let parser = DeclarationSpecifierParser::new(declaration.value.specifiers.iter(), &self.scopes);
-                            let specifiers = parser.parse()?;
-                            dbg!(&specifiers);
-                            for init_declarator in &declaration.value.init_declarators {
-                                let lowered_ty = self.lower_ty(&specifiers, &init_declarator.value.declarator)?;
-                                dbg!(&lowered_ty);
-                                // let derived = parsed.derive(&init_declarator.value.declarator.value);
-                                // dbg!(&init_declarator.value.declarator, &derived);
-
-                                // Declare it before lowering initializer, otherwise `int a = 0 + a;` doesnt work
-                                let id = self.next_id();
-                                if let Some(identifier) = init_declarator.value.declarator.value.get_identifier() {
-                                    let is_typedef = matches!(&specifiers.class, Some(ast::StorageClassSpecifier::Typedef));
-
-                                    if is_typedef {
-                                        self.scopes.last_mut().unwrap().typedefs.insert(identifier, id);
-                                    } else {
-                                        self.scopes.last_mut().unwrap().ordinary.insert(identifier, id);
-                                    }
-                                }
-
-                                let init = match &init_declarator.value.initializer {
-                                    Some(init) => Some(self.lower_initializer(init)?),
-                                    None => None,
-                                };
-                                let is_typedef = matches!(&specifiers.class, Some(ast::StorageClassSpecifier::Typedef));
-
-                                let declaration = hir::Declaration {
-                                    id,
-                                    loc: init_declarator.location.clone(),
-                                    init,
-                                    ty: lowered_ty,
-                                };
-                                let declaration: &'hir _ = self.arena.alloc(declaration);
-
-                                if is_typedef {
-                                    self.map.typedefs.insert(id, declaration);
-                                } else {
-                                    self.map.ordinary.insert(id, declaration);
-                                }
-
-                                hir_block_items.push(hir::BlockItem::Declaration(declaration));
-                            }
+                            hir_block_items.extend(self.lower_declaration(&declaration.value)?.into_iter().map(|decl| hir::BlockItem::Declaration(decl)));
                         }
                         ast::BlockItem::Statement(statement) => {
                             hir_block_items.push(hir::BlockItem::Statement(self.lower_statement(&statement)?));
