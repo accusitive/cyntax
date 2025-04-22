@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 ///Constraints
 // 2 At least one type specifier shall be given in the declaration specifiers in each declaration,
 // and in the specifier-qualifier list in each struct declaration and type name. Each list of
@@ -33,29 +35,29 @@ use cyntax_parser::ast;
 // — struct or union specifier ∗
 // — enum specifier
 // — typedef name
-#[derive(Debug)]
-pub enum TySpecifier {
-    Void,
-    I8,
-    U8,
-    I16,
-    U16,
-    I32,
-    U32,
-    I64,
-    U64,
-    I128,
-    U128,
-    F32,
-    F64,
-    F128,
-    Bool,
-    Struct,
-    Enum,
-    Typedef(HirId),
-}
+// #[derive(Debug)]
+// pub enum TySpecifier {
+//     Void,
+//     I8,
+//     U8,
+//     I16,
+//     U16,
+//     I32,
+//     U32,
+//     I64,
+//     U64,
+//     I128,
+//     U128,
+//     F32,
+//     F64,
+//     F128,
+//     Bool,
+//     Struct,
+//     Enum,
+//     Typedef(HirId),
+// }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[rustfmt::skip]
 enum TypeSpecifierStateMachine {
     None,
@@ -83,26 +85,27 @@ enum TypeSpecifierStateMachine {
 }
 
 #[derive(Debug)]
-pub struct DeclarationSpecifierParser<'a> {
-    pub input: std::slice::Iter<'a, Spanned<ast::DeclarationSpecifier>>,
+pub struct DeclarationSpecifierParser<'a, I: Iterator<Item = &'a Spanned<ast::DeclarationSpecifier>>> {
+    pub input: I,
     class: Option<&'a ast::StorageClassSpecifier>,
     base_type: TypeSpecifierStateMachine,
     qualifier: TyQualifiers,
+    
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TyQualifiers {
     conzt: bool,
     restrict: bool,
     volatile: bool,
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ParsedDeclarationSpecifiers {
-    class: Option<ast::StorageClassSpecifier>,
-    specifiers: TypeSpecifierStateMachine,
-    qualifier: TyQualifiers,
+    pub class: Option<ast::StorageClassSpecifier>,
+    pub specifiers: TypeSpecifierStateMachine,
+    pub qualifier: TyQualifiers,
 }
-impl<'a> DeclarationSpecifierParser<'a> {
-    pub fn new(input: std::slice::Iter<'a, Spanned<ast::DeclarationSpecifier>>) -> Self {
+impl<'a, I: Iterator<Item = &'a Spanned<ast::DeclarationSpecifier>>> DeclarationSpecifierParser<'a, I> {
+    pub fn new(input: I) -> Self {
         Self {
             input,
             class: None,
@@ -131,7 +134,7 @@ impl<'a> DeclarationSpecifierParser<'a> {
                     ast::TypeSpecifier::Signed => self.base_type = self.base_type.signed(loc)?,
                     ast::TypeSpecifier::Unsigned => self.base_type = self.base_type.unsigned(loc)?,
                     ast::TypeSpecifier::Bool => self.base_type = self.base_type.bool(loc)?,
-                    _ => unimplemented!(),
+                    x => unimplemented!("{x:?}"),
                 },
                 ast::DeclarationSpecifier::TypeQualifier(type_qualifier) => match type_qualifier {
                     ast::TypeQualifier::Const => self.qualifier.conzt = true,
@@ -151,6 +154,33 @@ impl<'a> DeclarationSpecifierParser<'a> {
             qualifier: self.qualifier,
         })
     }
+}
+// impl ParsedDeclarationSpecifiers {
+//     pub fn derive(&self, declarator: &ast::Declarator) -> DerivedTy{
+//         match declarator {
+//             ast::Declarator::Identifier(symbol_u32) => DerivedTy::Base(self.clone()),
+//             ast::Declarator::Pointer(ptr, spanned1) =>{
+//                 let mut next = Some(ptr);
+//                 let mut base =  self.derive(&spanned1.value);
+//                 while let Some(next_ptr) = next {
+//                     base = DerivedTy::Pointer(next_ptr.value.clone(), Box::new(base));
+//                     next = next_ptr.value.ptr.as_deref();
+//                 }
+//                 base
+//             }
+//             ast::Declarator::Parenthesized(spanned) => todo!(),
+//             ast::Declarator::Function(spanned, parameter_list) => todo!(),
+//             ast::Declarator::Array { base, has_static, has_star, type_qualifiers, expr } => {
+
+//             },
+//             ast::Declarator::Abstract => todo!(),
+//         }
+//     }
+// }
+#[derive(Debug)]
+pub enum DerivedTy {
+    Base(ParsedDeclarationSpecifiers),
+    Pointer(ast::Pointer, Box<Self>)
 }
 impl<'a> Diagnostic for TypeSpecifierStateMachineError<'a> {
     fn title<'b>(&self) -> &'b str {

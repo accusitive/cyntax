@@ -129,6 +129,10 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                             let parsed = parser.parse()?;
                             dbg!(&parsed);
                             for init_declarator in &declaration.value.init_declarators {
+
+                                // let derived = parsed.derive(&init_declarator.value.declarator.value);
+                                // dbg!(&init_declarator.value.declarator, &derived);
+
                                 // Declare it before lowering initializer, otherwise `int a = 0 + a;` doesnt work
                                 let id = self.next_id();
                                 if let Some(identifier) = init_declarator.value.declarator.value.get_identifier() {

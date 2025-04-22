@@ -92,7 +92,7 @@ pub enum SpecifierQualifier {
     Specifier(TypeSpecifier),
     Qualifier(TypeQualifier),
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TypeQualifier {
     Const,
     Restrict,
@@ -128,7 +128,7 @@ pub enum Declarator {
     // maybe this shouldnt be in the main declarator?
     Abstract,
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Pointer {
     pub type_qualifiers: Vec<Spanned<TypeQualifier>>,
     pub ptr: Option<Box<Spanned<Self>>>,

@@ -6,7 +6,7 @@
 // int a = 5;
 int main()
 {
-    signed test;
-    int a = 5;
-    int *b;
+    typedef int *intptr;
+
+    intptr i;
 }
