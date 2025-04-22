@@ -7,7 +7,7 @@ use cyntax_common::{
     spanned::{Location, Spanned},
 };
 use cyntax_errors::{Diagnostic, errors::SimpleError};
-use cyntax_hir::{self as hir, DerivedTy, HirId, ParsedDeclarationSpecifiers, TypeSpecifierStateMachine};
+use cyntax_hir::{self as hir, HirId, ParsedDeclarationSpecifiers, Ty, TyKind, TypeSpecifierStateMachine};
 pub use cyntax_parser::ast;
 use cyntax_parser::ast::Identifier;
 use ty::DeclarationSpecifierParser;
@@ -88,7 +88,6 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
             ast::ExternalDeclaration::Declaration(declaration) => {
                 let parser = DeclarationSpecifierParser::new(declaration.specifiers.iter(), &self.scopes);
                 let specifiers = parser.parse()?;
-                // dbg!(&parser);
 
                 let mut d = vec![];
                 for init_declarator in &declaration.init_declarators {
@@ -108,7 +107,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                         id,
                         loc: init_declarator.location.clone(),
                         init,
-                        specifiers: lowered_ty,
+                        ty: lowered_ty,
                     };
                     let declaration: &'hir _ = self.arena.alloc(declaration);
                     self.map.ordinary.insert(id, declaration);
@@ -127,12 +126,14 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
             span!(ast::Initializer::List(designated_intiializers)) => todo!(),
         }
     }
-    fn lower_ty(&mut self, base: &ParsedDeclarationSpecifiers, declarator: &Spanned<ast::Declarator>) -> PResult<DerivedTy> {
-        let mut ty = if let TypeSpecifierStateMachine::Typedef(name) = base.specifiers {
+    fn lower_ty(&mut self, base: &ParsedDeclarationSpecifiers, declarator: &Spanned<ast::Declarator>) -> PResult<&'hir Ty<'hir>> {
+        let id = self.next_id();
+
+        let mut kind = if let TypeSpecifierStateMachine::Typedef(name) = base.specifiers {
             let decl = self.map.typedefs.get(&name).unwrap();
-            decl.specifiers.clone()
+            decl.ty.kind.clone()
         } else {
-            DerivedTy::Base(base.clone())
+            TyKind::Base(base.clone())
         };
 
         let mut next = Some(declarator);
@@ -147,7 +148,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                 ast::Declarator::Pointer(ptr_info, ptr_to) => {
                     let mut ptr = Some(&ptr_info.value);
                     while let Some(p) = ptr {
-                        ty = DerivedTy::Pointer(p.type_qualifiers.clone(), Box::new(ty));
+                        kind = TyKind::Pointer(p.type_qualifiers.clone(), Box::new(kind));
                         ptr = p.ptr.as_ref().map(|boxed| &boxed.value);
                     }
                     next = Some(ptr_to.deref());
@@ -164,7 +165,9 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                         let d = self.lower_ty(&spec, param.value.declarator.as_ref().unwrap_or(&Spanned::new(Location::new(), ast::Declarator::Abstract)))?;
                         parameters.push(d);
                     }
-                    ty = DerivedTy::Function { return_ty: Box::new(ty), parameters };
+                    let parameters: &'hir _ = self.arena.alloc_slice_fill_iter(parameters.into_iter());
+
+                    kind = TyKind::Function { return_ty: Box::new(kind), parameters };
                     next = Some(spanned);
                 }
                 // decl[]
@@ -177,7 +180,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                 } => todo!(),
             }
         }
-
+        let ty: &'hir _ = self.arena.alloc(Ty { id, kind: kind });
         Ok(ty)
     }
     pub fn lower_statement(&mut self, statement: &Spanned<ast::Statement>) -> PResult<&'hir hir::Statement<'hir>> {
@@ -220,7 +223,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                                     id,
                                     loc: init_declarator.location.clone(),
                                     init,
-                                    specifiers: lowered_ty,
+                                    ty: lowered_ty,
                                 };
                                 let declaration: &'hir _ = self.arena.alloc(declaration);
 

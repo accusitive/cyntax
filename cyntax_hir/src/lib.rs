@@ -1,63 +1,61 @@
 use cyntax_common::spanned::{Location, Spanned};
 use cyntax_errors::Diagnostic;
-use cyntax_parser::{ast as ast, PResult};
+use cyntax_parser::{PResult, ast};
 pub type HirId = usize;
 
 #[derive(Debug)]
 pub struct TranslationUnit<'hir> {
-    pub declarations: Vec<&'hir ExternalDeclaration<'hir>>
+    pub declarations: Vec<&'hir ExternalDeclaration<'hir>>,
 }
 #[derive(Debug)]
 pub enum ExternalDeclaration<'hir> {
     FunctionDefinition(FunctionDefinition<'hir>),
     Declaration(&'hir Declaration<'hir>),
-    X
+    X,
 }
 #[derive(Debug)]
 pub struct FunctionDefinition<'hir> {
-    pub body: &'hir Statement<'hir>
+    pub body: &'hir Statement<'hir>,
 }
 #[derive(Debug)]
 pub struct Declaration<'hir> {
     pub id: HirId,
     pub loc: Location,
     pub init: Option<&'hir Initializer<'hir>>,
-    pub specifiers: DerivedTy
+    pub ty: &'hir Ty<'hir>,
 }
 #[derive(Debug)]
-pub enum Initializer<'hir>{
-    Assignment(&'hir Expression<'hir>)
+pub enum Initializer<'hir> {
+    Assignment(&'hir Expression<'hir>),
 }
 #[derive(Debug)]
 pub struct Expression<'hir> {
     pub id: HirId,
     pub loc: Location,
-    pub kind: ExpressionKind<'hir>
+    pub kind: ExpressionKind<'hir>,
 }
 #[derive(Debug)]
 pub enum ExpressionKind<'hir> {
     Constant(Spanned<cyntax_parser::constant::IntConstant>),
     BinaryOp(Spanned<ast::InfixOperator>, &'hir Expression<'hir>, &'hir Expression<'hir>),
-    DeclarationReference(HirId)
+    DeclarationReference(HirId),
 }
 #[derive(Debug)]
 pub struct Statement<'hir> {
     pub id: usize,
     pub span: Location,
-    pub kind: StatementKind<'hir>
+    pub kind: StatementKind<'hir>,
 }
 #[derive(Debug)]
 pub enum StatementKind<'hir> {
     Compound(&'hir [BlockItem<'hir>]),
-    Expression(&'hir Expression<'hir>)
+    Expression(&'hir Expression<'hir>),
 }
 #[derive(Debug)]
 pub enum BlockItem<'hir> {
     Declaration(&'hir Declaration<'hir>),
-    Statement(&'hir Statement<'hir>)
+    Statement(&'hir Statement<'hir>),
 }
-
-
 
 #[derive(Debug, Clone)]
 pub struct TyQualifiers {
@@ -71,6 +69,18 @@ pub struct ParsedDeclarationSpecifiers {
     pub specifiers: TypeSpecifierStateMachine,
     pub qualifier: TyQualifiers,
 }
+#[derive(Debug)]
+pub struct Ty<'hir> {
+    pub id: HirId,
+    pub kind: TyKind<'hir>
+}
+#[derive(Debug, Clone)]
+pub enum TyKind<'hir> {
+    Base(ParsedDeclarationSpecifiers),
+    Pointer(Vec<Spanned<ast::TypeQualifier>>, Box<TyKind<'hir>>),
+    Function { return_ty: Box<TyKind<'hir>>, parameters: &'hir [&'hir Ty<'hir>] },
+}
+
 #[derive(Debug, Clone)]
 #[rustfmt::skip]
 pub enum TypeSpecifierStateMachine {
@@ -96,18 +106,6 @@ pub enum TypeSpecifierStateMachine {
     FloatComplex,
     DoubleComplex,
     LongDoubleComplex,
-}
-
-
-
-#[derive(Debug, Clone)]
-pub enum DerivedTy {
-    Base(ParsedDeclarationSpecifiers),
-    Pointer(Vec<Spanned<ast::TypeQualifier>>, Box<Self>),
-    Function{
-        return_ty: Box<Self>,
-        parameters: Vec<Self>
-    }
 }
 
 
