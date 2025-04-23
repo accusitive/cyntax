@@ -33,7 +33,12 @@ pub struct StructType<'hir> {
 #[derive(Debug)]
 pub enum StructTypeKind<'hir> {
     Incomplete,
-    Complete(Vec<&'hir Ty<'hir>>)
+    Complete(&'hir [&'hir StructField<'hir>])
+}
+#[derive(Debug)]
+pub struct StructField<'hir> {
+    pub identifier: Option<ast::Identifier>,
+    pub ty: &'hir Ty<'hir>,
 }
 #[derive(Debug)]
 pub enum Initializer<'hir> {
@@ -88,13 +93,13 @@ pub struct SpecifierQualifiers {
 #[derive(Debug)]
 pub struct Ty<'hir> {
     pub id: HirId,
-    pub kind: TyKind<'hir>
+    pub kind: DerivedTy<'hir>
 }
 #[derive(Debug, Clone)]
-pub enum TyKind<'hir> {
+pub enum DerivedTy<'hir> {
     Base(SpecifierQualifiers),
-    Pointer(Vec<Spanned<ast::TypeQualifier>>, Box<TyKind<'hir>>),
-    Function { return_ty: Box<TyKind<'hir>>, parameters: &'hir [&'hir Ty<'hir>] },
+    Pointer(Vec<Spanned<ast::TypeQualifier>>, Box<DerivedTy<'hir>>),
+    Function { return_ty: Box<DerivedTy<'hir>>, parameters: &'hir [&'hir Ty<'hir>] },
     Array(Box<Self>, &'hir Expression<'hir>)
 }
 

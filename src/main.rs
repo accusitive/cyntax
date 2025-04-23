@@ -1,4 +1,4 @@
-use std::{iter::once, str::FromStr};
+use std::str::FromStr;
 
 use codespan_reporting::{files::SimpleFiles, term::termcolor::Ansi};
 use colored::{ColoredString, Colorize};

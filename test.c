@@ -1,10 +1,10 @@
 int main()
 {
-    struct xy
+    typedef struct xy
     {
-        struct xy test;
         int x;
         int y;
+    } xys;
 
-    } location;
+    xys instance;
 }

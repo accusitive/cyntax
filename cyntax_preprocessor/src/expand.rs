@@ -438,7 +438,7 @@ impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
             let token = token.as_token();
             end = token.end();
             match token {
-                span!(rp, ref tok @ PreprocessingToken::Punctuator((Punctuator::RightParen | Punctuator::RightBracket | Punctuator::RightBrace))) if *tok == expected_closer => {
+                span!(rp, ref tok @ PreprocessingToken::Punctuator(Punctuator::RightParen | Punctuator::RightBracket | Punctuator::RightBrace)) if *tok == expected_closer => {
                     return Ok(Spanned::new(
                         opening_token.location.clone(),
                         PreprocessingToken::Delimited(Box::new(Delimited {

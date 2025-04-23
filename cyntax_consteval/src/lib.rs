@@ -19,6 +19,7 @@ impl<'src> ConstantEvalutator<'src> {
         Self { ctx }
     }
     pub fn evaluate(&mut self, expr: &Spanned<Expression>) -> PResult<Value> {
+        #[allow(unused_variables)]
         match expr {
             span!(Expression::Identifier(identifier)) if identifier.value == self.ctx.ints("true") => Ok(Value::Int(1)),
             span!(Expression::Identifier(identifier)) if identifier.value == self.ctx.ints("false") => Ok(Value::Int(0)),
