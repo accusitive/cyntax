@@ -7,9 +7,12 @@ use cyntax_common::{
     spanned::{Location, Spanned},
 };
 use cyntax_errors::{Diagnostic, errors::SimpleError};
-use cyntax_hir::{self as hir, DerivedTy, HirId, ParsedDeclarationSpecifiers, SpecifierQualifiers, StructField, StructType, StructTypeKind, Ty, TyQualifiers, TypeSpecifierStateMachine};
+use cyntax_hir::{self as hir, BlockItem, FunctionParameter, HirId, ParsedDeclarationSpecifiers, SpecifierQualifiers, StructField, StructType, StructTypeKind, Ty, TyKind, TyQualifiers, TypeSpecifierStateMachine};
 pub use cyntax_parser::ast;
-use cyntax_parser::ast::{DeclarationSpecifier, Identifier, SpecifierQualifier};
+use cyntax_parser::{
+    ast::{DeclarationSpecifier, Identifier, IterationStatement, SpecifierQualifier},
+    constant::{self, IntConstant},
+};
 
 pub type PResult<T> = Result<T, cyntax_errors::codespan_reporting::diagnostic::Diagnostic<usize>>;
 
@@ -80,6 +83,23 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
     pub fn lower_external_declaration(&mut self, external_declation: &ast::ExternalDeclaration) -> PResult<Vec<&'hir hir::ExternalDeclaration<'hir>>> {
         match external_declation {
             ast::ExternalDeclaration::FunctionDefinition(function_definition) => {
+                let base = self.lower_declaration_ty_specifiers(&function_definition.specifiers)?;
+                let ty = self.lower_ty(&base, &function_definition.declarator)?;
+                if let TyKind::Function { return_ty, parameters } = &ty.kind {
+                    for param in *parameters {
+                        let id = self.next_id();
+                        let declaration = hir::Declaration { id, loc: Location::new(), init: None, ty };
+                        let declaration: &'hir _ = self.arena.alloc(declaration);
+                        self.map.ordinary.insert(id, declaration);
+
+                        if let Some(identifier) = &param.identifier {
+                            self.scopes.last_mut().unwrap().ordinary.insert(identifier.value, id);
+                        }
+                    }
+
+                    dbg!(&return_ty, &parameters);
+                    // self.scopes.last_mut().unwrap().ordinary.
+                }
                 let body = self.lower_statement(&function_definition.body)?;
                 Ok(vec![self.arena.alloc(hir::ExternalDeclaration::FunctionDefinition(hir::FunctionDefinition { body }))])
             }
@@ -102,7 +122,6 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
             let id = self.next_id();
             let is_typedef = matches!(&specifiers.class, Some(ast::StorageClassSpecifier::Typedef));
             if let Some(identifier) = init_declarator.value.declarator.value.get_identifier() {
-                // self.scopes.last_mut().unwrap().ordinary.insert(identifier, id);
                 if is_typedef {
                     self.scopes.last_mut().unwrap().typedefs.insert(identifier, id);
                 } else {
@@ -253,10 +272,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                 for struct_declarator in &declaration.value.declarators {
                     let ty = self.lower_ty(&base, &struct_declarator.declarator.as_ref().unwrap())?;
                     let name = struct_declarator.declarator.as_ref().map(|decl| decl.value.get_identifier().expect("curious if this is ever none"));
-                    fields.push(&*self.arena.alloc(StructField {
-                        ty,
-                        identifier: name
-                    }));
+                    fields.push(&*self.arena.alloc(StructField { ty, identifier: name }));
                 }
             }
             let struct_ty = StructType {
@@ -277,7 +293,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
             decl.ty.kind.clone()
         } else {
             // cloning here is fine honestly, these types are so cheap
-            DerivedTy::Base(SpecifierQualifiers {
+            TyKind::Base(SpecifierQualifiers {
                 specifiers: base.specifiers.clone(),
                 qualifier: base.qualifier.clone(),
             })
@@ -295,7 +311,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                 ast::Declarator::Pointer(ptr_info, inner) => {
                     let mut ptr = Some(&ptr_info.value);
                     while let Some(p) = ptr {
-                        kind = DerivedTy::Pointer(p.type_qualifiers.clone(), Box::new(kind));
+                        kind = TyKind::Pointer(p.type_qualifiers.clone(), Box::new(kind));
                         ptr = p.ptr.as_ref().map(|boxed| &boxed.value);
                     }
                     next = Some(inner.deref());
@@ -311,12 +327,13 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                         // let spec = DeclarationSpecifierParser::new(param.value.specifiers.iter(), &self.scopes, &mut self.map).parse()?;
                         let spec = self.lower_declaration_ty_specifiers(&param.value.specifiers)?;
 
-                        let d = self.lower_ty(&spec, param.value.declarator.as_ref().unwrap_or(&Spanned::new(Location::new(), ast::Declarator::Abstract)))?;
-                        parameters.push(d);
+                        let ty = self.lower_ty(&spec, param.value.declarator.as_ref().unwrap_or(&Spanned::new(Location::new(), ast::Declarator::Abstract)))?;
+                        let name = param.value.declarator.as_ref().map(|declarator| declarator.value.get_identifier().map(|identifier| declarator.location.to_spanned(identifier))).flatten();
+                        parameters.push(FunctionParameter { ty, identifier: name });
                     }
                     let parameters: &'hir _ = self.arena.alloc_slice_fill_iter(parameters.into_iter());
 
-                    kind = DerivedTy::Function { return_ty: Box::new(kind), parameters };
+                    kind = TyKind::Function { return_ty: Box::new(kind), parameters };
                     next = Some(inner);
                 }
                 // decl[]
@@ -327,7 +344,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                     type_qualifiers: _,
                     expr,
                 } => {
-                    kind = DerivedTy::Array(Box::new(kind), self.lower_expression(expr.as_ref().unwrap())?);
+                    kind = TyKind::Array(Box::new(kind), self.lower_expression(expr.as_ref().unwrap())?);
                     next = Some(base);
                 }
             }
@@ -357,12 +374,79 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                 hir::StatementKind::Compound(self.arena.alloc_slice_fill_iter(hir_block_items.into_iter()))
             }
             ast::Statement::Expression(expression) => hir::StatementKind::Expression(self.arena.alloc(self.lower_expression(expression)?)),
+            ast::Statement::Iteration(IterationStatement::While(condition, body)) => hir::StatementKind::While(self.lower_expression(condition)?, self.lower_statement(&statement)?),
+            ast::Statement::Iteration(IterationStatement::ForLoop { init, condition, update, body }) => {
+                let mut block_items = vec![];
+                if let Some(init) = init {
+                    match init {
+                        ast::ForInit::Expression(expression) => {
+                            let id = self.next_id();
+                            block_items.push(hir::BlockItem::Statement(self.arena.alloc(hir::Statement {
+                                id,
+                                span: expression.location.clone(),
+                                kind: hir::StatementKind::Expression(self.lower_expression(expression)?),
+                            })));
+                        }
+                        ast::ForInit::Declaration(spanned) => {
+                            let bi = self.lower_declaration(&spanned.value)?;
+                            block_items.extend(bi.into_iter().map(|declaration| BlockItem::Declaration(declaration)));
+                        }
+                    }
+                }
+                let control = if let Some(condition) = condition {
+                    self.lower_expression(condition)?
+                } else {
+                    let id = self.next_id();
+                    self.arena.alloc(hir::Expression {
+                        id,
+                        loc: Location::new(),
+                        kind: hir::ExpressionKind::Constant(Location::new().to_spanned(IntConstant {
+                            number: "1".to_string(),
+                            suffix: constant::Suffix {
+                                signed: constant::Signedness::None,
+                                width: constant::Width::None,
+                            },
+                            base: 10,
+                        })),
+                    })
+                };
+                let id = self.next_id();
+
+                let inner = {
+                    let id = self.next_id();
+                    let mut block_items = vec![];
+                    block_items.push(hir::BlockItem::Statement(self.lower_statement(&body)?));
+
+                    if let Some(update) = update {
+                        block_items.push(hir::BlockItem::Statement(self.arena.alloc(hir::Statement {
+                            id,
+                            span: update.location.clone(),
+                            kind: hir::StatementKind::Expression(self.lower_expression(update)?),
+                        })));
+                    }
+                    let block_items: &'hir _ = self.arena.alloc_slice_fill_iter(block_items.into_iter());
+                    self.arena.alloc(hir::Statement {
+                        id,
+                        span: body.location.clone(),
+                        kind: hir::StatementKind::Compound(block_items),
+                    })
+                };
+
+                block_items.push(BlockItem::Statement(self.arena.alloc(hir::Statement {
+                    id,
+                    span: statement.location.clone(),
+                    kind: hir::StatementKind::While(control, inner),
+                })));
+                let block_items: &'hir _ = self.arena.alloc_slice_fill_iter(block_items.into_iter());
+                hir::StatementKind::Compound(block_items)
+            }
             ast::Statement::Iteration(iteration_statement) => todo!(),
             ast::Statement::Goto(spanned) => todo!(),
             ast::Statement::Continue => todo!(),
             ast::Statement::Break => todo!(),
             ast::Statement::Error => todo!(),
-            ast::Statement::Return(spanned) => todo!(),
+            ast::Statement::Return(Some(expression)) => hir::StatementKind::Return(Some(self.lower_expression(expression)?)),
+            ast::Statement::Return(None) => hir::StatementKind::Return(None),
             ast::Statement::If(spanned, statement, statement1) => todo!(),
             ast::Statement::Switch(spanned, statement) => todo!(),
         };
@@ -373,13 +457,14 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
     pub fn lower_expression(&mut self, expression: &Spanned<ast::Expression>) -> PResult<&'hir hir::Expression<'hir>> {
         #[allow(unused_variables)]
         let kind = match &expression.value {
+            ast::Expression::Parenthesized(expr) => return self.lower_expression(expr.deref()),
+
             ast::Expression::Identifier(identifier) => {
                 let hir_id = self.find_in_scope(identifier)?;
                 hir::ExpressionKind::DeclarationReference(hir_id)
             }
             ast::Expression::IntConstant(constant) => hir::ExpressionKind::Constant(constant.clone()),
             ast::Expression::StringLiteral(literal) => todo!(),
-            ast::Expression::Parenthesized(expr) => todo!(),
             ast::Expression::BinOp(op, lhs, rhs) => {
                 let lhs = self.lower_expression(lhs.deref())?;
                 let rhs = self.lower_expression(rhs.deref())?;

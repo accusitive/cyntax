@@ -66,6 +66,8 @@ pub struct Statement<'hir> {
 pub enum StatementKind<'hir> {
     Compound(&'hir [BlockItem<'hir>]),
     Expression(&'hir Expression<'hir>),
+    Return(Option<&'hir Expression<'hir>>),
+    While(&'hir Expression<'hir>, &'hir Statement<'hir>)
 }
 #[derive(Debug)]
 pub enum BlockItem<'hir> {
@@ -93,16 +95,21 @@ pub struct SpecifierQualifiers {
 #[derive(Debug)]
 pub struct Ty<'hir> {
     pub id: HirId,
-    pub kind: DerivedTy<'hir>
+    pub kind: TyKind<'hir>
 }
 #[derive(Debug, Clone)]
-pub enum DerivedTy<'hir> {
+pub enum TyKind<'hir> {
     Base(SpecifierQualifiers),
-    Pointer(Vec<Spanned<ast::TypeQualifier>>, Box<DerivedTy<'hir>>),
-    Function { return_ty: Box<DerivedTy<'hir>>, parameters: &'hir [&'hir Ty<'hir>] },
+    Pointer(Vec<Spanned<ast::TypeQualifier>>, Box<TyKind<'hir>>),
+    Function { return_ty: Box<TyKind<'hir>>, parameters: &'hir [FunctionParameter<'hir>] },
     Array(Box<Self>, &'hir Expression<'hir>)
 }
 
+#[derive(Debug)]
+pub struct FunctionParameter<'hir> {
+    pub ty: &'hir Ty<'hir>,
+    pub identifier: Option<Spanned<ast::Identifier>>
+}
 #[derive(Debug, Clone)]
 #[rustfmt::skip]
 pub enum TypeSpecifierStateMachine {

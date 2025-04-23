@@ -1,10 +1,6 @@
-int main()
+int add(int left, int right)
 {
-    typedef struct xy
+    for (int i = 0; i < 10; i = i + 1)
     {
-        int x;
-        int y;
-    } xys;
-
-    xys instance;
+    }
 }
