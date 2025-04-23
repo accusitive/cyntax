@@ -6,11 +6,11 @@ use std::ops::Deref;
 // type specifiers shall be one of the following sets (delimited by commas, when there is
 // more than one set on a line); the type specifiers may occur in any order, possibly
 // intermixed with the other declaration specifiers.
-use crate::{PResult, Scope};
+use crate::{HirMap, PResult, Scope};
 use cyntax_common::spanned::{Location, Spanned};
 use cyntax_errors::{Diagnostic, Label, errors::SimpleError};
 use cyntax_hir::{HirId, ParsedDeclarationSpecifiers, TyQualifiers, TypeSpecifierStateMachine};
-use cyntax_parser::ast::{self, Identifier};
+use cyntax_parser::ast::{self, Identifier, StructOrUnionDeclaration};
 // 6.7.2 Type specifiers
 // — void
 // — char
@@ -59,21 +59,23 @@ use cyntax_parser::ast::{self, Identifier};
 
 
 #[derive(Debug)]
-pub struct DeclarationSpecifierParser<'a, I: Iterator<Item = &'a Spanned<ast::DeclarationSpecifier>>> {
+pub struct DeclarationSpecifierParser<'hir, 'a, I: Iterator<Item = &'a Spanned<ast::DeclarationSpecifier>>> {
     input: I,
     class: Option<&'a ast::StorageClassSpecifier>,
     base_type: TypeSpecifierStateMachine,
     qualifier: TyQualifiers,
-    scopes: &'a Vec<Scope>
+    scopes: &'a Vec<Scope>,
+    map: &'a mut HirMap<'hir>
 }
-impl<'a, I: Iterator<Item = &'a Spanned<ast::DeclarationSpecifier>>> DeclarationSpecifierParser<'a, I> {
-    pub fn new(input: I, scopes: &'a Vec<Scope>) -> Self {
+impl<'hir, 'a, I: Iterator<Item = &'a Spanned<ast::DeclarationSpecifier>>> DeclarationSpecifierParser<'hir, 'a, I> {
+    pub fn new(input: I, scopes: &'a Vec<Scope>, map: &'a mut HirMap<'hir>) -> Self {
         Self {
             input,
             class: None,
             base_type: TypeSpecifierStateMachine::None,
             qualifier: TyQualifiers { conzt: false, restrict: false, volatile: false },
-            scopes
+            scopes,
+            map
         }
     }
     pub fn parse(mut self) -> PResult<ParsedDeclarationSpecifiers> {
@@ -101,6 +103,17 @@ impl<'a, I: Iterator<Item = &'a Spanned<ast::DeclarationSpecifier>>> Declaration
                         let t = self.find_typedef_in_scope(&loc, typedef_name)?;
 
                         self.base_type = self.base_type.typedef_name(loc, t)?;
+                    }
+                    ast::TypeSpecifier::Struct(soud) => {
+                        self.map.tags.insert(0, ());
+                        
+                        // self.base_type = self.base_type.struct_or_union(loc)?;
+                        // for declaration in &soud.declarations {
+                            // let sqp = SpecifierQualifierParser::new(declaration.specifier_qualifiers.iter(), &self.scopes).parse()?;
+                            // for declarator in &declaration.declarators {
+                                
+                            // }
+                        // }
                     }
                     x => unimplemented!("{x:?}"),
                 },
@@ -132,3 +145,89 @@ impl<'a, I: Iterator<Item = &'a Spanned<ast::DeclarationSpecifier>>> Declaration
         Err(SimpleError(loc.clone(), format!("could not find typedef in scope")).into_codespan_report())
     }
 }
+// #[derive(Debug)]
+// pub struct SpecifierQualifierParser<'a, I: Iterator<Item = &'a ast::SpecifierQualifier>> {
+//     input: I,
+//     base_type: TypeSpecifierStateMachine,
+//     qualifier: TyQualifiers,
+//     scopes: &'a Vec<Scope>
+// }
+
+// impl<'a, I: Iterator<Item = &'a ast::SpecifierQualifier>> SpecifierQualifierParser<'a, I> {
+//     pub fn new(input: I, scopes: &'a Vec<Scope>) -> Self {
+//         Self {
+//             input,
+//             base_type: TypeSpecifierStateMachine::None,
+//             qualifier: TyQualifiers { conzt: false, restrict: false, volatile: false },
+//             scopes
+//         }
+//     }
+//     pub fn parse(mut self) -> PResult<ParsedDeclarationSpecifiers> {
+//         let mut last_location = Location::new();
+//         while let Some(specifier) = self.input.next() {
+//             let loc = specifier.location.clone();
+//             last_location = loc.clone();
+//             match &specifier.value {
+//                 ast::SpecifierQualifier::Specifier(type_specifier) => match type_specifier {
+//                     ast::TypeSpecifier::Void => self.base_type = self.base_type.void(loc)?,
+//                     ast::TypeSpecifier::Char => self.base_type = self.base_type.char(loc)?,
+//                     ast::TypeSpecifier::Short => self.base_type = self.base_type.short(loc)?,
+//                     ast::TypeSpecifier::Int => self.base_type = self.base_type.int(loc)?,
+//                     ast::TypeSpecifier::Long => self.base_type = self.base_type.long(loc)?,
+//                     ast::TypeSpecifier::Float => self.base_type = self.base_type.float(loc)?,
+//                     ast::TypeSpecifier::Double => self.base_type = self.base_type.double(loc)?,
+//                     ast::TypeSpecifier::Signed => self.base_type = self.base_type.signed(loc)?,
+//                     ast::TypeSpecifier::Unsigned => self.base_type = self.base_type.unsigned(loc)?,
+//                     ast::TypeSpecifier::Bool => self.base_type = self.base_type.bool(loc)?,
+//                     ast::TypeSpecifier::TypedefName(typedef_name) =>{
+//                         let t = self.find_typedef_in_scope(&loc, &typedef_name)?;
+
+//                         self.base_type = self.base_type.typedef_name(loc, t)?;
+//                     }
+//                     ast::TypeSpecifier::Struct(soud) => {
+//                         for declaration in &soud.declarations {
+//                             let specifiers = ParsedDeclarationSpecifiers {
+//                                 class: None,
+//                                 specifiers: TypeSpecifierStateMachine::None,
+//                                 qualifier: TyQualifiers { conzt: false, restrict: false, volatile: false },
+//                             };
+
+//                             for sq in &declaration.specifier_qualifiers {
+//                                 match sq {
+//                                     ast::SpecifierQualifier::Specifier(type_specifier) => ,
+//                                     ast::SpecifierQualifier::Qualifier(type_qualifier) => todo!(),
+//                                 }
+//                             }
+
+
+//                         }
+//                     }
+//                     x => unimplemented!("{x:?}"),
+//                 },
+//                 ast::SpecifierQualifier::Qualifier(type_qualifier) => match type_qualifier {
+//                     ast::TypeQualifier::Const => self.qualifier.conzt = true,
+//                     ast::TypeQualifier::Restrict => self.qualifier.restrict = true,
+//                     ast::TypeQualifier::Volatile => self.qualifier.volatile = true,
+//                 },
+//             }
+//         }
+//         if let TypeSpecifierStateMachine::None = self.base_type {
+//             return Err(SimpleError(last_location, format!("must have at least 1 type specifier")).into_codespan_report());
+//         }
+
+//         Ok(ParsedDeclarationSpecifiers {
+//             class: None,
+//             specifiers: self.base_type,
+//             qualifier: self.qualifier,
+//         })
+//     }
+//     fn find_typedef_in_scope(&mut self, loc: &Location, identifier: &Identifier) -> PResult<HirId> {
+//         // reversed, because the newest scope has priority over the 2nd newest
+//         for scope in self.scopes.iter().rev() {
+//             if let Some(&id) = scope.typedefs.get(&identifier) {
+//                 return Ok(id);
+//             }
+//         }
+//         Err(SimpleError(loc.clone(), format!("could not find typedef in scope")).into_codespan_report())
+//     }
+// }

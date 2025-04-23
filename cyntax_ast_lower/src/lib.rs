@@ -93,7 +93,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
         }
     }
     pub fn lower_declaration(&mut self, declaration: &ast::Declaration) -> PResult<Vec<&'hir hir::Declaration<'hir>>> {
-        let parser = DeclarationSpecifierParser::new(declaration.specifiers.iter(), &self.scopes);
+        let parser = DeclarationSpecifierParser::new(declaration.specifiers.iter(), &self.scopes, &mut self.map);
         let specifiers = parser.parse()?;
         let mut d = vec![];
         for init_declarator in &declaration.init_declarators {
@@ -177,7 +177,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                 ast::Declarator::Function(inner, parameter_list) => {
                     let mut parameters = vec![];
                     for param in &parameter_list.parameters {
-                        let spec = DeclarationSpecifierParser::new(param.value.specifiers.iter(), &self.scopes).parse()?;
+                        let spec = DeclarationSpecifierParser::new(param.value.specifiers.iter(), &self.scopes, &mut self.map).parse()?;
                         let d = self.lower_ty(&spec, param.value.declarator.as_ref().unwrap_or(&Spanned::new(Location::new(), ast::Declarator::Abstract)))?;
                         parameters.push(d);
                     }

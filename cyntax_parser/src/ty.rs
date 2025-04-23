@@ -22,15 +22,15 @@ impl<'src> Parser<'src> {
 
             self.expect_token(Token::Punctuator(Punctuator::RightBrace), "to close struct type specifier")?;
             if is_union {
-                Ok(ast::TypeSpecifier::Union(StructOrUnionSpecifier { tag, declarations: vec![] }))
-            } else {
                 Ok(ast::TypeSpecifier::Union(StructOrUnionSpecifier { tag, declarations }))
+            } else {
+                Ok(ast::TypeSpecifier::Struct(StructOrUnionSpecifier { tag, declarations }))
             }
         } else {
             if is_union {
                 Ok(ast::TypeSpecifier::Union(StructOrUnionSpecifier { tag, declarations: vec![] }))
             } else {
-                Ok(ast::TypeSpecifier::Union(StructOrUnionSpecifier { tag, declarations: vec![] }))
+                Ok(ast::TypeSpecifier::Struct(StructOrUnionSpecifier { tag, declarations: vec![] }))
             }
         }
     }

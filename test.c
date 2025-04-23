@@ -6,11 +6,23 @@
 // int a = 5;
 int main()
 {
-    typedef const signed long long int *intptr;
+name:
+{
+    struct name
+    {
+        int name;
+    } name;
+    
+    struct name;
+    name.name;
+    goto name;
 
-    intptr test<:5:> = 5;
-    // intptr i = 5;
-    // i = 10;
+}
 
-    // int (a)(int, int**);
+
+    // struct {
+    //     int x;
+    //     int y;
+
+    // } Test;
 }

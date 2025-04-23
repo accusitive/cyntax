@@ -25,6 +25,15 @@ pub struct Declaration<'hir> {
     pub ty: &'hir Ty<'hir>,
 }
 #[derive(Debug)]
+pub struct StructType {
+    pub id: HirId,
+    pub kind: StructTypeKind
+}
+#[derive(Debug)]
+pub enum StructTypeKind {
+    Incomplete
+}
+#[derive(Debug)]
 pub enum Initializer<'hir> {
     Assignment(&'hir Expression<'hir>),
 }
@@ -105,7 +114,7 @@ pub enum TypeSpecifierStateMachine {
     Float,
     Double,
     LongDouble,
-    StructOrUnion,
+    StructOrUnion(HirId),
     Enum,
     Typedef(HirId),
     Bool,
@@ -247,9 +256,9 @@ impl TypeSpecifierStateMachine {
         }
     }
 
-    pub fn struct_or_union(&self, loc: Location) -> PResult<Self> {
+    pub fn struct_or_union(&self, loc: Location, struc: HirId) -> PResult<Self> {
         match self {
-            TypeSpecifierStateMachine::None => Ok(Self::StructOrUnion),
+            TypeSpecifierStateMachine::None => Ok(Self::StructOrUnion(struc)),
             _ => Err(TypeSpecifierStateMachineError::InvalidTransition(self, loc, "struct").into_codespan_report()),
         }
     }
