@@ -25,13 +25,15 @@ pub struct Declaration<'hir> {
     pub ty: &'hir Ty<'hir>,
 }
 #[derive(Debug)]
-pub struct StructType {
+pub struct StructType<'hir> {
     pub id: HirId,
-    pub kind: StructTypeKind
+    pub tag: Option<ast::Identifier>,
+    pub kind: StructTypeKind<'hir>,
 }
 #[derive(Debug)]
-pub enum StructTypeKind {
-    Incomplete
+pub enum StructTypeKind<'hir> {
+    Incomplete,
+    Complete(Vec<&'hir Ty<'hir>>)
 }
 #[derive(Debug)]
 pub enum Initializer<'hir> {
@@ -123,7 +125,6 @@ pub enum TypeSpecifierStateMachine {
     LongDoubleComplex,
 }
 
-
 impl<'a> Diagnostic for TypeSpecifierStateMachineError<'a> {
     fn title<'b>(&self) -> &'b str {
         "error while parsing type specifiers"
@@ -144,7 +145,23 @@ impl<'a> Diagnostic for TypeSpecifierStateMachineError<'a> {
         }
     }
 }
-
+impl From<ParsedDeclarationSpecifiers> for SpecifierQualifiers {
+    fn from(value: ParsedDeclarationSpecifiers) -> Self {
+        Self {
+            specifiers: value.specifiers,
+            qualifier: value.qualifier,
+        }
+    }
+}
+impl From<SpecifierQualifiers> for ParsedDeclarationSpecifiers {
+    fn from(value: SpecifierQualifiers) -> Self {
+        Self {
+            specifiers: value.specifiers,
+            qualifier: value.qualifier,
+            class: None
+        }
+    }
+}
 enum TypeSpecifierStateMachineError<'a> {
     InvalidTransition(&'a TypeSpecifierStateMachine, Location, &'a str),
 }
@@ -293,3 +310,4 @@ impl TypeSpecifierStateMachine {
         }
     }
 }
+

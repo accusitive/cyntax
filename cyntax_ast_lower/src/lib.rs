@@ -7,20 +7,18 @@ use cyntax_common::{
     spanned::{Location, Spanned},
 };
 use cyntax_errors::{Diagnostic, errors::SimpleError};
-use cyntax_hir::{self as hir, HirId, ParsedDeclarationSpecifiers, SpecifierQualifiers, Ty, TyKind, TypeSpecifierStateMachine};
+use cyntax_hir::{self as hir, HirId, ParsedDeclarationSpecifiers, SpecifierQualifiers, StructType, StructTypeKind, Ty, TyKind, TyQualifiers, TypeSpecifierStateMachine};
 pub use cyntax_parser::ast;
-use cyntax_parser::ast::Identifier;
-use ty::DeclarationSpecifierParser;
+use cyntax_parser::ast::{DeclarationSpecifier, Identifier, SpecifierQualifier};
 
-mod ty;
 pub type PResult<T> = Result<T, cyntax_errors::codespan_reporting::diagnostic::Diagnostic<usize>>;
 
 #[derive(Debug)]
 pub struct AstLower<'src, 'hir> {
     pub ctx: &'src mut Context,
     map: HirMap<'hir>,
-    scopes: Vec<Scope>,
     arena: &'hir Bump,
+    scopes: Vec<Scope>,
     next_id: usize,
 }
 #[derive(Debug)]
@@ -30,7 +28,7 @@ pub struct HirMap<'hir> {
     // a type probably?
     typedefs: HashMap<HirId, &'hir hir::Declaration<'hir>>,
     // etc
-    tags: HashMap<HirId, ()>,
+    tags: HashMap<HirId, &'hir hir::StructType<'hir>>,
     // etc, i dont even think this needs anything; labels have practically no data
     labels: HashMap<HirId, ()>,
 }
@@ -93,8 +91,10 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
         }
     }
     pub fn lower_declaration(&mut self, declaration: &ast::Declaration) -> PResult<Vec<&'hir hir::Declaration<'hir>>> {
-        let parser = DeclarationSpecifierParser::new(declaration.specifiers.iter(), &self.scopes, &mut self.map);
-        let specifiers = parser.parse()?;
+        let specifiers = self.lower_declaration_ty_specifiers(&declaration.specifiers)?;
+
+        // let parser = DeclarationSpecifierParser::new(declaration.specifiers.iter(), &self.scopes, &mut self.map);
+        // let specifiers = parser.parse()?;
         let mut d = vec![];
         for init_declarator in &declaration.init_declarators {
             let lowered_ty = self.lower_ty(&specifiers, &init_declarator.value.declarator)?;
@@ -137,6 +137,133 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
             span!(ast::Initializer::List(designated_intiializers)) => todo!(),
         }
     }
+    fn lower_declaration_ty_specifiers(&mut self, specifiers: &[Spanned<DeclarationSpecifier>]) -> PResult<ParsedDeclarationSpecifiers> {
+        let mut base_type = TypeSpecifierStateMachine::None;
+        let mut qualifier = TyQualifiers { conzt: false, restrict: false, volatile: false };
+        let mut class = None;
+
+        let mut last_location = Location::new();
+
+        for specifier in specifiers {
+            let loc = specifier.location.clone();
+            last_location = loc.clone();
+            match &specifier.value {
+                ast::DeclarationSpecifier::StorageClass(storage_class_specifier) => match storage_class_specifier {
+                    _ if class.is_some() => return Err(SimpleError(specifier.location.clone(), format!("already have a storage class")).into_codespan_report()),
+                    storage_class => class = Some(storage_class),
+                },
+                ast::DeclarationSpecifier::TypeSpecifier(type_specifier) => match type_specifier {
+                    ast::TypeSpecifier::Void => base_type = base_type.void(loc)?,
+                    ast::TypeSpecifier::Char => base_type = base_type.char(loc)?,
+                    ast::TypeSpecifier::Short => base_type = base_type.short(loc)?,
+                    ast::TypeSpecifier::Int => base_type = base_type.int(loc)?,
+                    ast::TypeSpecifier::Long => base_type = base_type.long(loc)?,
+                    ast::TypeSpecifier::Float => base_type = base_type.float(loc)?,
+                    ast::TypeSpecifier::Double => base_type = base_type.double(loc)?,
+                    ast::TypeSpecifier::Signed => base_type = base_type.signed(loc)?,
+                    ast::TypeSpecifier::Unsigned => base_type = base_type.unsigned(loc)?,
+                    ast::TypeSpecifier::Bool => base_type = base_type.bool(loc)?,
+                    ast::TypeSpecifier::TypedefName(typedef_name) => {
+                        let t = self.find_typedef_in_scope(&loc.to_spanned(*typedef_name))?;
+
+                        base_type = base_type.typedef_name(loc, t)?;
+                    }
+                    ast::TypeSpecifier::Struct(specifier) => {
+                        let id = self.lower_struct_ty_specifier(specifier)?;
+                        base_type = base_type.struct_or_union(loc, id)?;
+                    }
+                    x => unimplemented!("{x:?}"),
+                },
+                ast::DeclarationSpecifier::TypeQualifier(type_qualifier) => match type_qualifier {
+                    ast::TypeQualifier::Const => qualifier.conzt = true,
+                    ast::TypeQualifier::Restrict => qualifier.restrict = true,
+                    ast::TypeQualifier::Volatile => qualifier.volatile = true,
+                },
+                ast::DeclarationSpecifier::FunctionSpecifier(function_specifier) => todo!(),
+            }
+        }
+        if let TypeSpecifierStateMachine::None = base_type {
+            return Err(SimpleError(last_location, format!("must have at least 1 type specifier")).into_codespan_report());
+        }
+
+        Ok(ParsedDeclarationSpecifiers {
+            class: class.cloned(),
+            specifiers: base_type,
+            qualifier: qualifier,
+        })
+    }
+    fn lower_ty_specifiers_qualifiers(&mut self, specifiers: &[Spanned<SpecifierQualifier>]) -> PResult<SpecifierQualifiers> {
+        let mut base_type = TypeSpecifierStateMachine::None;
+        let mut qualifier = TyQualifiers { conzt: false, restrict: false, volatile: false };
+
+        let mut last_location = Location::new();
+
+        for specifier in specifiers {
+            let loc = specifier.location.clone();
+            last_location = loc.clone();
+            match &specifier.value {
+                ast::SpecifierQualifier::Specifier(type_specifier) => match type_specifier {
+                    ast::TypeSpecifier::Void => base_type = base_type.void(loc)?,
+                    ast::TypeSpecifier::Char => base_type = base_type.char(loc)?,
+                    ast::TypeSpecifier::Short => base_type = base_type.short(loc)?,
+                    ast::TypeSpecifier::Int => base_type = base_type.int(loc)?,
+                    ast::TypeSpecifier::Long => base_type = base_type.long(loc)?,
+                    ast::TypeSpecifier::Float => base_type = base_type.float(loc)?,
+                    ast::TypeSpecifier::Double => base_type = base_type.double(loc)?,
+                    ast::TypeSpecifier::Signed => base_type = base_type.signed(loc)?,
+                    ast::TypeSpecifier::Unsigned => base_type = base_type.unsigned(loc)?,
+                    ast::TypeSpecifier::Bool => base_type = base_type.bool(loc)?,
+                    ast::TypeSpecifier::TypedefName(typedef_name) => {
+                        let t = self.find_typedef_in_scope(&loc.to_spanned(*typedef_name))?;
+
+                        base_type = base_type.typedef_name(loc, t)?;
+                    }
+                    ast::TypeSpecifier::Struct(specifier) => {
+                        let id = self.lower_struct_ty_specifier(specifier)?;
+                        base_type = base_type.struct_or_union(loc, id)?;
+                    }
+                    x => unimplemented!("{x:?}"),
+                },
+                ast::SpecifierQualifier::Qualifier(type_qualifier) => match type_qualifier {
+                    ast::TypeQualifier::Const => qualifier.conzt = true,
+                    ast::TypeQualifier::Restrict => qualifier.restrict = true,
+                    ast::TypeQualifier::Volatile => qualifier.volatile = true,
+                },
+            }
+        }
+        if let TypeSpecifierStateMachine::None = base_type {
+            return Err(SimpleError(last_location, format!("must have at least 1 type specifier")).into_codespan_report());
+        }
+
+        Ok(SpecifierQualifiers { specifiers: base_type, qualifier })
+    }
+    fn lower_struct_ty_specifier(&mut self, specifier: &ast::StructOrUnionSpecifier) -> PResult<HirId> {
+        let id = self.next_id();
+        let struct_ty = StructType {
+            id,
+            tag: specifier.tag,
+            kind: cyntax_hir::StructTypeKind::Incomplete,
+        };
+        self.map.tags.insert(id, self.arena.alloc(struct_ty));
+
+        if let Some(declarations) = &specifier.declarations {
+            let mut fields = vec![];
+            for declaration in declarations {
+                let base = self.lower_ty_specifiers_qualifiers(&declaration.value.specifier_qualifiers)?.into();
+                for declarator in &declaration.value.declarators {
+                    let ty = self.lower_ty(&base, &declarator.declarator.as_ref().unwrap())?;
+                    fields.push(ty);
+                }
+            }
+            let struct_ty = StructType {
+                id,
+                tag: specifier.tag,
+                kind: StructTypeKind::Complete(fields),
+            };
+            self.map.tags.insert(id, self.arena.alloc(struct_ty));
+        }
+        Ok(id)
+    }
     fn lower_ty(&mut self, base: &ParsedDeclarationSpecifiers, declarator: &Spanned<ast::Declarator>) -> PResult<&'hir Ty<'hir>> {
         let id = self.next_id();
 
@@ -177,7 +304,9 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                 ast::Declarator::Function(inner, parameter_list) => {
                     let mut parameters = vec![];
                     for param in &parameter_list.parameters {
-                        let spec = DeclarationSpecifierParser::new(param.value.specifiers.iter(), &self.scopes, &mut self.map).parse()?;
+                        // let spec = DeclarationSpecifierParser::new(param.value.specifiers.iter(), &self.scopes, &mut self.map).parse()?;
+                        let spec = self.lower_declaration_ty_specifiers(&param.value.specifiers)?;
+
                         let d = self.lower_ty(&spec, param.value.declarator.as_ref().unwrap_or(&Spanned::new(Location::new(), ast::Declarator::Abstract)))?;
                         parameters.push(d);
                     }

@@ -22,38 +22,40 @@ impl<'src> Parser<'src> {
 
             self.expect_token(Token::Punctuator(Punctuator::RightBrace), "to close struct type specifier")?;
             if is_union {
-                Ok(ast::TypeSpecifier::Union(StructOrUnionSpecifier { tag, declarations }))
+                Ok(ast::TypeSpecifier::Union(StructOrUnionSpecifier { tag, declarations: Some(declarations) }))
             } else {
-                Ok(ast::TypeSpecifier::Struct(StructOrUnionSpecifier { tag, declarations }))
+                Ok(ast::TypeSpecifier::Struct(StructOrUnionSpecifier { tag, declarations: Some(declarations) }))
             }
         } else {
             if is_union {
-                Ok(ast::TypeSpecifier::Union(StructOrUnionSpecifier { tag, declarations: vec![] }))
+                Ok(ast::TypeSpecifier::Union(StructOrUnionSpecifier { tag, declarations: None }))
             } else {
-                Ok(ast::TypeSpecifier::Struct(StructOrUnionSpecifier { tag, declarations: vec![] }))
+                Ok(ast::TypeSpecifier::Struct(StructOrUnionSpecifier { tag, declarations: None }))
             }
         }
     }
 
-    pub fn parse_struct_declaration_list(&mut self) -> PResult<Vec<StructOrUnionDeclaration>> {
+    pub fn parse_struct_declaration_list(&mut self) -> PResult<Vec<Spanned<StructOrUnionDeclaration>>> {
         let mut struct_declarations = vec![];
         // because i use recoverable parsing on the inside of this, its fine to not check the current token
         while !matches!(self.peek_token(), Ok(span!(Token::Punctuator(Punctuator::RightBrace)))) {
-            if let Some((specifier_qualifiers, declarators)) = self.maybe_recover(
+            let start = self.last_location.clone();
+            if let Some((specifier_qualifiers, declarators, span)) = self.maybe_recover(
                 |this| {
+
                     let specifier_qualifiers = this.parse_specifier_qualifier_list()?;
-                    if !specifier_qualifiers.iter().any(|sq| matches!(sq, SpecifierQualifier::Specifier(_))) {
+                    if !specifier_qualifiers.iter().any(|sq| matches!(sq, span!(span, SpecifierQualifier::Specifier(_)))) {
                         return Err(SimpleError(this.last_location.clone(), "Struct declarations must have atleast one specifier".to_string()).into_codespan_report());
                     }
                     let declarators = this.parse_struct_declarator_list()?;
-                    this.expect_token(Token::Punctuator(Punctuator::Semicolon), "to end a struct declaration")?;
+                    let end = this.expect_token(Token::Punctuator(Punctuator::Semicolon), "to end a struct declaration")?;
 
-                    Ok(Some((specifier_qualifiers, declarators)))
+                    Ok(Some((specifier_qualifiers, declarators, start.until(&end.location))))
                 },
                 |_| None,
                 Token::Punctuator(Punctuator::Semicolon),
             ) {
-                struct_declarations.push(StructOrUnionDeclaration { declarators, specifier_qualifiers });
+                struct_declarations.push(span.into_spanned(StructOrUnionDeclaration { declarators, specifier_qualifiers }));
             }
         }
 
@@ -95,28 +97,28 @@ impl<'src> Parser<'src> {
         }
         Ok(enum_declarations)
     }
-    pub fn parse_specifier_qualifier_list(&mut self) -> PResult<Vec<SpecifierQualifier>> {
+    pub fn parse_specifier_qualifier_list(&mut self) -> PResult<Vec<Spanned<SpecifierQualifier>>> {
         let mut specifier_qualifiers = vec![];
         while self.can_parse_type_qualifier() || self.can_parse_type_specifier() {
             specifier_qualifiers.push(match self.next_token()? {
-                span!(Token::Keyword(Keyword::Void)) => SpecifierQualifier::Specifier(TypeSpecifier::Void),
-                span!(Token::Keyword(Keyword::Char)) => SpecifierQualifier::Specifier(TypeSpecifier::Char),
-                span!(Token::Keyword(Keyword::Short)) => SpecifierQualifier::Specifier(TypeSpecifier::Short),
-                span!(Token::Keyword(Keyword::Int)) => SpecifierQualifier::Specifier(TypeSpecifier::Int),
-                span!(Token::Keyword(Keyword::Long)) => SpecifierQualifier::Specifier(TypeSpecifier::Long),
-                span!(Token::Keyword(Keyword::Float)) => SpecifierQualifier::Specifier(TypeSpecifier::Float),
-                span!(Token::Keyword(Keyword::Double)) => SpecifierQualifier::Specifier(TypeSpecifier::Double),
-                span!(Token::Keyword(Keyword::Signed)) => SpecifierQualifier::Specifier(TypeSpecifier::Signed),
-                span!(Token::Keyword(Keyword::Unsigned)) => SpecifierQualifier::Specifier(TypeSpecifier::Unsigned),
-                span!(Token::Keyword(Keyword::Bool)) => SpecifierQualifier::Specifier(TypeSpecifier::Bool),
-                span!(Token::Keyword(Keyword::Complex)) => SpecifierQualifier::Specifier(TypeSpecifier::Complex),
-                span!(Token::Keyword(Keyword::Struct)) => SpecifierQualifier::Specifier(self.parse_struct_or_union_type_specifier(false)?),
-                span!(Token::Keyword(Keyword::Union)) => SpecifierQualifier::Specifier(self.parse_struct_or_union_type_specifier(true)?),
+                span!(span, Token::Keyword(Keyword::Void)) => span.into_spanned(SpecifierQualifier::Specifier(TypeSpecifier::Void)),
+                span!(span, Token::Keyword(Keyword::Char)) => span.into_spanned(SpecifierQualifier::Specifier(TypeSpecifier::Char)),
+                span!(span, Token::Keyword(Keyword::Short)) => span.into_spanned(SpecifierQualifier::Specifier(TypeSpecifier::Short)),
+                span!(span, Token::Keyword(Keyword::Int)) => span.into_spanned(SpecifierQualifier::Specifier(TypeSpecifier::Int)),
+                span!(span, Token::Keyword(Keyword::Long)) => span.into_spanned(SpecifierQualifier::Specifier(TypeSpecifier::Long)),
+                span!(span, Token::Keyword(Keyword::Float)) => span.into_spanned(SpecifierQualifier::Specifier(TypeSpecifier::Float)),
+                span!(span, Token::Keyword(Keyword::Double)) => span.into_spanned(SpecifierQualifier::Specifier(TypeSpecifier::Double)),
+                span!(span, Token::Keyword(Keyword::Signed)) => span.into_spanned(SpecifierQualifier::Specifier(TypeSpecifier::Signed)),
+                span!(span, Token::Keyword(Keyword::Unsigned)) => span.into_spanned(SpecifierQualifier::Specifier(TypeSpecifier::Unsigned)),
+                span!(span, Token::Keyword(Keyword::Bool)) => span.into_spanned(SpecifierQualifier::Specifier(TypeSpecifier::Bool)),
+                span!(span, Token::Keyword(Keyword::Complex)) => span.into_spanned(SpecifierQualifier::Specifier(TypeSpecifier::Complex)),
+                span!(span, Token::Keyword(Keyword::Struct)) => span.into_spanned(SpecifierQualifier::Specifier(self.parse_struct_or_union_type_specifier(false)?)),
+                span!(span, Token::Keyword(Keyword::Union)) => span.into_spanned(SpecifierQualifier::Specifier(self.parse_struct_or_union_type_specifier(true)?)),
 
-                span!(Token::Keyword(Keyword::Enum)) => SpecifierQualifier::Specifier(self.parse_enum_type_specifier()?),
+                span!(span, Token::Keyword(Keyword::Enum)) => span.into_spanned(SpecifierQualifier::Specifier(self.parse_enum_type_specifier()?)),
 
-                span!(Token::Identifier(identifier)) if self.is_typedef(&identifier) => SpecifierQualifier::Specifier(TypeSpecifier::TypedefName(identifier)),
-                span!(Token::Keyword(kw @ type_qualifier!())) => SpecifierQualifier::Qualifier(kw.into()),
+                span!(span, Token::Identifier(identifier)) if self.is_typedef(&identifier) => span.into_spanned(SpecifierQualifier::Specifier(TypeSpecifier::TypedefName(identifier))),
+                span!(span, Token::Keyword(kw @ type_qualifier!())) => span.into_spanned(SpecifierQualifier::Qualifier(kw.into())),
                 _ => unreachable!(),
             });
         }

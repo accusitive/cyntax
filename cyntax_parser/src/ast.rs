@@ -65,7 +65,7 @@ pub enum FunctionSpecifier {
 #[derive(Debug)]
 pub struct StructOrUnionSpecifier {
     pub tag: Option<Identifier>,
-    pub declarations: Vec<StructOrUnionDeclaration>,
+    pub declarations: Option<Vec<Spanned<StructOrUnionDeclaration>>>,
 }
 #[derive(Debug)]
 pub struct EnumSpecifier {
@@ -74,7 +74,7 @@ pub struct EnumSpecifier {
 }
 #[derive(Debug)]
 pub struct StructOrUnionDeclaration {
-    pub specifier_qualifiers: Vec<SpecifierQualifier>,
+    pub specifier_qualifiers: Vec<Spanned<SpecifierQualifier>>,
     pub declarators: Vec<StructDeclarator>,
 }
 #[derive(Debug)]
@@ -309,7 +309,7 @@ pub enum PostfixOperator {
 
 #[derive(Debug)]
 pub struct TypeName {
-    pub specifier_qualifiers: Vec<SpecifierQualifier>,
+    pub specifier_qualifiers: Vec<Spanned<SpecifierQualifier>>,
     pub declarator: Spanned<Declarator>,
 }
 

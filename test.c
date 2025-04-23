@@ -1,28 +1,10 @@
-// int main() {
-//     start:
-//     return 1;
-//     goto starta;
-// }
-// int a = 5;
 int main()
 {
-name:
-{
-    struct name
+    struct xy
     {
-        int name;
-    } name;
-    
-    struct name;
-    name.name;
-    goto name;
+        struct xy test;
+        int x;
+        int y;
 
-}
-
-
-    // struct {
-    //     int x;
-    //     int y;
-
-    // } Test;
+    } location;
 }
