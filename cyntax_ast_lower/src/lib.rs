@@ -1,6 +1,7 @@
 use std::{collections::HashMap, ops::Deref, ptr};
 
 pub use bumpalo::Bump;
+use check::TyCheckVisitor;
 use cyntax_common::{
     ctx::Context,
     span,
@@ -13,7 +14,9 @@ use cyntax_parser::{
     ast::{DeclarationSpecifier, Identifier, IterationStatement, SpecifierQualifier},
     constant::{self, IntConstant},
 };
-
+use visit::Visitor;
+pub mod check;
+pub mod visit;
 pub type PResult<T> = Result<T, cyntax_errors::codespan_reporting::diagnostic::Diagnostic<usize>>;
 
 #[derive(Debug)]
@@ -78,7 +81,26 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
         }
 
         self.pop_scope();
-        Ok(hir::TranslationUnit { declarations: d })
+        let tu = hir::TranslationUnit {
+            declarations: self.arena.alloc_slice_fill_iter(d.into_iter()),
+        };
+        
+        let mut tyck = TyCheckVisitor::new(&self);
+        tyck.visit_translation_unit(&tu);
+
+        {
+            let mut output_buffer = Vec::new();
+            let config = cyntax_errors::codespan_reporting::term::Config::default();
+            let mut ansi_writer = cyntax_errors::codespan_reporting::term::termcolor::Ansi::new(&mut output_buffer);
+            for diag in &tyck.diagnostics {
+                cyntax_errors::codespan_reporting::term::emit(&mut ansi_writer, &config, &self.ctx.files, diag).unwrap();
+            }
+            println!("{}", String::from_utf8(output_buffer).unwrap());
+        }
+        // for diag in &tyck.diagnostics {
+            
+        // }
+        Ok(tu)
     }
     pub fn lower_external_declaration(&mut self, external_declation: &ast::ExternalDeclaration) -> PResult<Vec<&'hir hir::ExternalDeclaration<'hir>>> {
         match external_declation {
@@ -410,8 +432,6 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                         })),
                     })
                 };
-                let id = self.next_id();
-
                 let inner = {
                     let id = self.next_id();
                     let mut block_items = vec![];
@@ -431,7 +451,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                         kind: hir::StatementKind::Compound(block_items),
                     })
                 };
-
+                let id = self.next_id();
                 block_items.push(BlockItem::Statement(self.arena.alloc(hir::Statement {
                     id,
                     span: statement.location.clone(),
@@ -442,13 +462,13 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
             }
             ast::Statement::Iteration(iteration_statement) => todo!(),
             ast::Statement::Goto(spanned) => todo!(),
-            ast::Statement::Continue => todo!(),
-            ast::Statement::Break => todo!(),
-            ast::Statement::Error => todo!(),
+            ast::Statement::Continue => hir::StatementKind::Continue,
+            ast::Statement::Break => hir::StatementKind::Break,
             ast::Statement::Return(Some(expression)) => hir::StatementKind::Return(Some(self.lower_expression(expression)?)),
             ast::Statement::Return(None) => hir::StatementKind::Return(None),
             ast::Statement::If(spanned, statement, statement1) => todo!(),
             ast::Statement::Switch(spanned, statement) => todo!(),
+            ast::Statement::Error => panic!(),
         };
 
         let id = self.next_id();
@@ -465,6 +485,13 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
             }
             ast::Expression::IntConstant(constant) => hir::ExpressionKind::Constant(constant.clone()),
             ast::Expression::StringLiteral(literal) => todo!(),
+            ast::Expression::BinOp(span!(ast::InfixOperator::Access), expr, field) => {
+                if let span!(ast::Expression::Identifier(identifier)) = field.deref() {
+                    todo!();
+                } else {
+                    panic!();
+                }
+            }
             ast::Expression::BinOp(op, lhs, rhs) => {
                 let lhs = self.lower_expression(lhs.deref())?;
                 let rhs = self.lower_expression(rhs.deref())?;

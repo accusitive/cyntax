@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use cyntax_common::spanned::{Location, Spanned};
 use cyntax_errors::Diagnostic;
 use cyntax_parser::{PResult, ast};
@@ -5,13 +7,12 @@ pub type HirId = usize;
 
 #[derive(Debug)]
 pub struct TranslationUnit<'hir> {
-    pub declarations: Vec<&'hir ExternalDeclaration<'hir>>,
+    pub declarations: &'hir [&'hir ExternalDeclaration<'hir>],
 }
 #[derive(Debug)]
 pub enum ExternalDeclaration<'hir> {
     FunctionDefinition(FunctionDefinition<'hir>),
     Declaration(&'hir Declaration<'hir>),
-    X,
 }
 #[derive(Debug)]
 pub struct FunctionDefinition<'hir> {
@@ -33,7 +34,7 @@ pub struct StructType<'hir> {
 #[derive(Debug)]
 pub enum StructTypeKind<'hir> {
     Incomplete,
-    Complete(&'hir [&'hir StructField<'hir>])
+    Complete(&'hir [&'hir StructField<'hir>]),
 }
 #[derive(Debug)]
 pub struct StructField<'hir> {
@@ -67,7 +68,9 @@ pub enum StatementKind<'hir> {
     Compound(&'hir [BlockItem<'hir>]),
     Expression(&'hir Expression<'hir>),
     Return(Option<&'hir Expression<'hir>>),
-    While(&'hir Expression<'hir>, &'hir Statement<'hir>)
+    While(&'hir Expression<'hir>, &'hir Statement<'hir>),
+    Continue,
+    Break,
 }
 #[derive(Debug)]
 pub enum BlockItem<'hir> {
@@ -95,20 +98,20 @@ pub struct SpecifierQualifiers {
 #[derive(Debug)]
 pub struct Ty<'hir> {
     pub id: HirId,
-    pub kind: TyKind<'hir>
+    pub kind: TyKind<'hir>,
 }
 #[derive(Debug, Clone)]
 pub enum TyKind<'hir> {
     Base(SpecifierQualifiers),
     Pointer(Vec<Spanned<ast::TypeQualifier>>, Box<TyKind<'hir>>),
     Function { return_ty: Box<TyKind<'hir>>, parameters: &'hir [FunctionParameter<'hir>] },
-    Array(Box<Self>, &'hir Expression<'hir>)
+    Array(Box<Self>, &'hir Expression<'hir>),
 }
 
 #[derive(Debug)]
 pub struct FunctionParameter<'hir> {
     pub ty: &'hir Ty<'hir>,
-    pub identifier: Option<Spanned<ast::Identifier>>
+    pub identifier: Option<Spanned<ast::Identifier>>,
 }
 #[derive(Debug, Clone)]
 #[rustfmt::skip]
@@ -170,7 +173,7 @@ impl From<SpecifierQualifiers> for ParsedDeclarationSpecifiers {
         Self {
             specifiers: value.specifiers,
             qualifier: value.qualifier,
-            class: None
+            class: None,
         }
     }
 }
@@ -323,3 +326,63 @@ impl TypeSpecifierStateMachine {
     }
 }
 
+impl<'hir> Display for Ty<'hir> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("{}", self.kind))
+    }
+}
+impl<'hir> Display for TyKind<'hir> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TyKind::Base(specifier_qualifiers) => f.write_fmt(format_args!(
+                "{}",
+                match specifier_qualifiers.specifiers {
+                    TypeSpecifierStateMachine::None => "None",
+                    TypeSpecifierStateMachine::Void => "Void",
+                    TypeSpecifierStateMachine::Char => "Char",
+                    TypeSpecifierStateMachine::SignedChar => "SignedChar",
+                    TypeSpecifierStateMachine::UnsignedChar => "UnsignedChar",
+                    TypeSpecifierStateMachine::Short => "Short",
+                    TypeSpecifierStateMachine::SignedShort => "SignedShort",
+                    TypeSpecifierStateMachine::ShortInt => "ShortInt",
+                    TypeSpecifierStateMachine::SignedShortInt => "SignedShortInt",
+                    TypeSpecifierStateMachine::UnsignedShort => "UnsignedShort",
+                    TypeSpecifierStateMachine::UnsignedShortInt => "UnsignedShortInt",
+                    TypeSpecifierStateMachine::Int => "Int",
+                    TypeSpecifierStateMachine::Signed => "Signed",
+                    TypeSpecifierStateMachine::SignedInt => "SignedInt",
+                    TypeSpecifierStateMachine::Unsigned => "Unsigned",
+                    TypeSpecifierStateMachine::UnsignedInt => "UnsignedInt",
+                    TypeSpecifierStateMachine::Long => "Long",
+                    TypeSpecifierStateMachine::SignedLong => "SignedLong",
+                    TypeSpecifierStateMachine::LongInt => "LongInt",
+                    TypeSpecifierStateMachine::SignedLongInt => "SignedLongInt",
+                    TypeSpecifierStateMachine::UnsignedLong => "UnsignedLong",
+                    TypeSpecifierStateMachine::UnsignedLongInt => "UnsignedLongInt",
+                    TypeSpecifierStateMachine::LongLong => "LongLong",
+                    TypeSpecifierStateMachine::SignedLongLong => "SignedLongLong",
+                    TypeSpecifierStateMachine::LongLongInt => "LongLongInt",
+                    TypeSpecifierStateMachine::SignedLongLongInt => "SignedLongLongInt",
+                    TypeSpecifierStateMachine::UnsignedLongLong => "UnsignedLongLong",
+                    TypeSpecifierStateMachine::UnsignedLongLongInt => "UnsignedLongLongInt",
+                    TypeSpecifierStateMachine::Float => "Float",
+                    TypeSpecifierStateMachine::Double => "Double",
+                    TypeSpecifierStateMachine::LongDouble => "LongDouble",
+                    TypeSpecifierStateMachine::StructOrUnion(_) => "StructOrUnion",
+                    TypeSpecifierStateMachine::Enum => "Enum",
+                    TypeSpecifierStateMachine::Typedef(_) => "Typedef",
+                    TypeSpecifierStateMachine::Bool => "Bool",
+                    TypeSpecifierStateMachine::FloatComplex => "FloatComplex",
+                    TypeSpecifierStateMachine::DoubleComplex => "DoubleComplex",
+                    TypeSpecifierStateMachine::LongDoubleComplex => "LongDoubleComplex",
+                }
+            )),
+            TyKind::Pointer(spanneds, ty_kind) => f.write_fmt(format_args!("{}*", ty_kind)),
+            TyKind::Function { return_ty, parameters } => todo!(),
+            TyKind::Array(ty_kind, expression) => {
+                // todo: expression in the array
+                f.write_fmt(format_args!("{}[]", ty_kind))
+            },
+        }
+    }
+}

@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use codespan_reporting::{files::SimpleFiles, term::termcolor::Ansi};
 use colored::{ColoredString, Colorize};
+use cyntax_ast_lower::{check::TyCheckVisitor, visit::Visitor};
 use cyntax_common::{
     ast::{Keyword, PreprocessingToken, Whitespace},
     ctx::{Context, HasContext, string_interner::StringInterner},
@@ -106,7 +107,11 @@ fn main() {
             let arena = cyntax_ast_lower::Bump::new();
             let mut lower = cyntax_ast_lower::AstLower::new(&mut ctx, &arena);
             let hir = lower.lower_translation_unit(&tu);
-            dbg!(&WithContext { ctx: &mut ctx }.unwrap_diagnostic(hir));
+            let hir = &WithContext { ctx: &mut ctx }.unwrap_diagnostic(hir);
+            dbg!(&hir);
+
+        //    let mut ck = TyCheckVisitor::new(&lower);
+        //    ck.visit_translation_unit(hir);
         }
         Err(e) => {
             let mut output_buffer = Vec::new();
