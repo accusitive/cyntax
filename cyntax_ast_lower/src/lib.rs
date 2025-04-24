@@ -72,7 +72,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
         self.next_id += 1;
         id
     }
-    pub fn lower_translation_unit(&mut self, unit: &ast::TranslationUnit) -> PResult<hir::TranslationUnit<'hir>> {
+    pub fn lower_translation_unit(&mut self, unit: &ast::TranslationUnit) -> PResult<&'hir hir::TranslationUnit<'hir>> {
         self.push_scope();
         let mut d = vec![];
         for external_declaration in &unit.external_declarations {
@@ -84,9 +84,10 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
         let tu = hir::TranslationUnit {
             declarations: self.arena.alloc_slice_fill_iter(d.into_iter()),
         };
-        
-        let mut tyck = TyCheckVisitor::new(&self);
-        tyck.visit_translation_unit(&tu);
+
+        let tu: &'hir _ = self.arena.alloc(tu);
+        let mut tyck = TyCheckVisitor::new(self);
+        tyck.visit_translation_unit(tu);
 
         {
             let mut output_buffer = Vec::new();
@@ -98,7 +99,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
             println!("{}", String::from_utf8(output_buffer).unwrap());
         }
         // for diag in &tyck.diagnostics {
-            
+
         // }
         Ok(tu)
     }
