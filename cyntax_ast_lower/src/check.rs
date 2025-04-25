@@ -1,8 +1,8 @@
 use std::{collections::HashMap, ops::Deref};
 
 use cyntax_common::spanned::Location;
-use cyntax_errors::{Diagnostic, Label};
-use cyntax_hir::{self as hir, Expression, HirId, Ty, TyKind, TyQualifiers};
+use cyntax_errors::{errors::SimpleError, Diagnostic, Label};
+use cyntax_hir::{self as hir, Expression, HirId, SpecifierQualifiers, Ty, TyKind, TyQualifiers, TypeSpecifierStateMachine};
 use cyntax_parser::constant::{Signedness, Suffix, Width};
 
 use crate::{AstLower, visit::Visitor};
@@ -23,7 +23,9 @@ impl<'src, 'ctx, 'hir> TyCheckVisitor<'src, 'ctx, 'hir> {
     }
     pub fn equal(left: &TyKind<'hir>, right: &TyKind<'hir>) -> bool {
         match (&left, &right) {
-            (TyKind::Base(lhs_specifier_qualifiers), TyKind::Base(specifier_qualifiers)) => true,
+            (TyKind::Base(lhs_specifier_qualifiers), TyKind::Base(rhs_specifier_qualifiers)) => {
+               lhs_specifier_qualifiers.specifiers == rhs_specifier_qualifiers.specifiers
+            },
             (TyKind::Base(lhs_specifier_qualifiers), _) => false,
             (TyKind::Pointer(lhs_spanneds, lhs_ty_kind), TyKind::Pointer(spanneds, ty_kind)) => Self::equal(lhs_ty_kind.deref(), ty_kind.deref()),
             (TyKind::Pointer(lhs_spanneds, lhs_ty_kind), _) => false,
@@ -70,13 +72,16 @@ impl<'src, 'ctx, 'hir> Visitor<'hir> for TyCheckVisitor<'src, 'ctx, 'hir> {
                     self.visit_expression(expression);
                     let expr_ty = self.map.get(&expression.id).unwrap();
                     if !Self::equal(&decl_ty.kind, &expr_ty.kind) {
-                        self.diagnostics.push(MismatchedTypeErr{
-                            location: decl.loc.clone(),
-                            left: decl_ty,
-                            right: expr_ty,
-                            left_loc: &decl.loc,
-                            right_loc: &expression.loc,
-                        }.into_codespan_report());
+                        self.diagnostics.push(
+                            MismatchedTypeErr {
+                                location: &decl.full_location,
+                                left: decl_ty,
+                                right: expr_ty,
+                                left_loc: &decl.declarator_loc,
+                                right_loc: &expression.loc,
+                            }
+                            .into_codespan_report(),
+                        );
                     }
                 }
             }
@@ -102,8 +107,15 @@ impl<'src, 'ctx, 'hir> Visitor<'hir> for TyCheckVisitor<'src, 'ctx, 'hir> {
                 }
             }
             cyntax_hir::StatementKind::Expression(expression) => self.visit_expression(expression),
-            cyntax_hir::StatementKind::Return(expression) => {}
-            cyntax_hir::StatementKind::While(expression, statement) => {}
+            cyntax_hir::StatementKind::Return(expression) => {
+                if let Some(expression) = expression {
+                    self.visit_expression(expression)
+                }
+            }
+            cyntax_hir::StatementKind::While(expression, statement) => {
+                self.visit_expression(expression);
+                self.visit_statement(&statement)
+            }
             cyntax_hir::StatementKind::Continue => {}
             cyntax_hir::StatementKind::Break => {}
         }
@@ -132,27 +144,65 @@ impl<'src, 'ctx, 'hir> Visitor<'hir> for TyCheckVisitor<'src, 'ctx, 'hir> {
                 let lty = self.map.get(&left.id).unwrap();
                 let rty = self.map.get(&right.id).unwrap();
 
-                self.diagnostics.push(
-                    MismatchedTypeErr {
-                        location: expr.loc.clone(),
-                        left_loc: &left.loc,
-                        right_loc: &right.loc,
-                        left: lty,
-                        right: rty,
-                    }
-                    .into_codespan_report(),
-                );
-                // panic!();
+                if Self::equal(&lty.kind, &rty.kind) {
+                    self.map.insert(expr.id, &lty);
+                } else {
+                    self.diagnostics.push(
+                        MismatchedTypeErr {
+                            location: &expr.loc,
+                            left_loc: &left.loc,
+                            right_loc: &right.loc,
+                            left: lty,
+                            right: rty,
+                        }
+                        .into_codespan_report(),
+                    );
+                }
             }
             cyntax_hir::ExpressionKind::DeclarationReference(decl_id) => {
                 let ty = self.lowering.map.ordinary.get(decl_id).unwrap().ty;
                 self.map.insert(expr.id, ty);
             }
+            cyntax_hir::ExpressionKind::Cast(ty, expression) => {
+                self.visit_expression(&expression);
+                self.map.insert(expr.id, &ty);
+            }
+            cyntax_hir::ExpressionKind::MemberAccess(target, spanned) => {
+                self.visit_expression(target);
+                let target_ty = self.map.get(&target.id).unwrap();
+                match &target_ty.kind {
+                    TyKind::Base(SpecifierQualifiers{
+                        specifiers: TypeSpecifierStateMachine::StructOrUnion(hir_id),
+                        qualifier,
+                    }) => {
+                        let struct_ty = self.lowering.map.tags.get(hir_id).unwrap();
+                        match struct_ty.kind {
+                            cyntax_hir::StructTypeKind::Incomplete => {
+                                self.diagnostics.push(SimpleError(expr.loc.clone(), format!("cannot access member of incomplete type {:?}", struct_ty)).into_codespan_report());
+                            },
+                            cyntax_hir::StructTypeKind::Complete(struct_fields) => {
+                                for field in struct_fields {
+                                    if let Some(field_identifier) = field.identifier {
+                                        if field_identifier == spanned.value {
+                                            self.map.insert(expr.id, field.ty);
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    _ => {
+                        self.diagnostics.push(SimpleError(expr.loc.clone(), format!("cannot access member of type {}", target_ty)).into_codespan_report());
+                        panic!();
+                    }
+                }
+            }
         }
     }
 }
 struct MismatchedTypeErr<'err, 'hir> {
-    location: Location,
+    location: &'err Location,
     left: &'hir Ty<'hir>,
     right: &'hir Ty<'hir>,
 
@@ -179,12 +229,12 @@ impl<'b, 'hir> Diagnostic for MismatchedTypeErr<'b, 'hir> {
         labels.push(Label {
             kind: cyntax_errors::LabelKind::Secondary,
             location: self.left_loc.clone(),
-            message: format!("left has type {}", self.left),
+            message: format!("declarator has type {}", self.left),
         });
         labels.push(Label {
             kind: cyntax_errors::LabelKind::Secondary,
             location: self.right_loc.clone(),
-            message: format!("right has type {}", self.right),
+            message: format!("expression has type {}", self.right),
         });
 
         labels

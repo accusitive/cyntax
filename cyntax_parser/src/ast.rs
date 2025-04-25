@@ -14,7 +14,7 @@ pub struct TranslationUnit {
 #[derive(Debug)]
 pub enum ExternalDeclaration {
     FunctionDefinition(FunctionDefinition),
-    Declaration(Declaration),
+    Declaration(Spanned<Declaration>),
 }
 #[derive(Debug)]
 pub struct FunctionDefinition {

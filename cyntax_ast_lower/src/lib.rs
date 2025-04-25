@@ -98,9 +98,6 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
             }
             println!("{}", String::from_utf8(output_buffer).unwrap());
         }
-        // for diag in &tyck.diagnostics {
-
-        // }
         Ok(tu)
     }
     pub fn lower_external_declaration(&mut self, external_declation: &ast::ExternalDeclaration) -> PResult<Vec<&'hir hir::ExternalDeclaration<'hir>>> {
@@ -111,7 +108,13 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                 if let TyKind::Function { return_ty, parameters } = &ty.kind {
                     for param in *parameters {
                         let id = self.next_id();
-                        let declaration = hir::Declaration { id, loc: Location::new(), init: None, ty };
+                        let declaration = hir::Declaration {
+                            id,
+                            declarator_loc: Location::new(),
+                            full_location: Location::new(),
+                            init: None,
+                            ty,
+                        };
                         let declaration: &'hir _ = self.arena.alloc(declaration);
                         self.map.ordinary.insert(id, declaration);
 
@@ -133,13 +136,13 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
             }
         }
     }
-    pub fn lower_declaration(&mut self, declaration: &ast::Declaration) -> PResult<Vec<&'hir hir::Declaration<'hir>>> {
-        let specifiers = self.lower_declaration_ty_specifiers(&declaration.specifiers)?;
+    pub fn lower_declaration(&mut self, declaration: &Spanned<ast::Declaration>) -> PResult<Vec<&'hir hir::Declaration<'hir>>> {
+        let specifiers = self.lower_declaration_ty_specifiers(&declaration.value.specifiers)?;
 
         // let parser = DeclarationSpecifierParser::new(declaration.specifiers.iter(), &self.scopes, &mut self.map);
         // let specifiers = parser.parse()?;
         let mut d = vec![];
-        for init_declarator in &declaration.init_declarators {
+        for init_declarator in &declaration.value.init_declarators {
             let lowered_ty = self.lower_ty(&specifiers, &init_declarator.value.declarator)?;
 
             let id = self.next_id();
@@ -157,7 +160,8 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
             };
             let declaration = hir::Declaration {
                 id,
-                loc: init_declarator.location.clone(),
+                full_location: declaration.location.clone(),
+                declarator_loc: init_declarator.location.clone(),
                 init,
                 ty: lowered_ty,
             };
@@ -386,7 +390,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                 for item in block_items {
                     match item {
                         ast::BlockItem::Declaration(declaration) => {
-                            hir_block_items.extend(self.lower_declaration(&declaration.value)?.into_iter().map(|decl| hir::BlockItem::Declaration(decl)));
+                            hir_block_items.extend(self.lower_declaration(&declaration)?.into_iter().map(|decl| hir::BlockItem::Declaration(decl)));
                         }
                         ast::BlockItem::Statement(statement) => {
                             hir_block_items.push(hir::BlockItem::Statement(self.lower_statement(&statement)?));
@@ -411,7 +415,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                             })));
                         }
                         ast::ForInit::Declaration(spanned) => {
-                            let bi = self.lower_declaration(&spanned.value)?;
+                            let bi = self.lower_declaration(&spanned)?;
                             block_items.extend(bi.into_iter().map(|declaration| BlockItem::Declaration(declaration)));
                         }
                     }
@@ -488,7 +492,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
             ast::Expression::StringLiteral(literal) => todo!(),
             ast::Expression::BinOp(span!(ast::InfixOperator::Access), expr, field) => {
                 if let span!(ast::Expression::Identifier(identifier)) = field.deref() {
-                    todo!();
+                    hir::ExpressionKind::MemberAccess(self.lower_expression(expr.deref())?, identifier.clone())
                 } else {
                     panic!();
                 }
@@ -500,7 +504,12 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
             }
             ast::Expression::UnaryOp(op, expr) => todo!(),
             ast::Expression::PostfixOp(op, expr) => todo!(),
-            ast::Expression::Cast(type_name, expr) => todo!(),
+            ast::Expression::Cast(type_name, expr) => {
+                let base = self.lower_ty_specifiers_qualifiers(&type_name.value.specifier_qualifiers)?;
+                let derived = self.lower_ty(&base.into(), &type_name.value.declarator)?;
+                let expr = self.lower_expression(expr.deref())?;
+                hir::ExpressionKind::Cast(derived, expr)
+            }
             ast::Expression::Call(expr, args) => todo!(),
             ast::Expression::Subscript(expr, offset) => todo!(),
             ast::Expression::Ternary(control, then, elze) => todo!(),

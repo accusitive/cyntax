@@ -21,7 +21,8 @@ pub struct FunctionDefinition<'hir> {
 #[derive(Debug)]
 pub struct Declaration<'hir> {
     pub id: HirId,
-    pub loc: Location,
+    pub full_location: Location,
+    pub declarator_loc: Location,
     pub init: Option<&'hir Initializer<'hir>>,
     pub ty: &'hir Ty<'hir>,
 }
@@ -56,6 +57,8 @@ pub enum ExpressionKind<'hir> {
     Constant(Spanned<cyntax_parser::constant::IntConstant>),
     BinaryOp(Spanned<ast::InfixOperator>, &'hir Expression<'hir>, &'hir Expression<'hir>),
     DeclarationReference(HirId),
+    Cast(&'hir Ty<'hir>, &'hir Expression<'hir>),
+    MemberAccess(&'hir Expression<'hir>, Spanned<ast::Identifier>)
 }
 #[derive(Debug)]
 pub struct Statement<'hir> {
@@ -113,7 +116,7 @@ pub struct FunctionParameter<'hir> {
     pub ty: &'hir Ty<'hir>,
     pub identifier: Option<Spanned<ast::Identifier>>,
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[rustfmt::skip]
 pub enum TypeSpecifierStateMachine {
     None,

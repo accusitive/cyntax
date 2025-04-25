@@ -7,6 +7,8 @@ use cyntax_errors::errors::SimpleError;
 /// Declarations, Declarators, Init declarators, stuff of that sort
 impl<'src> Parser<'src> {
     pub fn parse_external_declaration(&mut self) -> PResult<Option<ExternalDeclaration>> {
+        let start = self.last_location.clone();
+
         if self.token_stream.peek().is_none() {
             return Ok(None);
         }
@@ -35,8 +37,8 @@ impl<'src> Parser<'src> {
             return Err(SimpleError(range, "Declarations with more than 1 declarator cannot have a function body".to_string()).into_codespan_report());
         }
         // int a;
-        self.expect_token(Token::Punctuator(Punctuator::Semicolon), "to end declaration")?;
-        return Ok(Some(ExternalDeclaration::Declaration(Declaration { specifiers, init_declarators })));
+        let end = self.expect_token(Token::Punctuator(Punctuator::Semicolon), "to end declaration")?;
+        return Ok(Some(ExternalDeclaration::Declaration(start.until(&end.location).into_spanned(Declaration { specifiers, init_declarators }))));
     }
     pub fn parse_declaration(&mut self) -> PResult<Spanned<Declaration>> {
         let start = self.last_location.clone();
