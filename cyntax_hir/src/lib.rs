@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use cyntax_common::spanned::{Location, Spanned};
 use cyntax_errors::Diagnostic;
-use cyntax_parser::{PResult, ast};
+use cyntax_parser::{ast::{self, TypeSpecifier}, PResult};
 pub type HirId = usize;
 
 #[derive(Debug)]
@@ -29,7 +29,7 @@ pub struct Declaration<'hir> {
 #[derive(Debug)]
 pub struct StructType<'hir> {
     pub id: HirId,
-    pub tag: Option<ast::Identifier>,
+    pub tag: Option<Spanned<ast::Identifier>>,
     pub kind: StructTypeKind<'hir>,
 }
 #[derive(Debug)]
@@ -336,6 +336,9 @@ impl<'hir> Display for Ty<'hir> {
 }
 impl<'hir> Display for TyKind<'hir> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Self::Base(SpecifierQualifiers { specifiers: TypeSpecifierStateMachine::StructOrUnion(hir_id), qualifier }) = self {
+            return f.write_fmt(format_args!("StructOrUnion({})", hir_id));
+        }
         match self {
             TyKind::Base(specifier_qualifiers) => f.write_fmt(format_args!(
                 "{}",
@@ -371,13 +374,13 @@ impl<'hir> Display for TyKind<'hir> {
                     TypeSpecifierStateMachine::Float => "Float",
                     TypeSpecifierStateMachine::Double => "Double",
                     TypeSpecifierStateMachine::LongDouble => "LongDouble",
-                    TypeSpecifierStateMachine::StructOrUnion(_) => "StructOrUnion",
                     TypeSpecifierStateMachine::Enum => "Enum",
                     TypeSpecifierStateMachine::Typedef(_) => "Typedef",
                     TypeSpecifierStateMachine::Bool => "Bool",
                     TypeSpecifierStateMachine::FloatComplex => "FloatComplex",
                     TypeSpecifierStateMachine::DoubleComplex => "DoubleComplex",
                     TypeSpecifierStateMachine::LongDoubleComplex => "LongDoubleComplex",
+                    _ => unreachable!()
                 }
             )),
             TyKind::Pointer(spanneds, ty_kind) => f.write_fmt(format_args!("{}*", ty_kind)),

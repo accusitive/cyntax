@@ -12,7 +12,7 @@ use crate::{
 
 impl<'src> Parser<'src> {
     pub fn parse_struct_or_union_type_specifier(&mut self, is_union: bool) -> PResult<ast::TypeSpecifier> {
-        let tag = if let span!(Token::Identifier(identifer)) = self.peek_token()? { Some(identifer.clone()) } else { None };
+        let tag = if let span!(span, Token::Identifier(identifer)) = self.peek_token()? { Some(span.to_spanned(identifer.clone())) } else { None };
         if tag.is_some() {
             self.next_token()?;
         }

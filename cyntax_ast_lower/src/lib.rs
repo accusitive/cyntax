@@ -72,6 +72,23 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
         self.next_id += 1;
         id
     }
+    pub fn lower(&mut self, tu: &ast::TranslationUnit) -> PResult<(&'hir hir::TranslationUnit<'hir>, Vec<cyntax_errors::codespan_reporting::diagnostic::Diagnostic<usize>>)> {
+        let tu = self.lower_translation_unit(tu)?;
+
+        let mut tyck = TyCheckVisitor::new(self);
+        tyck.visit_translation_unit(tu);
+
+        Ok((tu, tyck.diagnostics))
+        // {
+        //     let mut output_buffer = Vec::new();
+        //     let config = cyntax_errors::codespan_reporting::term::Config::default();
+        //     let mut ansi_writer = cyntax_errors::codespan_reporting::term::termcolor::Ansi::new(&mut output_buffer);
+        //     for diag in &tyck.diagnostics {
+        //         cyntax_errors::codespan_reporting::term::emit(&mut ansi_writer, &config, &self.ctx.files, diag).unwrap();
+        //     }
+        //     println!("{}", String::from_utf8(output_buffer).unwrap());
+        // }
+    }
     pub fn lower_translation_unit(&mut self, unit: &ast::TranslationUnit) -> PResult<&'hir hir::TranslationUnit<'hir>> {
         self.push_scope();
         let mut d = vec![];
@@ -86,18 +103,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
         };
 
         let tu: &'hir _ = self.arena.alloc(tu);
-        let mut tyck = TyCheckVisitor::new(self);
-        tyck.visit_translation_unit(tu);
 
-        {
-            let mut output_buffer = Vec::new();
-            let config = cyntax_errors::codespan_reporting::term::Config::default();
-            let mut ansi_writer = cyntax_errors::codespan_reporting::term::termcolor::Ansi::new(&mut output_buffer);
-            for diag in &tyck.diagnostics {
-                cyntax_errors::codespan_reporting::term::emit(&mut ansi_writer, &config, &self.ctx.files, diag).unwrap();
-            }
-            println!("{}", String::from_utf8(output_buffer).unwrap());
-        }
         Ok(tu)
     }
     pub fn lower_external_declaration(&mut self, external_declation: &ast::ExternalDeclaration) -> PResult<Vec<&'hir hir::ExternalDeclaration<'hir>>> {
@@ -215,7 +221,13 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                         base_type = base_type.typedef_name(loc, t)?;
                     }
                     ast::TypeSpecifier::Struct(specifier) => {
-                        let id = self.lower_struct_ty_specifier(specifier)?;
+                        let id = if let Some(tag) = &specifier.tag {
+                            if specifier.declarations.is_none() { self.find_struct_in_scope(tag)? } else { self.lower_struct_ty_specifier(specifier)? }
+                        } else {
+                            self.lower_struct_ty_specifier(specifier)?
+                        };
+
+                        // let id =
                         base_type = base_type.struct_or_union(loc, id)?;
                     }
                     x => unimplemented!("{x:?}"),
@@ -287,7 +299,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
         let id = self.next_id();
         let struct_ty = StructType {
             id,
-            tag: specifier.tag,
+            tag: specifier.tag.clone(),
             kind: cyntax_hir::StructTypeKind::Incomplete,
         };
         self.map.tags.insert(id, self.arena.alloc(struct_ty));
@@ -304,10 +316,13 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
             }
             let struct_ty = StructType {
                 id,
-                tag: specifier.tag,
+                tag: specifier.tag.clone(),
                 kind: StructTypeKind::Complete(self.arena.alloc_slice_copy(&fields)),
             };
             self.map.tags.insert(id, self.arena.alloc(struct_ty));
+            if let Some(tag) = &specifier.tag {
+                self.define_struct_type(tag, id)?;
+            }
         }
         Ok(id)
     }
@@ -542,5 +557,39 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
             }
         }
         Err(SimpleError(identifier.location.clone(), format!("could not find typedef `{}` in scope", self.ctx.res(identifier.value))).into_codespan_report())
+    }
+    fn find_struct_in_scope(&mut self, identifier: &Spanned<Identifier>) -> PResult<HirId> {
+        // reversed, because the newest scope has priority over the 2nd newest
+        for scope in self.scopes.iter().rev() {
+            if let Some(&id) = scope.tags.get(&identifier.value) {
+                return Ok(id);
+            }
+        }
+        Err(SimpleError(
+            identifier.location.clone(),
+            format!("could not find tag `{}` in scope, all tags: {}", self.ctx.res(identifier.value), self.all_tags(&self.tag_stack_dump())),
+        )
+        .into_codespan_report())
+    }
+    fn tag_stack_dump(&self) -> Vec<&Identifier> {
+        self.scopes.iter().rev().map(|scope| scope.tags.keys()).flatten().collect()
+    }
+    fn all_tags(&self, tags: &[&Identifier]) -> String {
+        let mut s = String::new();
+        for tag in tags {
+            s.push_str(self.ctx.res(**tag));
+            s.push(',');
+        }
+
+        s
+    }
+    pub fn define_struct_type(&mut self, tag: &Spanned<Identifier>, id: HirId) -> PResult<()>{
+        if self.scopes.last_mut().unwrap().tags.contains_key(&tag.value) {
+            Err(SimpleError(tag.location.clone(), format!("redefinition of struct type")).into_codespan_report())
+        } else {
+            self.scopes.last_mut().unwrap().tags.insert(tag.value, id);
+            Ok(())
+        }
+        
     }
 }

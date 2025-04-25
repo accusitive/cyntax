@@ -106,12 +106,19 @@ fn main() {
 
             let arena = cyntax_ast_lower::Bump::new();
             let mut lower = cyntax_ast_lower::AstLower::new(&mut ctx, &arena);
-            let hir = lower.lower_translation_unit(&tu);
-            let hir = &WithContext { ctx: &mut ctx }.unwrap_diagnostic(hir);
+            let hir = lower.lower(&tu);
+            let (hir, diags) = &WithContext { ctx: &mut ctx }.unwrap_diagnostic(hir);
             dbg!(&hir);
 
-        //    let mut ck = TyCheckVisitor::new(&lower);
-        //    ck.visit_translation_unit(hir);
+            {
+                let mut output_buffer = Vec::new();
+                let config = cyntax_errors::codespan_reporting::term::Config::default();
+                let mut ansi_writer = cyntax_errors::codespan_reporting::term::termcolor::Ansi::new(&mut output_buffer);
+                for diag in diags {
+                    cyntax_errors::codespan_reporting::term::emit(&mut ansi_writer, &config, &ctx.files, diag).unwrap();
+                }
+                println!("{}", String::from_utf8(output_buffer).unwrap());
+            }
         }
         Err(e) => {
             let mut output_buffer = Vec::new();

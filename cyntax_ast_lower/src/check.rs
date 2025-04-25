@@ -24,6 +24,7 @@ impl<'src, 'ctx, 'hir> TyCheckVisitor<'src, 'ctx, 'hir> {
     pub fn equal(left: &TyKind<'hir>, right: &TyKind<'hir>) -> bool {
         match (&left, &right) {
             (TyKind::Base(lhs_specifier_qualifiers), TyKind::Base(rhs_specifier_qualifiers)) => {
+                dbg!(&lhs_specifier_qualifiers, rhs_specifier_qualifiers);
                lhs_specifier_qualifiers.specifiers == rhs_specifier_qualifiers.specifiers
             },
             (TyKind::Base(lhs_specifier_qualifiers), _) => false,

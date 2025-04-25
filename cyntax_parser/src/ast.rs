@@ -64,7 +64,7 @@ pub enum FunctionSpecifier {
 }
 #[derive(Debug)]
 pub struct StructOrUnionSpecifier {
-    pub tag: Option<Identifier>,
+    pub tag: Option<Spanned<Identifier>>,
     pub declarations: Option<Vec<Spanned<StructOrUnionDeclaration>>>,
 }
 #[derive(Debug)]
