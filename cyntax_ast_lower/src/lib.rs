@@ -79,15 +79,6 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
         tyck.visit_translation_unit(tu);
 
         Ok((tu, tyck.diagnostics))
-        // {
-        //     let mut output_buffer = Vec::new();
-        //     let config = cyntax_errors::codespan_reporting::term::Config::default();
-        //     let mut ansi_writer = cyntax_errors::codespan_reporting::term::termcolor::Ansi::new(&mut output_buffer);
-        //     for diag in &tyck.diagnostics {
-        //         cyntax_errors::codespan_reporting::term::emit(&mut ansi_writer, &config, &self.ctx.files, diag).unwrap();
-        //     }
-        //     println!("{}", String::from_utf8(output_buffer).unwrap());
-        // }
     }
     pub fn lower_translation_unit(&mut self, unit: &ast::TranslationUnit) -> PResult<&'hir hir::TranslationUnit<'hir>> {
         self.push_scope();
@@ -222,10 +213,16 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                     }
                     ast::TypeSpecifier::Struct(specifier) => {
                         let id = match &specifier.tag {
-                            Some(tag) if specifier.declarations.is_none() => self.find_struct_in_scope(tag)?,
+                            Some(tag) => {
+                                if let Ok(s) = self.find_struct_in_scope(tag) {
+                                    s
+                                } else {
+                                    self.lower_struct_ty_specifier(specifier)?
+                                }
+                            }
+                            // Some(tag) if specifier.declarations.is_none() => self.find_struct_in_scope(tag)?,
                             _ => self.lower_struct_ty_specifier(specifier)?,
                         };
-                            
 
                         // let id =
                         base_type = base_type.struct_or_union(loc, id)?;

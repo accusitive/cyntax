@@ -1,7 +1,7 @@
 use std::{collections::HashMap, ops::Deref};
 
 use cyntax_common::spanned::Location;
-use cyntax_errors::{errors::SimpleError, Diagnostic, Label};
+use cyntax_errors::{Diagnostic, Label, errors::SimpleError};
 use cyntax_hir::{self as hir, Expression, HirId, SpecifierQualifiers, Ty, TyKind, TyQualifiers, TypeSpecifierStateMachine};
 use cyntax_parser::constant::{Signedness, Suffix, Width};
 
@@ -25,8 +25,8 @@ impl<'src, 'ctx, 'hir> TyCheckVisitor<'src, 'ctx, 'hir> {
         match (&left, &right) {
             (TyKind::Base(lhs_specifier_qualifiers), TyKind::Base(rhs_specifier_qualifiers)) => {
                 dbg!(&lhs_specifier_qualifiers, rhs_specifier_qualifiers);
-               lhs_specifier_qualifiers.specifiers == rhs_specifier_qualifiers.specifiers
-            },
+                lhs_specifier_qualifiers.specifiers == rhs_specifier_qualifiers.specifiers
+            }
             (TyKind::Base(lhs_specifier_qualifiers), _) => false,
             (TyKind::Pointer(lhs_spanneds, lhs_ty_kind), TyKind::Pointer(spanneds, ty_kind)) => Self::equal(lhs_ty_kind.deref(), ty_kind.deref()),
             (TyKind::Pointer(lhs_spanneds, lhs_ty_kind), _) => false,
@@ -84,7 +84,19 @@ impl<'src, 'ctx, 'hir> Visitor<'hir> for TyCheckVisitor<'src, 'ctx, 'hir> {
                             .into_codespan_report(),
                         );
                     }
+                    
                 }
+            }
+        }
+        let sq = decl.ty.kind.get_specifier_qualifier();
+        if let TypeSpecifierStateMachine::StructOrUnion(struct_id) = sq.specifiers {
+            let sty = self.lowering.map.tags.get(&struct_id).unwrap();
+
+            match sty.kind {
+                cyntax_hir::StructTypeKind::Incomplete => {
+                    self.diagnostics.push(SimpleError(decl.full_location.clone(), "incomplete type".to_string()).into_codespan_report());
+                },
+                cyntax_hir::StructTypeKind::Complete(struct_fields) => {}
             }
         }
     }
@@ -172,7 +184,7 @@ impl<'src, 'ctx, 'hir> Visitor<'hir> for TyCheckVisitor<'src, 'ctx, 'hir> {
                 self.visit_expression(target);
                 let target_ty = self.map.get(&target.id).unwrap();
                 match &target_ty.kind {
-                    TyKind::Base(SpecifierQualifiers{
+                    TyKind::Base(SpecifierQualifiers {
                         specifiers: TypeSpecifierStateMachine::StructOrUnion(hir_id),
                         qualifier,
                     }) => {
@@ -180,7 +192,7 @@ impl<'src, 'ctx, 'hir> Visitor<'hir> for TyCheckVisitor<'src, 'ctx, 'hir> {
                         match struct_ty.kind {
                             cyntax_hir::StructTypeKind::Incomplete => {
                                 self.diagnostics.push(SimpleError(expr.loc.clone(), format!("cannot access member of incomplete type {:?}", struct_ty)).into_codespan_report());
-                            },
+                            }
                             cyntax_hir::StructTypeKind::Complete(struct_fields) => {
                                 for field in struct_fields {
                                     if let Some(field_identifier) = field.identifier {
@@ -192,7 +204,7 @@ impl<'src, 'ctx, 'hir> Visitor<'hir> for TyCheckVisitor<'src, 'ctx, 'hir> {
                                 }
                             }
                         }
-                    },
+                    }
                     _ => {
                         self.diagnostics.push(SimpleError(expr.loc.clone(), format!("cannot access member of type {}", target_ty)).into_codespan_report());
                         panic!();

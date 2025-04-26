@@ -392,3 +392,13 @@ impl<'hir> Display for TyKind<'hir> {
         }
     }
 }
+impl<'hir> TyKind<'hir> {
+    pub fn get_specifier_qualifier(&self) -> &SpecifierQualifiers{
+        match self {
+            TyKind::Base(specifier_qualifiers) => specifier_qualifiers,
+            TyKind::Pointer(spanneds, ty_kind) => ty_kind.get_specifier_qualifier(),
+            TyKind::Function { return_ty, parameters } => return_ty.get_specifier_qualifier(),
+            TyKind::Array(ty_kind, expression) => ty_kind.get_specifier_qualifier(),
+        }
+    }
+}
