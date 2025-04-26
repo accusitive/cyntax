@@ -221,11 +221,11 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                         base_type = base_type.typedef_name(loc, t)?;
                     }
                     ast::TypeSpecifier::Struct(specifier) => {
-                        let id = if let Some(tag) = &specifier.tag {
-                            if specifier.declarations.is_none() { self.find_struct_in_scope(tag)? } else { self.lower_struct_ty_specifier(specifier)? }
-                        } else {
-                            self.lower_struct_ty_specifier(specifier)?
+                        let id = match &specifier.tag {
+                            Some(tag) if specifier.declarations.is_none() => self.find_struct_in_scope(tag)?,
+                            _ => self.lower_struct_ty_specifier(specifier)?,
                         };
+                            
 
                         // let id =
                         base_type = base_type.struct_or_union(loc, id)?;
@@ -303,6 +303,9 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
             kind: cyntax_hir::StructTypeKind::Incomplete,
         };
         self.map.tags.insert(id, self.arena.alloc(struct_ty));
+        if let Some(tag) = &specifier.tag {
+            self.define_struct_type(tag, id)?;
+        }
 
         if let Some(declarations) = &specifier.declarations {
             let mut fields = vec![];
@@ -583,13 +586,19 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
 
         s
     }
-    pub fn define_struct_type(&mut self, tag: &Spanned<Identifier>, id: HirId) -> PResult<()>{
-        if self.scopes.last_mut().unwrap().tags.contains_key(&tag.value) {
-            Err(SimpleError(tag.location.clone(), format!("redefinition of struct type")).into_codespan_report())
+    pub fn define_struct_type(&mut self, tag: &Spanned<Identifier>, id: HirId) -> PResult<()> {
+        if let Some(s) = self.scopes.last_mut().unwrap().tags.get(&tag.value) {
+            let s = self.map.tags.get(s).unwrap();
+            match s.kind {
+                StructTypeKind::Incomplete => {
+                    self.scopes.last_mut().unwrap().tags.insert(tag.value, id);
+                    Ok(())
+                }
+                StructTypeKind::Complete(_) => Err(SimpleError(tag.location.clone(), format!("redefinition of struct type {}", self.ctx.res(tag.value))).into_codespan_report()),
+            }
         } else {
             self.scopes.last_mut().unwrap().tags.insert(tag.value, id);
             Ok(())
         }
-        
     }
 }
