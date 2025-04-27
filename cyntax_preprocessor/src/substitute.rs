@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt::Debug};
 use cyntax_common::{
     ast::{PreprocessingToken, Punctuator},
     ctx::{
-        Context,
+        ParseContext,
         string_interner::{backend::StringBackend, symbol::SymbolU32},
     },
     span,
@@ -17,7 +17,7 @@ pub struct ArgumentSubstitutionIterator<'a, I>
 where
     I: Debug + Iterator<Item = Spanned<PreprocessingToken>>,
 {
-    pub ctx: &'a mut Context,
+    pub ctx: &'a mut ParseContext,
     pub replacements: PrependingPeekableIterator<I>,
     pub map: HashMap<SymbolU32, MacroArgument>,
     pub is_variadic: bool,

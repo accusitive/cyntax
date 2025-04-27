@@ -2,7 +2,7 @@
 #![feature(iter_intersperse)]
 use cyntax_common::{
     ast::PreprocessingToken,
-    ctx::{Context, HasContext},
+    ctx::{ParseContext, HasContext},
     spanned::Spanned,
 };
 use expand::{Expander, PResult};
@@ -17,16 +17,16 @@ mod tree;
 
 pub struct Preprocessor<'src> {
     // macros and whatever
-    ctx: &'src mut Context,
+    ctx: &'src mut ParseContext,
     token_trees: Vec<TokenTree>,
 }
 impl<'src> HasContext for Preprocessor<'src> {
-    fn ctx(&self) -> &Context {
+    fn ctx(&self) -> &ParseContext {
         self.ctx
     }
 }
 impl<'src> Preprocessor<'src> {
-    pub fn new(ctx: &'src mut Context, tokens: &'src [Spanned<PreprocessingToken>]) -> Preprocessor<'src> {
+    pub fn new(ctx: &'src mut ParseContext, tokens: &'src [Spanned<PreprocessingToken>]) -> Preprocessor<'src> {
         let itt = IntoTokenTree {
             ctx,
             tokens: tokens.iter().peekable(),

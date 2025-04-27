@@ -1,4 +1,4 @@
-use cyntax_common::{ctx::Context, span, spanned::Spanned};
+use cyntax_common::{ctx::ParseContext, span, spanned::Spanned};
 use cyntax_errors::{Diagnostic, errors::SimpleError};
 use cyntax_parser::{
     ast::{Expression, InfixOperator, PrefixOperator},
@@ -8,14 +8,14 @@ use cyntax_parser::{
 type PResult<T> = Result<T, cyntax_errors::codespan_reporting::diagnostic::Diagnostic<usize>>;
 #[derive(Debug)]
 pub struct ConstantEvalutator<'src> {
-    ctx: &'src mut Context,
+    ctx: &'src mut ParseContext,
 }
 #[derive(Debug, Clone, Copy)]
 pub enum Value {
     Int(i64),
 }
 impl<'src> ConstantEvalutator<'src> {
-    pub fn new(ctx: &'src mut Context) -> Self {
+    pub fn new(ctx: &'src mut ParseContext) -> Self {
         Self { ctx }
     }
     pub fn evaluate(&mut self, expr: &Spanned<Expression>) -> PResult<Value> {

@@ -3,7 +3,7 @@ use constant::{ConstantParser, IntConstant};
 use cyntax_common::span;
 use cyntax_common::{
     ast::*,
-    ctx::{Context, string_interner::symbol::SymbolU32},
+    ctx::{ParseContext, string_interner::symbol::SymbolU32},
     spanned::{Location, Spanned},
 };
 use cyntax_errors::{Diagnostic, errors::SimpleError};
@@ -27,7 +27,7 @@ pub type PResult<T> = Result<T, cyntax_errors::codespan_reporting::diagnostic::D
 
 #[derive(Debug)]
 struct TokenStream<'src> {
-    ctx: &'src mut Context,
+    ctx: &'src mut ParseContext,
     iter: std::vec::IntoIter<Spanned<PreprocessingToken>>,
 }
 impl<'src> Iterator for TokenStream<'src> {
@@ -76,14 +76,14 @@ pub struct Scope {
 }
 #[derive(Debug)]
 pub struct Parser<'src> {
-    pub ctx: &'src mut Context,
+    pub ctx: &'src mut ParseContext,
     pub diagnostics: Vec<cyntax_errors::codespan_reporting::diagnostic::Diagnostic<usize>>,
     token_stream: peekmore::PeekMoreIterator<IntoIter<PResult<Spanned<Token>>>>,
     last_location: Location,
     scopes: Vec<Scope>,
 }
 impl<'src> Parser<'src> {
-    pub fn new(ctx: &'src mut Context, tokens: Vec<Spanned<PreprocessingToken>>) -> Self {
+    pub fn new(ctx: &'src mut ParseContext, tokens: Vec<Spanned<PreprocessingToken>>) -> Self {
         let t = TokenStream { ctx, iter: tokens.into_iter() };
         let i = t.collect::<Vec<_>>().into_iter();
         Parser {

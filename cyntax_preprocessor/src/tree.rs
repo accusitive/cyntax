@@ -2,7 +2,7 @@ use std::iter::Peekable;
 
 use cyntax_common::{
     ast::{Delimited, PreprocessingToken, Punctuator, Whitespace},
-    ctx::{Context, HasContext, string_interner::symbol::SymbolU32},
+    ctx::{ParseContext, HasContext, string_interner::symbol::SymbolU32},
     span,
     spanned::{Location, Spanned},
 };
@@ -11,7 +11,7 @@ use cyntax_errors::{Diagnostic, UnwrapDiagnostic};
 use crate::expand::PResult;
 #[derive(Debug)]
 pub struct IntoTokenTree<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>> {
-    pub ctx: &'src mut Context,
+    pub ctx: &'src mut ParseContext,
     pub tokens: Peekable<I>,
     pub expecting_opposition: bool,
 }
@@ -301,7 +301,7 @@ pub enum HeaderName {
     H(Vec<Spanned<PreprocessingToken>>),
 }
 impl<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>> HasContext for IntoTokenTree<'src, I> {
-    fn ctx(&self) -> &Context {
+    fn ctx(&self) -> &ParseContext {
         &self.ctx
     }
 }

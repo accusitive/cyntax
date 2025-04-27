@@ -1,11 +1,11 @@
 use std::str::FromStr;
 
-use codespan_reporting::{files::SimpleFiles, term::termcolor::Ansi};
+use codespan_reporting::{diagnostic::Diagnostic, files::SimpleFiles, term::termcolor::Ansi};
 use colored::{ColoredString, Colorize};
 use cyntax_ast_lower::{check::TyCheckVisitor, visit::Visitor};
 use cyntax_common::{
     ast::{Keyword, PreprocessingToken, Whitespace},
-    ctx::{Context, HasContext, string_interner::StringInterner},
+    ctx::{ParseContext, HasContext, string_interner::StringInterner},
     spanned::Spanned,
 };
 use cyntax_errors::UnwrapDiagnostic;
@@ -15,7 +15,7 @@ mod tests;
 fn p(s: ColoredString) {
     print!("{}", s);
 }
-fn print_tokens<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>>(ctx: &'src Context, source: &'src str, tokens: I) {
+fn print_tokens<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>>(ctx: &'src ParseContext, source: &'src str, tokens: I) {
     for spanned_token in tokens {
         match &spanned_token.value {
             PreprocessingToken::Identifier(identifier) if Keyword::from_str(ctx.strings.resolve(*identifier).unwrap()).is_ok() => {
@@ -58,14 +58,34 @@ fn print_tokens<'src, I: Iterator<Item = &'src Spanned<PreprocessingToken>>>(ctx
         }
     }
 }
+fn print_diagnostics(ctx: &ParseContext, diagnostics: &[Diagnostic<usize>]) {
+    let mut output_buffer = Vec::new();
+    let config = codespan_reporting::term::Config::default();
+    let mut ansi_writer = Ansi::new(&mut output_buffer);
+    for diag in diagnostics {
+        codespan_reporting::term::emit(&mut ansi_writer, &config, &ctx.files, diag).unwrap();
+    }
+    println!("{}", String::from_utf8(output_buffer).unwrap());
+}
+
 fn main() {
+    // let m = cyntax_mir::test();
+    // let mut ctx = ParseContext {
+    //     files: SimpleFiles::new(),
+    //     strings: StringInterner::new(),
+    //     current_file: 0,
+    // };
+    // let cliff_lower = cyntax_backend::CliffLower::new(&mut ctx);
+
+    // cliff_lower.lower(&m);
+    // todo!();
     let mut files = SimpleFiles::new();
     // let source = include_str!("../test.c");
     let source = std::fs::read_to_string("./test.c").unwrap();
     let source = source.as_str();
     let file = files.add("test.c".to_owned(), source.to_owned());
 
-    let mut ctx = Context {
+    let mut ctx = ParseContext {
         files,
         strings: StringInterner::new(),
         current_file: file,
@@ -107,18 +127,18 @@ fn main() {
             let arena = cyntax_ast_lower::Bump::new();
             let mut lower = cyntax_ast_lower::AstLower::new(&mut ctx, &arena);
             let hir = lower.lower(&tu);
-            let (hir, diags) = &WithContext { ctx: &mut ctx }.unwrap_diagnostic(hir);
-            dbg!(&hir);
+            let (hir_tu, diags) = WithContext { ctx: &mut ctx }.unwrap_diagnostic(hir);
+            dbg!(&hir_tu);
 
             {
-                let mut output_buffer = Vec::new();
-                let config = cyntax_errors::codespan_reporting::term::Config::default();
-                let mut ansi_writer = cyntax_errors::codespan_reporting::term::termcolor::Ansi::new(&mut output_buffer);
-                for diag in diags {
-                    cyntax_errors::codespan_reporting::term::emit(&mut ansi_writer, &config, &ctx.files, diag).unwrap();
-                }
-                println!("{}", String::from_utf8(output_buffer).unwrap());
+                print_diagnostics(&ctx, &diags);
             }
+
+            let mut mir_lower = cyntax_hir_lower::HirLower::new(&mut ctx);
+            let mir_result = mir_lower.lower(hir_tu);
+            let mir = WithContext { ctx: &mut ctx }.unwrap_diagnostic(mir_result);
+            dbg!(&mir);
+            println!("{}", mir.last().unwrap());
         }
         Err(e) => {
             let mut output_buffer = Vec::new();
@@ -135,10 +155,10 @@ fn main() {
     }
 }
 struct WithContext<'src> {
-    ctx: &'src mut Context,
+    ctx: &'src mut ParseContext,
 }
 impl<'src> HasContext for WithContext<'src> {
-    fn ctx(&self) -> &Context {
+    fn ctx(&self) -> &ParseContext {
         self.ctx
     }
 }

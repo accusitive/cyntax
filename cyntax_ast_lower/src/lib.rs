@@ -3,7 +3,7 @@ use std::{collections::HashMap, ops::Deref, ptr};
 pub use bumpalo::Bump;
 use check::TyCheckVisitor;
 use cyntax_common::{
-    ctx::Context,
+    ctx::ParseContext,
     span,
     spanned::{Location, Spanned},
 };
@@ -21,7 +21,7 @@ pub type PResult<T> = Result<T, cyntax_errors::codespan_reporting::diagnostic::D
 
 #[derive(Debug)]
 pub struct AstLower<'src, 'hir> {
-    pub ctx: &'src mut Context,
+    pub ctx: &'src mut ParseContext,
     map: HirMap<'hir>,
     arena: &'hir Bump,
     scopes: Vec<Scope>,
@@ -58,7 +58,7 @@ impl<'hir> HirMap<'hir> {
 }
 
 impl<'src, 'hir> AstLower<'src, 'hir> {
-    pub fn new(ctx: &'src mut Context, arena: &'hir Bump) -> Self {
+    pub fn new(ctx: &'src mut ParseContext, arena: &'hir Bump) -> Self {
         Self {
             ctx,
             arena,

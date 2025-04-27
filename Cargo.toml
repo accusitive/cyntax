@@ -11,6 +11,9 @@ cyntax_common = {path = "./cyntax_common"}
 cyntax_preprocessor = {path = "./cyntax_preprocessor"}
 cyntax_parser = {path = "./cyntax_parser"}
 cyntax_ast_lower = {path = "./cyntax_ast_lower"}
+cyntax_hir_lower = {path = "./cyntax_hir_lower"}
+cyntax_mir = {path = "./cyntax_mir"}
+cyntax_backend = {path = "./cyntax_backend"}
 
 codespan-reporting = "0.12.0"
 colored = "3.0.0"

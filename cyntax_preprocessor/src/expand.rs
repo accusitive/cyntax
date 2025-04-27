@@ -1,6 +1,6 @@
 use cyntax_common::{
     ast::{Delimited, PreprocessingToken, Punctuator},
-    ctx::{Context, HasContext, string_interner::symbol::SymbolU32},
+    ctx::{ParseContext, HasContext, string_interner::symbol::SymbolU32},
     span,
     spanned::{Location, Spanned},
 };
@@ -23,7 +23,7 @@ pub type PResult<T> = Result<T, cyntax_errors::codespan_reporting::diagnostic::D
 
 #[derive(Debug)]
 pub struct Expander<'src, I: Debug + Iterator<Item = TokenTree>> {
-    pub ctx: &'src mut Context,
+    pub ctx: &'src mut ParseContext,
     pub token_trees: PrependingPeekableIterator<I>,
     pub output: Vec<Spanned<PreprocessingToken>>,
     pub macros: HashMap<SymbolU32, MacroDefinition>,
@@ -46,12 +46,12 @@ pub struct MacroArgument {
     pub expanded: Vec<Spanned<PreprocessingToken>>,
 }
 impl<'src, I: Debug + Iterator<Item = TokenTree>> HasContext for Expander<'src, I> {
-    fn ctx(&self) -> &Context {
+    fn ctx(&self) -> &ParseContext {
         &self.ctx
     }
 }
 impl<'src, I: Debug + Iterator<Item = TokenTree>> Expander<'src, I> {
-    pub fn new(ctx: &'src mut Context, token_trees: PrependingPeekableIterator<I>) -> Self {
+    pub fn new(ctx: &'src mut ParseContext, token_trees: PrependingPeekableIterator<I>) -> Self {
         let mut default_macros = HashMap::new();
         default_macros.insert(ctx.int("__STDC_VERSION__"), MacroDefinition::Object(vec![Spanned::new(Location::new(), PreprocessingToken::PPNumber(ctx.ints("199901L")))]));
         default_macros.insert(ctx.int("__STDC__"), MacroDefinition::Object(vec![Spanned::new(Location::new(), PreprocessingToken::PPNumber(ctx.ints("1")))]));

@@ -6,12 +6,12 @@ pub type File = SimpleFile<String, String>;
 /// The entire parsing context
 /// This is used to store long term data that is needed between each step, string interning being the most obvious
 #[derive(Debug)]
-pub struct Context {
+pub struct ParseContext {
     pub files: SimpleFiles<String, String>,
     pub strings: string_interner::StringInterner<StringBackend>,
     pub current_file: usize,
 }
-impl Context {
+impl ParseContext {
     pub fn current_file(&self) -> &File {
         self.files.get(self.current_file).unwrap()
     }
@@ -47,14 +47,14 @@ impl Context {
     }
 }
 pub trait HasContext {
-    fn ctx(&self) -> &Context;
+    fn ctx(&self) -> &ParseContext;
 }
 pub trait HasMutContext {
-    fn ctx_mut(&mut self) -> &mut Context;
+    fn ctx_mut(&mut self) -> &mut ParseContext;
 }
 
-impl HasContext for Context {
-    fn ctx(&self) -> &Context {
+impl HasContext for ParseContext {
+    fn ctx(&self) -> &ParseContext {
         self
     }
 }

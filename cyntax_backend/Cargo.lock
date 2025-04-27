@@ -47,15 +47,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "colored"
-version = "3.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fde0e0ec90c9dfb3b4b1a0891a7dcd0e2bffde2f7efed5fe7c9bb00e5bfb915e"
-dependencies = [
- "windows-sys",
-]
-
-[[package]]
 name = "cranelift"
 version = "0.119.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -230,35 +221,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cyntax"
-version = "0.1.0"
-dependencies = [
- "codespan-reporting",
- "colored",
- "cyntax_ast_lower",
- "cyntax_backend",
- "cyntax_common",
- "cyntax_errors",
- "cyntax_hir_lower",
- "cyntax_lexer",
- "cyntax_mir",
- "cyntax_parser",
- "cyntax_preprocessor",
-]
-
-[[package]]
-name = "cyntax_ast_lower"
-version = "0.1.0"
-dependencies = [
- "bumpalo",
- "cyntax_common",
- "cyntax_errors",
- "cyntax_hir",
- "cyntax_parser",
- "typed-arena",
-]
-
-[[package]]
 name = "cyntax_backend"
 version = "0.1.0"
 dependencies = [
@@ -282,78 +244,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "cyntax_consteval"
-version = "0.1.0"
-dependencies = [
- "cyntax_common",
- "cyntax_errors",
- "cyntax_parser",
-]
-
-[[package]]
-name = "cyntax_errors"
-version = "0.1.0"
-dependencies = [
- "codespan-reporting",
- "cyntax_common",
-]
-
-[[package]]
-name = "cyntax_hir"
-version = "0.1.0"
-dependencies = [
- "cyntax_common",
- "cyntax_errors",
- "cyntax_parser",
-]
-
-[[package]]
-name = "cyntax_hir_lower"
-version = "0.1.0"
-dependencies = [
- "cyntax_common",
- "cyntax_errors",
- "cyntax_hir",
- "cyntax_mir",
-]
-
-[[package]]
-name = "cyntax_lexer"
-version = "0.1.0"
-dependencies = [
- "cyntax_common",
- "cyntax_errors",
- "peekmore",
- "smallvec",
- "strum",
- "strum_macros",
-]
-
-[[package]]
 name = "cyntax_mir"
 version = "0.1.0"
-
-[[package]]
-name = "cyntax_parser"
-version = "0.1.0"
-dependencies = [
- "cyntax_common",
- "cyntax_errors",
- "cyntax_lexer",
- "peekmore",
-]
-
-[[package]]
-name = "cyntax_preprocessor"
-version = "0.1.0"
-dependencies = [
- "cyntax_common",
- "cyntax_consteval",
- "cyntax_errors",
- "cyntax_lexer",
- "cyntax_parser",
- "peekmore",
-]
 
 [[package]]
 name = "equivalent"
@@ -440,16 +332,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "peekmore"
-version = "1.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9163e1259760e83d528d1b3171e5100c1767f10c52e1c4d6afad26e63d47d758"
-
-[[package]]
 name = "proc-macro2"
-version = "1.0.94"
+version = "1.0.95"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a31971752e70b8b2686d7e46ec17fb38dad4051d94024c88df49b667caea9c84"
+checksum = "02b3e5e68a3a1a02aad3ec490a98007cbc13c37cbe84a3cd7b8e406d76e7f778"
 dependencies = [
  "unicode-ident",
 ]
@@ -511,9 +397,9 @@ dependencies = [
 
 [[package]]
 name = "smallvec"
-version = "1.14.0"
+version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7fcf8323ef1faaee30a44a340193b1ac6814fd9b7b4e88e9d4519a3e4abe1cfd"
+checksum = "8917285742e9f3e1683f0a9c4e6b57960b7314d0b08d30d1ecd426713ee2eee9"
 
 [[package]]
 name = "stable_deref_trait"
@@ -552,9 +438,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.100"
+version = "2.0.101"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b09a44accad81e1ba1cd74a32461ba89dee89095ba17b32f5d03683b1b1fc2a0"
+checksum = "8ce2b7fc941b3a24138a0a7cf8e858bfc6a992e7978a068a5c760deb0ed43caf"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -575,12 +461,6 @@ checksum = "06794f8f6c5c898b3275aebefa6b8a1cb24cd2c6c79397ab15774837a0bc5755"
 dependencies = [
  "winapi-util",
 ]
-
-[[package]]
-name = "typed-arena"
-version = "2.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6af6ae20167a9ece4bcb41af5b80f8a1f1df981f6391189ce00fd257af04126a"
 
 [[package]]
 name = "unicode-ident"

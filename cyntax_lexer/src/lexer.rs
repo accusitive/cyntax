@@ -1,7 +1,7 @@
 use cyntax_common::ast::PreprocessingToken;
 use cyntax_common::ast::Punctuator;
 use cyntax_common::ast::Whitespace;
-use cyntax_common::ctx::Context;
+use cyntax_common::ctx::ParseContext;
 use cyntax_common::ctx::HasContext;
 use cyntax_common::ctx::HasMutContext;
 use cyntax_common::span;
@@ -51,7 +51,7 @@ pub type CharLocation = Range<usize>;
 
 #[derive(Debug)]
 pub struct Lexer<'src> {
-    pub ctx: &'src mut Context,
+    pub ctx: &'src mut ParseContext,
     pub chars: PeekMoreIterator<PrelexerIter<'src>>,
     at_start_of_line: bool,
     inside_control_line: bool,
@@ -247,7 +247,7 @@ impl<'src> Iterator for Lexer<'src> {
     }
 }
 impl<'src> Lexer<'src> {
-    pub fn new(ctx: &'src mut Context, source: &'src str) -> Lexer<'src> {
+    pub fn new(ctx: &'src mut ParseContext, source: &'src str) -> Lexer<'src> {
         Lexer {
             chars: PrelexerIter::new(ctx.current_file, source).peekmore(),
             at_start_of_line: true,
@@ -374,12 +374,12 @@ impl<'src> Lexer<'src> {
     }
 }
 impl<'a> HasContext for Lexer<'a> {
-    fn ctx(&self) -> &Context {
+    fn ctx(&self) -> &ParseContext {
         self.ctx
     }
 }
 impl<'a> HasMutContext for Lexer<'a> {
-    fn ctx_mut(&mut self) -> &mut Context {
+    fn ctx_mut(&mut self) -> &mut ParseContext {
         self.ctx
     }
 }
