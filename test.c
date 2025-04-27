@@ -1,9 +1,7 @@
 int main()
 {
-   typedef struct outer outer_s;
+   int a = 5;
+   int b = 10;
 
-   outer_s os;
-   struct nonexistant test;
-
-   
+   return a + b;
 }

@@ -123,7 +123,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                     dbg!(&return_ty, &parameters);
                     // self.scopes.last_mut().unwrap().ordinary.
                 }
-                let body = self.lower_statement(&function_definition.body)?;
+                let body: &cyntax_hir::Statement<'hir> = self.lower_statement(&function_definition.body)?;
                 Ok(vec![self.arena.alloc(hir::ExternalDeclaration::FunctionDefinition(hir::FunctionDefinition { body }))])
             }
             ast::ExternalDeclaration::Declaration(declaration) => {
@@ -170,8 +170,11 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
             }
             d.push(declaration);
         }
-
-        Ok(d)
+        if specifiers.class.as_ref().map(|class| matches!(class, ast::StorageClassSpecifier::Typedef)).unwrap_or(false) {
+            return Ok(vec![]);
+        } else {
+            Ok(d)
+        }
     }
     // pub fn lower_declaration(&mut self, declaration: &Spanned<ast::Declaration>) -> PResult<&'hir hir::Declaration<'hir>>
     pub fn lower_initializer(&mut self, initializer: &Spanned<ast::Initializer>) -> PResult<&'hir hir::Initializer<'hir>> {
