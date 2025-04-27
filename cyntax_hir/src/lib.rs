@@ -74,6 +74,8 @@ pub enum StatementKind<'hir> {
     While(&'hir Expression<'hir>, &'hir Statement<'hir>),
     Continue,
     Break,
+    IfThen(&'hir Expression<'hir>, &'hir Statement<'hir>),
+    IfThenElse(&'hir Expression<'hir>, &'hir Statement<'hir>, &'hir Statement<'hir>),
 }
 #[derive(Debug)]
 pub enum BlockItem<'hir> {

@@ -7,6 +7,8 @@ cyntax_ast_lower/target
 cyntax_hir/target
 cyntax_hir_lower/target
 cyntax_mir/target
+cyntax_backend/target
+
 sweet_scratch/target
 /target
 # file i use to test large debug outputs

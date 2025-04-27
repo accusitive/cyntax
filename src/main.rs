@@ -138,7 +138,11 @@ fn main() {
             let mir_result = mir_lower.lower(hir_tu);
             let mir = WithContext { ctx: &mut ctx }.unwrap_diagnostic(mir_result);
             dbg!(&mir);
-            println!("{}", mir.last().unwrap());
+            println!("{}", mir.functions.last().unwrap());
+
+            let cl = cyntax_backend::CliffLower::new(&mut ctx);
+            cl.lower(&mir);
+            
         }
         Err(e) => {
             let mut output_buffer = Vec::new();

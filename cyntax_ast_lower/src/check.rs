@@ -84,7 +84,6 @@ impl<'src, 'ctx, 'hir> Visitor<'hir> for TyCheckVisitor<'src, 'ctx, 'hir> {
                             .into_codespan_report(),
                         );
                     }
-                    
                 }
             }
         }
@@ -95,7 +94,7 @@ impl<'src, 'ctx, 'hir> Visitor<'hir> for TyCheckVisitor<'src, 'ctx, 'hir> {
             match sty.kind {
                 cyntax_hir::StructTypeKind::Incomplete => {
                     self.diagnostics.push(SimpleError(decl.full_location.clone(), "incomplete type".to_string()).into_codespan_report());
-                },
+                }
                 cyntax_hir::StructTypeKind::Complete(struct_fields) => {}
             }
         }
@@ -131,6 +130,15 @@ impl<'src, 'ctx, 'hir> Visitor<'hir> for TyCheckVisitor<'src, 'ctx, 'hir> {
             }
             cyntax_hir::StatementKind::Continue => {}
             cyntax_hir::StatementKind::Break => {}
+            cyntax_hir::StatementKind::IfThen(expression, statement) => {
+                self.visit_expression(&expression);
+                self.visit_statement(&statement);
+            },
+            cyntax_hir::StatementKind::IfThenElse(expression, statement, statement1) => {
+                self.visit_expression(&expression);
+                self.visit_statement(&statement);
+                self.visit_statement(&statement1);
+            }
         }
     }
 

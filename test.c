@@ -1,7 +1,17 @@
 int main()
 {
    int a = 5;
-   int b = 10;
-   int c = 1 + 2 + 3 + 4 + 5 + 6 + 7;
-   return a + b + c;
+   int z;
+   int y;
+   y=10;
+   if (1)
+   {
+      int x = 10;
+      if (x)
+      {
+         // y = 100;
+      }
+      
+   }
+   return y;
 }

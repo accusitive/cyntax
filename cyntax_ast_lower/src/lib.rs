@@ -489,7 +489,16 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
             ast::Statement::Break => hir::StatementKind::Break,
             ast::Statement::Return(Some(expression)) => hir::StatementKind::Return(Some(self.lower_expression(expression)?)),
             ast::Statement::Return(None) => hir::StatementKind::Return(None),
-            ast::Statement::If(spanned, statement, statement1) => todo!(),
+            ast::Statement::If(condition, then, statement1) => {
+                let condition = self.lower_expression(condition)?;
+                let then = self.lower_statement(then.deref())?;
+                if let Some(elze) = statement1 {
+                    hir::StatementKind::IfThenElse(condition, then, self.lower_statement(elze.deref())?)
+                } else {
+                    hir::StatementKind::IfThen(condition, then)
+
+                }
+            }
             ast::Statement::Switch(spanned, statement) => todo!(),
             ast::Statement::Error => panic!(),
         };

@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display};
 
 use cyntax_common::ctx::ParseContext;
 use cyntax_hir::{self as hir, HirId};
-use cyntax_mir::{self as mir, BasicBlock, Instruction, InstructionKind, Operand, StackSlotId, Value};
+use cyntax_mir::{self as mir, BasicBlock, BlockId, Instruction, InstructionKind, Operand, StackSlotId, Value};
 
 pub type PResult<T> = Result<T, cyntax_errors::codespan_reporting::diagnostic::Diagnostic<usize>>;
 
@@ -14,7 +14,7 @@ impl<'src> HirLower<'src> {
     pub fn new(ctx: &'src ParseContext) -> Self {
         Self { pctx: ctx }
     }
-    pub fn lower(&mut self, tu: &hir::TranslationUnit) -> PResult<Vec<mir::Function>> {
+    pub fn lower(&mut self, tu: &hir::TranslationUnit) -> PResult<mir::TranslationUnit> {
         let mut funcs = vec![];
         for declaration in tu.declarations {
             match declaration {
@@ -25,7 +25,8 @@ impl<'src> HirLower<'src> {
                 cyntax_hir::ExternalDeclaration::Declaration(declaration) => todo!(),
             }
         }
-        Ok(funcs)
+
+        Ok(mir::TranslationUnit { data: (), functions: funcs })
     }
     pub fn lower_function_definition(&mut self, funcdef: &hir::FunctionDefinition) -> PResult<mir::Function> {
         let mut func = mir::Function {
@@ -43,16 +44,27 @@ pub struct FunctionLowerer<'a> {
     func: &'a mut mir::Function,
     map: HashMap<HirId, StackSlotId>,
     next_id: usize,
+    current_block: BlockId,
 }
 
 impl<'a, 'hir> FunctionLowerer<'a> {
     pub fn new(func: &'a mut mir::Function) -> Self {
-        Self { func, map: HashMap::new(), next_id: 0 }
+        Self {
+            func,
+            map: HashMap::new(),
+            next_id: 0,
+            current_block: BlockId(0),
+        }
     }
-    fn allocate_stack_slot(&mut self, size: usize) -> StackSlotId {
+    fn allocate_stack_slot(&mut self, size: u32) -> StackSlotId {
         let id = self.func.slots.len();
         self.func.slots.push(size);
         StackSlotId(id)
+    }
+    fn allocate_block(&mut self) -> BlockId {
+        let id = self.func.blocks.len();
+        self.func.blocks.push(BasicBlock { instructions: vec![] });
+        BlockId(id)
     }
     pub fn lower(&mut self, funcdef: &hir::FunctionDefinition<'hir>) {
         self.lower_statement(funcdef.body);
@@ -82,11 +94,48 @@ impl<'a, 'hir> FunctionLowerer<'a> {
                     }
                 }
             }
-            cyntax_hir::StatementKind::Expression(expression) => todo!(),
-            cyntax_hir::StatementKind::Return(expression) => {}
+            cyntax_hir::StatementKind::Expression(expression) => {
+                self.lower_expression(expression);
+            }
+            cyntax_hir::StatementKind::Return(Some(expression)) => {
+                let value = self.lower_expression(expression);
+                self.insert(InstructionKind::ReturnValue, vec![value], None);
+            }
+            cyntax_hir::StatementKind::Return(expression) => {
+                self.insert(InstructionKind::Return, vec![], None);
+            }
             cyntax_hir::StatementKind::While(expression, statement) => todo!(),
             cyntax_hir::StatementKind::Continue => todo!(),
             cyntax_hir::StatementKind::Break => todo!(),
+            cyntax_hir::StatementKind::IfThen(expression, then_statement) => {
+                let then_bb = self.allocate_block();
+                let cont_bb = self.allocate_block();
+                let condition = self.lower_expression(expression);
+
+                self.insert(InstructionKind::JumpIf, vec![condition, Operand::BlockId(then_bb), Operand::BlockId(cont_bb)], None);
+                self.current_block = then_bb;
+                self.lower_statement(then_statement);
+                self.insert(InstructionKind::Jump, vec![Operand::BlockId(cont_bb)], None);
+                self.current_block = cont_bb;
+            }
+            cyntax_hir::StatementKind::IfThenElse(expression, then_statement, elze_statement) => {
+                let then_bb = self.allocate_block();
+                let elze_bb = self.allocate_block();
+                let cont_bb = self.allocate_block();
+                let condition = self.lower_expression(expression);
+
+                self.insert(InstructionKind::JumpIf, vec![condition, Operand::BlockId(then_bb), Operand::BlockId(elze_bb)], None);
+
+                self.current_block = then_bb;
+                self.lower_statement(then_statement);
+                self.insert(InstructionKind::Jump, vec![Operand::BlockId(cont_bb)], None);
+
+                self.current_block = elze_bb;
+                self.lower_statement(elze_statement);
+                self.insert(InstructionKind::Jump, vec![Operand::BlockId(cont_bb)], None);
+
+                self.current_block = cont_bb;
+            },
         }
     }
     pub fn lower_expression(&mut self, expr: &hir::Expression<'hir>) -> Operand {
@@ -99,10 +148,8 @@ impl<'a, 'hir> FunctionLowerer<'a> {
                 let lhs = self.lower_expression(&lhs);
                 let rhs = self.lower_expression(&rhs);
                 Operand::Value(self.add(lhs, rhs))
-            },
-            cyntax_hir::ExpressionKind::DeclarationReference(hir_id) => {
-                Operand::Place(self.map.get(hir_id).unwrap().clone())
             }
+            cyntax_hir::ExpressionKind::DeclarationReference(hir_id) => Operand::Place(self.map.get(hir_id).unwrap().clone()),
             cyntax_hir::ExpressionKind::Cast(ty, expression) => todo!(),
             cyntax_hir::ExpressionKind::MemberAccess(expression, spanned) => todo!(),
         }
@@ -128,9 +175,8 @@ impl<'a, 'hir> FunctionLowerer<'a> {
             mir::Value { id, ty }
         });
         let ins = Instruction { inputs, output: output.clone(), kind };
-        self.func.blocks.last_mut().unwrap().instructions.push(ins);
+        self.func.blocks[self.current_block.0].instructions.push(ins);
 
         output
     }
 }
-

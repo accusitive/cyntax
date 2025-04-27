@@ -9,7 +9,7 @@ pub struct TranslationUnit {
 pub struct Function {
     pub name: (),
     // size
-    pub slots: Vec<usize>,
+    pub slots: Vec<u32>,
     pub blocks: Vec<BasicBlock>,
 }
 #[derive(Debug, Clone)]
@@ -45,8 +45,24 @@ pub struct Value {
 pub enum Operand {
     Value(Value),
     Place(StackSlotId),
+    BlockId(BlockId),
     Constant(i64),
 }
+impl Operand {
+    pub fn as_value(&self) -> Option<&Value> {
+        if let Operand::Value(v) = self { Some(v) } else { None }
+    }
+    pub fn as_place(&self) -> Option<&StackSlotId> {
+        if let Operand::Place(p) = self { Some(p) } else { None }
+    }
+    pub fn as_block_id(&self) -> Option<&BlockId> {
+        if let Operand::BlockId(b) = self { Some(b) } else { None }
+    }
+    pub fn as_constant(&self) -> Option<i64> {
+        if let Operand::Constant(c) = self { Some(*c) } else { None }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Instruction {
     pub inputs: Vec<Operand>,
@@ -58,9 +74,15 @@ pub enum InstructionKind {
     Add,
     Store,
     Const,
+    JumpIf,
+    Jump,
+    Return,
+    ReturnValue
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct StackSlotId(pub usize);
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub struct BlockId(pub usize);
 impl Display for Function {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "fn")?;
@@ -87,11 +109,13 @@ impl Display for Function {
                         Operand::Constant(val) => {
                             write!(f, "const:{}", val)?;
                         }
+                        Operand::BlockId(block_id) => {
+                            write!(f, "bb:{}", block_id.0)?;
+                        }
                     }
                     write!(f, ", ")?;
                 }
                 write!(f, ")\n")?;
-
             }
 
             block_id += 1;
