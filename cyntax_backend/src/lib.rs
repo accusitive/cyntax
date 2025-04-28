@@ -67,7 +67,6 @@ impl<'src> CliffLower<'src> {
         block_id = 0;
         for bb in &func.blocks {
             let block = *block_map.get(&block_id).unwrap();
-
             builder.switch_to_block(block);
             println!("handling block {:?}", block_id);
 
@@ -122,21 +121,13 @@ impl<'src> CliffLower<'src> {
                         let value = Self::read_rvalue(&ins.inputs[0], &slot_map, &mut builder, &ins_map);
                         let t = Self::cliff_ty(&ins.output.as_ref().unwrap().ty);
                         ins_map.insert(ins.output.as_ref().unwrap().id, builder.ins().load(t, MemFlags::new(), value, 0));
-                        // let value = Self::get_value(&ins.inputs[0], &slot_map, &mut builder, &ins_map);
-                        // ins_map.insert(ins.output.as_ref().unwrap().id, value);
-                        // unreachable!()
                     }
                     cyntax_mir::InstructionKind::StackLoad => {
-                        dbg!(&ins.inputs);
-                        // let value = Self::read_rvalue(&ins.inputs[0], &slot_map, &mut builder, &ins_map);
-                        // let t = Self::cliff_ty(&ins.output.as_ref().unwrap().ty);
-                        // ins_map.insert(ins.output.as_ref().unwrap().id, value);
-                        // ins_map.insert(ins.output.as_ref().unwrap().id, builder.ins().load(t, MemFlags::new(), value, 0));
-                        // let slot = slot_map.get(&ins.inputs[0].as_place().unwrap().0).unwrap();
-                        // let ty = &ins.output.as_ref().unwrap().ty;
-                        // let cty = Self::cliff_ty(ty);
-                        // ins_map.insert(ins.output.as_ref().unwrap().id, builder.ins().stack_load(cty, *slot,0));
+                        let slot_id = ins.inputs[0].as_place().unwrap().clone();
+                        let slot = slot_map.get(&slot_id.0).unwrap();
+                        let expected = Self::cliff_ty(&ins.output.as_ref().unwrap().ty.clone());
 
+                        ins_map.insert(ins.output.as_ref().unwrap().id, builder.ins().stack_load(expected, *slot, 0));
                     }
                     cyntax_mir::InstructionKind::StackAddr => {
                         let slot = slot_map.get(&ins.inputs[0].as_place().unwrap().0).unwrap();
@@ -180,6 +171,15 @@ impl<'src> CliffLower<'src> {
             Operand::Value(value) => *ins_map.get(&value.id).unwrap(),
             Operand::Constant(value) => builder.ins().iconst(ir::types::I32, *value),
             Operand::BlockId(block_id) => panic!("??"),
+        }
+    }
+    fn read_rvalue_address(o: &Operand, slot_map: &HashMap<usize, ir::StackSlot>, builder: &mut FunctionBuilder<'_>, ins_map: &HashMap<usize, Value>) -> Value {
+        match o {
+            Operand::Place(stack_slot_id) => {
+                let ss = slot_map.get(&stack_slot_id.0).unwrap();
+                builder.ins().stack_addr(ir::types::I64, *ss, 0)
+            }
+            _ => panic!("Can only take address of a Place"),
         }
     }
 }

@@ -249,16 +249,16 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
             cyntax_hir::ExpressionKind::AddressOf(expression) => {
                 let operand = self.lower_expression(&expression);
                 match operand {
-                    Operand::Value(ref value) => {
-                        let stack_slot = self.allocate_stack_slot(&value.ty);
-                        self.stack_store(stack_slot, operand.clone());
-                        let addr = self.insert(InstructionKind::StackAddr, vec![Operand::Place(stack_slot)], Some(cyntax_mir::Ty::Ptr(Box::new(value.ty.clone())))).unwrap();
-                        Operand::Value(addr)
-                    }
+                    // Operand::Value(ref value) => {
+                    //     let stack_slot = self.allocate_stack_slot(&value.ty);
+                    //     self.stack_store(stack_slot, operand.clone());
+                    //     let addr = self.insert(InstructionKind::StackAddr, vec![Operand::Place(stack_slot)], Some(cyntax_mir::Ty::Ptr(Box::new(value.ty.clone())))).unwrap();
+                    //     Operand::Value(addr)
+                    // }
 
                     Operand::Place(stack_slot) => {
                         let ty = self.func.slots[stack_slot.0].ty.clone();
-                        let addr = self.insert(InstructionKind::StackAddr, vec![Operand::Place(stack_slot)], Some(cyntax_mir::Ty::Ptr(Box::new(ty)))).unwrap();
+                        let addr = self.insert(InstructionKind::StackAddr, vec![operand.clone()], Some(cyntax_mir::Ty::Ptr(Box::new(ty)))).unwrap();
                         Operand::Value(addr)
                     }
                     _ => todo!(),
@@ -276,14 +276,17 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
                     }
                     Operand::Constant(_) => todo!(),
                     Operand::Place(stack_slot_id) => {
-                        let slot = &self.func.slots[stack_slot_id.0];
+                        let slot = self.func.slots[stack_slot_id.0].clone();
+
                         let expected_ty = match &slot.ty {
                             cyntax_mir::Ty::Ptr(ty) => ty.clone(),
                             _ => panic!(),
                         };
-                        let loaded_ptr = self.insert(InstructionKind::StackLoad, vec![Operand::Place(*stack_slot_id)], Some(*expected_ty.clone())).unwrap();
-                        // let loaded_value = self.insert(InstructionKind::Load, vec![Operand::Value(loaded_ptr)], Some(*expected_ty.clone())).unwrap();
-                        Operand::Value(loaded_ptr)
+                        // Load the pointer out of the place
+                        let loaded_ptr = self.insert(InstructionKind::StackLoad, vec![Operand::Place(*stack_slot_id)], Some(slot.ty.clone())).unwrap();
+                        // Load the value out of the pointer
+                        let loaded_value = self.insert(InstructionKind::Load, vec![Operand::Value(loaded_ptr)], Some(*expected_ty.clone())).unwrap();
+                        Operand::Value(loaded_value)
                     }
                     _ => todo!(),
                 }
