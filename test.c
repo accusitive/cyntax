@@ -1,6 +1,6 @@
-int test_0(){
-   return 0;
-}
-int test_1(){
-   return 1;
+int x() {
+   int a = 55;
+   int *b = &a;
+   int c = *b;
+   return c;
 }

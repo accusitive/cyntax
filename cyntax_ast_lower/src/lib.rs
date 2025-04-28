@@ -108,7 +108,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                 let base_ty = self.lower_declaration_ty_specifiers(&function_definition.specifiers)?;
                 let ty = self.lower_ty(&base_ty, &function_definition.declarator)?;
 
-                let def = hir::ExternalDeclaration::FunctionDefinition(hir::FunctionDefinition { body , ty});
+                let def = hir::ExternalDeclaration::FunctionDefinition(hir::FunctionDefinition { body , ty, identifier: function_definition.declarator.value.get_identifier().unwrap()});
 
                 Ok(vec![self.arena.alloc(def)])
             }

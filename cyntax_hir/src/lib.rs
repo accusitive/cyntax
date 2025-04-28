@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display};
 
 use cyntax_common::spanned::{Location, Spanned};
 use cyntax_errors::Diagnostic;
-use cyntax_parser::{ast::{self, TypeSpecifier}, PResult};
+use cyntax_parser::{ast::{self, Identifier, TypeSpecifier}, PResult};
 pub type HirId = usize;
 #[derive(Debug)]
 pub struct HirMap<'hir> {
@@ -37,6 +37,7 @@ pub enum ExternalDeclaration<'hir> {
 }
 #[derive(Debug)]
 pub struct FunctionDefinition<'hir> {
+    pub identifier: Identifier,
     pub body: &'hir Statement<'hir>,
     pub ty: &'hir Ty<'hir>
 }

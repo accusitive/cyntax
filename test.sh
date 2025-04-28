@@ -1,1 +1,1 @@
-cargo run && gcc -o /tmp/a.out ./target/cyntax/build.o && /tmp/a.out; echo $?
+cargo run && gcc -o /tmp/a.out harness.c ./target/cyntax/build.o && /tmp/a.out; echo $?

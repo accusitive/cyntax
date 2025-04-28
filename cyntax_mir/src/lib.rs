@@ -9,7 +9,7 @@ pub struct TranslationUnit {
 }
 #[derive(Debug, Clone)]
 pub struct Function {
-    pub name: (),
+    pub name: Identifier,
     pub ty: Option<Ty>,
     // size
     pub slots: Vec<Slot>,
@@ -109,20 +109,7 @@ pub enum Operand {
     BlockId(BlockId),
     Constant(i64),
 }
-impl Operand {
-    pub fn as_value(&self) -> Option<&Value> {
-        if let Operand::Value(v) = self { Some(v) } else { None }
-    }
-    pub fn as_place(&self) -> Option<&StackSlotId> {
-        if let Operand::Place(p) = self { Some(p) } else { None }
-    }
-    pub fn as_block_id(&self) -> Option<&BlockId> {
-        if let Operand::BlockId(b) = self { Some(b) } else { None }
-    }
-    pub fn as_constant(&self) -> Option<i64> {
-        if let Operand::Constant(c) = self { Some(*c) } else { None }
-    }
-}
+
 
 #[derive(Debug, Clone)]
 pub struct Instruction {
@@ -147,12 +134,26 @@ pub enum InstructionKind {
 pub struct StackSlotId(pub usize);
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct BlockId(pub usize);
+impl Operand {
+    pub fn as_value(&self) -> Option<&Value> {
+        if let Operand::Value(v) = self { Some(v) } else { None }
+    }
+    pub fn as_place(&self) -> Option<&StackSlotId> {
+        if let Operand::Place(p) = self { Some(p) } else { None }
+    }
+    pub fn as_block_id(&self) -> Option<&BlockId> {
+        if let Operand::BlockId(b) = self { Some(b) } else { None }
+    }
+    pub fn as_constant(&self) -> Option<i64> {
+        if let Operand::Constant(c) = self { Some(*c) } else { None }
+    }
+}
 impl Display for Function {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "fn")?;
         let mut slot_id = 0;
         for slot in &self.slots {
-            writeln!(f, "\tslot{slot_id} [{} bytes; {:?}];", slot.size, slot.ty)?;
+            writeln!(f, "\tslot:{slot_id} [{} bytes; {:?}];", slot.size, slot.ty)?;
             slot_id += 1;
         }
         let mut block_id = 0;
@@ -160,12 +161,12 @@ impl Display for Function {
         for block in &self.blocks {
             writeln!(f, "block{block_id}:")?;
             for ins in &block.instructions {
-                let id = ins.output.as_ref().map(|v| format!("{:?}", v.id)).unwrap_or(String::new());
-                write!(f, "\t{}={:?} (", id, ins.kind)?;
+                let id = ins.output.as_ref().map(|v| format!("{:?} ({:?})", v.id, v.ty)).unwrap_or(String::from("N/A"));
+                write!(f, "\tval:{:3 } = {:?} (", id, ins.kind)?;
                 for op in &ins.inputs {
                     match op {
                         Operand::Value(value) => {
-                            write!(f, "value:{}", value.id)?;
+                            write!(f, "val:{}", value.id)?;
                         }
                         Operand::Place(stack_slot_id) => {
                             write!(f, "slot:{}", stack_slot_id.0)?;
