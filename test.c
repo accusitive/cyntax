@@ -1,5 +1,6 @@
 int
-#ifdef harness
+
+#ifdef harness /* true if compiling from GCC, false if compiling with cyntax */
 harness_x() {
 #else
 x() {
