@@ -11,3 +11,5 @@ cranelift-native = "0.119.0"
 cranelift-object = "0.119.0"
 cyntax_common = {path = "../cyntax_common"}
 cyntax_mir = {path = "../cyntax_mir"}
+# needed for HirMap
+cyntax_hir = {path = "../cyntax_hir"}

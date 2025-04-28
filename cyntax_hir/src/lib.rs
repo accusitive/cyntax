@@ -1,9 +1,30 @@
-use std::fmt::Display;
+use std::{collections::HashMap, fmt::Display};
 
 use cyntax_common::spanned::{Location, Spanned};
 use cyntax_errors::Diagnostic;
 use cyntax_parser::{ast::{self, TypeSpecifier}, PResult};
 pub type HirId = usize;
+#[derive(Debug)]
+pub struct HirMap<'hir> {
+    // probably expression?
+    pub ordinary: HashMap<HirId, &'hir Declaration<'hir>>,
+    // a type probably?
+    pub typedefs: HashMap<HirId, &'hir Declaration<'hir>>,
+    // etc
+    pub tags: HashMap<HirId, &'hir StructType<'hir>>,
+    // etc, i dont even think this needs anything; labels have practically no data
+    pub labels: HashMap<HirId, ()>,
+}
+impl<'hir> HirMap<'hir> {
+    pub fn new() -> Self {
+        Self {
+            ordinary: HashMap::new(),
+            typedefs: HashMap::new(),
+            tags: HashMap::new(),
+            labels: HashMap::new(),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct TranslationUnit<'hir> {
@@ -58,7 +79,9 @@ pub enum ExpressionKind<'hir> {
     BinaryOp(Spanned<ast::InfixOperator>, &'hir Expression<'hir>, &'hir Expression<'hir>),
     DeclarationReference(HirId),
     Cast(&'hir Ty<'hir>, &'hir Expression<'hir>),
-    MemberAccess(&'hir Expression<'hir>, Spanned<ast::Identifier>)
+    MemberAccess(&'hir Expression<'hir>, Spanned<ast::Identifier>),
+    AddressOf(&'hir Expression<'hir>),
+    Dereference(&'hir Expression<'hir>)
 }
 #[derive(Debug)]
 pub struct Statement<'hir> {

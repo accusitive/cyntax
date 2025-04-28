@@ -8,10 +8,10 @@ use cyntax_common::{
     spanned::{Location, Spanned},
 };
 use cyntax_errors::{Diagnostic, errors::SimpleError};
-use cyntax_hir::{self as hir, BlockItem, FunctionParameter, HirId, ParsedDeclarationSpecifiers, SpecifierQualifiers, StructField, StructType, StructTypeKind, Ty, TyKind, TyQualifiers, TypeSpecifierStateMachine};
+use cyntax_hir::{self as hir, BlockItem, FunctionParameter, HirId, HirMap, ParsedDeclarationSpecifiers, SpecifierQualifiers, StructField, StructType, StructTypeKind, Ty, TyKind, TyQualifiers, TypeSpecifierStateMachine};
 pub use cyntax_parser::ast;
 use cyntax_parser::{
-    ast::{DeclarationSpecifier, Identifier, IterationStatement, SpecifierQualifier},
+    ast::{DeclarationSpecifier, Identifier, IterationStatement, PrefixOperator, SpecifierQualifier},
     constant::{self, IntConstant},
 };
 use visit::Visitor;
@@ -22,22 +22,12 @@ pub type PResult<T> = Result<T, cyntax_errors::codespan_reporting::diagnostic::D
 #[derive(Debug)]
 pub struct AstLower<'src, 'hir> {
     pub ctx: &'src mut ParseContext,
-    map: HirMap<'hir>,
+    pub map: HirMap<'hir>,
     arena: &'hir Bump,
     scopes: Vec<Scope>,
     next_id: usize,
 }
-#[derive(Debug)]
-pub struct HirMap<'hir> {
-    // probably expression?
-    ordinary: HashMap<HirId, &'hir hir::Declaration<'hir>>,
-    // a type probably?
-    typedefs: HashMap<HirId, &'hir hir::Declaration<'hir>>,
-    // etc
-    tags: HashMap<HirId, &'hir hir::StructType<'hir>>,
-    // etc, i dont even think this needs anything; labels have practically no data
-    labels: HashMap<HirId, ()>,
-}
+
 #[derive(Debug, Default)]
 pub struct Scope {
     ordinary: HashMap<ast::Identifier, HirId>,
@@ -46,16 +36,6 @@ pub struct Scope {
     labels: HashMap<ast::Identifier, HirId>,
 }
 
-impl<'hir> HirMap<'hir> {
-    pub fn new() -> Self {
-        Self {
-            ordinary: HashMap::new(),
-            typedefs: HashMap::new(),
-            tags: HashMap::new(),
-            labels: HashMap::new(),
-        }
-    }
-}
 
 impl<'src, 'hir> AstLower<'src, 'hir> {
     pub fn new(ctx: &'src mut ParseContext, arena: &'hir Bump) -> Self {
@@ -72,13 +52,14 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
         self.next_id += 1;
         id
     }
-    pub fn lower(&mut self, tu: &ast::TranslationUnit) -> PResult<(&'hir hir::TranslationUnit<'hir>, Vec<cyntax_errors::codespan_reporting::diagnostic::Diagnostic<usize>>)> {
+    pub fn lower(mut self, tu: &ast::TranslationUnit) -> PResult<(&'hir hir::TranslationUnit<'hir>, Vec<cyntax_errors::codespan_reporting::diagnostic::Diagnostic<usize>>, HirMap<'hir>)> {
         let tu = self.lower_translation_unit(tu)?;
 
-        let mut tyck = TyCheckVisitor::new(self);
-        tyck.visit_translation_unit(tu);
+        // let mut tyck = TyCheckVisitor::new(&mut self);
+        // tyck.visit_translation_unit(tu);
 
-        Ok((tu, tyck.diagnostics))
+        // Ok((tu, tyck.diagnostics, self.map))
+        Ok((tu, vec![], self.map))
     }
     pub fn lower_translation_unit(&mut self, unit: &ast::TranslationUnit) -> PResult<&'hir hir::TranslationUnit<'hir>> {
         self.push_scope();
@@ -528,6 +509,12 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                 let lhs = self.lower_expression(lhs.deref())?;
                 let rhs = self.lower_expression(rhs.deref())?;
                 hir::ExpressionKind::BinaryOp(op.clone(), lhs, rhs)
+            }
+            ast::Expression::UnaryOp(span!(PrefixOperator::AddressOf), expr) => {
+                hir::ExpressionKind::AddressOf(self.lower_expression(expr)?)
+            }
+            ast::Expression::UnaryOp(span!(PrefixOperator::Dereference), expr) => {
+                hir::ExpressionKind::Dereference(self.lower_expression(expr)?)
             }
             ast::Expression::UnaryOp(op, expr) => todo!(),
             ast::Expression::PostfixOp(op, expr) => todo!(),

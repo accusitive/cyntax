@@ -254,6 +254,7 @@ pub enum PrefixOperator {
 
     SizeOf,
     CastOrParen,
+    AddressOf,
     Dereference,
     Increment,
     Decrement,

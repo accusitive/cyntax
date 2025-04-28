@@ -108,12 +108,7 @@ impl<'src> ConstantEvalutator<'src> {
             span!(PrefixOperator::Plus) => Ok(expr_val), // Unary plus is a no-op for integers
             span!(PrefixOperator::Minus) => expr_val.negate(),
             span!(PrefixOperator::LogicalNot) => expr_val.not(),
-            span!(PrefixOperator::BitwiseNot) => todo!(),
-            span!(PrefixOperator::SizeOf) => todo!(),
-            span!(PrefixOperator::CastOrParen) => todo!(),
-            span!(PrefixOperator::Dereference) => todo!(),
-            span!(PrefixOperator::Increment) => todo!(),
-            span!(PrefixOperator::Decrement) => todo!(),
+            _ => todo!()
         }
     }
     fn ternary(&mut self, cond: &Spanned<Expression>, then: &Spanned<Expression>, elze: &Spanned<Expression>) -> PResult<Value> {

@@ -93,7 +93,7 @@ impl<'src> Parser<'src> {
             span!(Token::Punctuator(Punctuator::PlusPlus)) => Some(PrefixOperator::Increment),
             span!(Token::Punctuator(Punctuator::MinusMinus)) => Some(PrefixOperator::Decrement),
             span!(Token::Punctuator(Punctuator::Bang)) => Some(PrefixOperator::LogicalNot),
-            span!(Token::Punctuator(Punctuator::Ampersand)) => Some(PrefixOperator::Dereference),
+            span!(Token::Punctuator(Punctuator::Ampersand)) => Some(PrefixOperator::AddressOf),
             span!(Token::Keyword(Keyword::Sizeof)) => Some(PrefixOperator::SizeOf),
             _ => None,
         }

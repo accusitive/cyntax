@@ -127,14 +127,14 @@ fn main() {
             let arena = cyntax_ast_lower::Bump::new();
             let mut lower = cyntax_ast_lower::AstLower::new(&mut ctx, &arena);
             let hir = lower.lower(&tu);
-            let (hir_tu, diags) = WithContext { ctx: &mut ctx }.unwrap_diagnostic(hir);
+            let (hir_tu, diags, map) = WithContext { ctx: &mut ctx }.unwrap_diagnostic(hir);
             dbg!(&hir_tu);
 
             {
                 print_diagnostics(&ctx, &diags);
             }
 
-            let mut mir_lower = cyntax_hir_lower::HirLower::new(&mut ctx);
+            let mut mir_lower = cyntax_hir_lower::HirLower::new(&mut ctx, map);
             let mir_result = mir_lower.lower(hir_tu);
             let mir = WithContext { ctx: &mut ctx }.unwrap_diagnostic(mir_result);
             dbg!(&mir);
@@ -142,7 +142,6 @@ fn main() {
 
             let cl = cyntax_backend::CliffLower::new(&mut ctx);
             cl.lower(&mir);
-            
         }
         Err(e) => {
             let mut output_buffer = Vec::new();

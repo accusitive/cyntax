@@ -50,11 +50,10 @@ impl<'src> CliffLower<'src> {
         let mut block_map: HashMap<usize, Block> = HashMap::new();
 
         let mut slot_id = 0;
-        for slot_size in &func.slots {
-            slot_map.insert(slot_id, builder.create_sized_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, *slot_size, 0)));
+        for slot in &func.slots {
+            slot_map.insert(slot_id, builder.create_sized_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, slot.size, 0)));
             slot_id += 1;
         }
-
         let mut block_id = 0;
         for _ in &func.blocks {
             let block = builder.create_block();
@@ -108,24 +107,54 @@ impl<'src> CliffLower<'src> {
                     }
                     cyntax_mir::InstructionKind::Return => {
                         builder.ins().return_(&[]);
-                    },
+                    }
                     cyntax_mir::InstructionKind::ReturnValue => {
                         let value = Self::get_value(&ins.inputs[0], &slot_map, &mut builder, &ins_map);
                         builder.ins().return_(&[value]);
+                    }
+                    cyntax_mir::InstructionKind::Load => {
+                        let value = Self::get_value(&ins.inputs[0], &slot_map, &mut builder, &ins_map);
+                        let ty = &ins.output.as_ref().unwrap().ty;
+                        let cty = Self::cliff_ty(ty);
+                        ins_map.insert(ins.output.as_ref().unwrap().id, builder.ins().load(cty, MemFlags::new(), value, 0));
+                    }
+                    cyntax_mir::InstructionKind::StackLoad => {
+                        let slot = slot_map.get(&ins.inputs[0].as_place().unwrap().0).unwrap();
+                        let ty = &ins.output.as_ref().unwrap().ty;
+                        let cty = Self::cliff_ty(ty);
+                        ins_map.insert(ins.output.as_ref().unwrap().id, builder.ins().stack_load(cty, *slot,0));
+
+                    }
+                    cyntax_mir::InstructionKind::StackAddr => {
+                        let slot = slot_map.get(&ins.inputs[0].as_place().unwrap().0).unwrap();
+                        ins_map.insert(ins.output.as_ref().unwrap().id, builder.ins().stack_addr(ir::types::I64, *slot,0));
+
                     }
                 }
             }
             block_id += 1;
         }
 
-        // let forty_two = builder.ins().iconst(types::I32, 42);
-        // builder.ins().return_(&[forty_two]);
-        // builder.seal_all_blocks();
-
         let func_id = self.module.declare_function("main", Linkage::Export, &self.ctx.func.signature).unwrap();
         self.module.define_function(func_id, &mut self.ctx).unwrap();
 
         println!("{}", self.ctx.func.display());
+    }
+    fn cliff_ty(ty: &cyntax_mir::Ty) -> ir::Type{
+        match ty {
+            cyntax_mir::Ty::U8 => ir::types::I8,
+            cyntax_mir::Ty::I8 => ir::types::I8,
+            cyntax_mir::Ty::U16 => ir::types::I16,
+            cyntax_mir::Ty::I16 => ir::types::I16,
+            cyntax_mir::Ty::U32 => ir::types::I32,
+            cyntax_mir::Ty::I32 => ir::types::I32,
+            cyntax_mir::Ty::U64 => ir::types::I64,
+            cyntax_mir::Ty::I64 => ir::types::I64,
+            cyntax_mir::Ty::F32 => ir::types::F32,
+            cyntax_mir::Ty::F64 => ir::types::F64,
+            cyntax_mir::Ty::Struct(struct_fields) => todo!(),
+            cyntax_mir::Ty::Ptr(_) => ir::types::I64,
+        }
     }
     fn get_value(o: &Operand, slot_map: &HashMap<usize, ir::StackSlot>, builder: &mut FunctionBuilder<'_>, ins_map: &HashMap<usize, Value>) -> Value {
         match o {

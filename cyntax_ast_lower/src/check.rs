@@ -133,7 +133,7 @@ impl<'src, 'ctx, 'hir> Visitor<'hir> for TyCheckVisitor<'src, 'ctx, 'hir> {
             cyntax_hir::StatementKind::IfThen(expression, statement) => {
                 self.visit_expression(&expression);
                 self.visit_statement(&statement);
-            },
+            }
             cyntax_hir::StatementKind::IfThenElse(expression, statement, statement1) => {
                 self.visit_expression(&expression);
                 self.visit_statement(&statement);
@@ -218,6 +218,12 @@ impl<'src, 'ctx, 'hir> Visitor<'hir> for TyCheckVisitor<'src, 'ctx, 'hir> {
                         panic!();
                     }
                 }
+            }
+            cyntax_hir::ExpressionKind::AddressOf(expression) => {
+                self.visit_expression(&expression);
+            }
+            cyntax_hir::ExpressionKind::Dereference(expression) => {
+                self.visit_expression(&expression);
             }
         }
     }
