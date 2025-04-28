@@ -10,6 +10,7 @@ pub struct TranslationUnit {
 #[derive(Debug, Clone)]
 pub struct Function {
     pub name: (),
+    pub ty: Option<Ty>,
     // size
     pub slots: Vec<Slot>,
     pub blocks: Vec<BasicBlock>,
@@ -132,7 +133,7 @@ pub struct Instruction {
 #[derive(Debug, Clone)]
 pub enum InstructionKind {
     Add,
-    Store,
+    StackStore,
     Load,
     StackLoad,
     StackAddr,
@@ -167,7 +168,7 @@ impl Display for Function {
                             write!(f, "value:{}", value.id)?;
                         }
                         Operand::Place(stack_slot_id) => {
-                            write!(f, "stack:{}", stack_slot_id.0)?;
+                            write!(f, "slot:{}", stack_slot_id.0)?;
                         }
                         Operand::Constant(val) => {
                             write!(f, "const:{}", val)?;

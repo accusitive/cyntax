@@ -105,7 +105,12 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                     // self.scopes.last_mut().unwrap().ordinary.
                 }
                 let body: &cyntax_hir::Statement<'hir> = self.lower_statement(&function_definition.body)?;
-                Ok(vec![self.arena.alloc(hir::ExternalDeclaration::FunctionDefinition(hir::FunctionDefinition { body }))])
+                let base_ty = self.lower_declaration_ty_specifiers(&function_definition.specifiers)?;
+                let ty = self.lower_ty(&base_ty, &function_definition.declarator)?;
+
+                let def = hir::ExternalDeclaration::FunctionDefinition(hir::FunctionDefinition { body , ty});
+
+                Ok(vec![self.arena.alloc(def)])
             }
             ast::ExternalDeclaration::Declaration(declaration) => {
                 let declarations: Vec<&'hir _> = self.lower_declaration(declaration)?;

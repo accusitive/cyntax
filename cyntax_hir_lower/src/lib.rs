@@ -30,14 +30,20 @@ impl<'src, 'hir> HirLower<'src, 'hir> {
         Ok(mir::TranslationUnit { data: (), functions: funcs })
     }
     pub fn lower_function_definition(&mut self, funcdef: &hir::FunctionDefinition) -> PResult<mir::Function> {
-        let mut func = mir::Function {
-            name: (),
-            slots: vec![],
-            blocks: vec![BasicBlock { instructions: vec![] }],
-        };
-        FunctionLowerer::new(&mut func, &self.hir_map).lower(funcdef);
-
-        Ok(func)
+        if let hir::TyKind::Function { return_ty, parameters: _ } = &funcdef.ty.kind {
+            let mut func = mir::Function {
+                ty: None,
+                name: (),
+                slots: vec![],
+                blocks: vec![BasicBlock { instructions: vec![] }],
+            };
+            FunctionLowerer::new(&mut func, &self.hir_map).lower(funcdef);
+    
+            Ok(func)
+        } else {
+            panic!();
+        }
+        
     }
 }
 
@@ -142,6 +148,9 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
         BlockId(id)
     }
     pub fn lower(&mut self, funcdef: &hir::FunctionDefinition<'hir>) {
+        let ret = self.lower_ty_kind(&funcdef.ty.kind);
+        self.func.ty = Some(ret);
+
         self.lower_statement(funcdef.body);
     }
     pub fn lower_statement(&mut self, stmt: &hir::Statement<'hir>) {
@@ -242,25 +251,22 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
             cyntax_hir::ExpressionKind::Cast(ty, expression) => todo!(),
             cyntax_hir::ExpressionKind::MemberAccess(expression, spanned) => todo!(),
             cyntax_hir::ExpressionKind::AddressOf(expression) => {
-                let o = self.lower_expression(&expression);
-                match o {
+                let operand = self.lower_expression(&expression);
+                match operand {
                     Operand::Value(ref value) => {
                         let s = self.allocate_stack_slot(&value.ty);
-                        self.stack_store(s, o.clone());
-                        let output_ty = Some(mir::Ty::Ptr(Box::new(value.ty.clone())));
-                        Operand::Value(self.insert(InstructionKind::StackAddr, vec![cyntax_mir::Operand::Place(s)], output_ty).unwrap())
+                        self.stack_store(s, operand.clone());
+                        // let output_ty = Some(mir::Ty::Ptr(Box::new(value.ty.clone())));
+                        Operand::Place(s)
+                        // Operand::Value(self.insert(InstructionKind::StackAddr, vec![cyntax_mir::Operand::Place(s)], output_ty).unwrap())
                     }
 
                     Operand::Place(stack_slot) => {
-                        let slot = self.func.slots[stack_slot.0].clone();
-                        let output_ty = Some(mir::Ty::Ptr(Box::new(slot.ty.clone())));
+                        let slot_ty = self.func.slots[stack_slot.0].ty.clone();
+                        let s = self.allocate_stack_slot(&slot_ty);
+                        self.stack_store(s, operand.clone());
 
-                        let new_stack_slot = self.allocate_stack_slot(&slot.ty.clone());
-                        let addr = self.insert(InstructionKind::StackAddr, vec![cyntax_mir::Operand::Place(stack_slot)], Some(slot.ty.clone())).unwrap();
-
-                        self.stack_store(new_stack_slot, cyntax_mir::Operand::Value(addr));
-                        Operand::Place(new_stack_slot)
-
+                        Operand::Place(s)
                     },
                     _ => todo!(),
                 }
@@ -270,17 +276,20 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
                 match &o {
                     Operand::Value(value) => {
 
-                        // let deref_ty = match &value.ty {
-                        //     cyntax_mir::Ty::Ptr(ty) => ty,
-                        //     t => unreachable!("dereferencing non pointer {:?}", t),
-                        // };
-
-                        Operand::Value(self.insert(InstructionKind::Load, vec![o.clone()], Some(value.ty.clone())).unwrap())
+                        let deref_ty = match &value.ty {
+                            cyntax_mir::Ty::Ptr(ty) => ty,
+                            t => unreachable!("dereferencing non pointer {:?}", t),
+                        };
+                        Operand::Value(self.insert(InstructionKind::Load, vec![o.clone()], Some(*deref_ty.clone())).unwrap())
                     }
                     Operand::Constant(_) => todo!(),
                     Operand::Place(stack_slot_id) => {
                         let slot = &self.func.slots[stack_slot_id.0];
-                        Operand::Value(self.insert(InstructionKind::StackLoad, vec![o.clone()], Some(slot.ty.clone())).unwrap())
+                        let deref_ty = match &slot.ty {
+                            cyntax_mir::Ty::Ptr(ty) => ty.deref(),
+                            t => unreachable!("dereferencing non pointer {:?}", t),
+                        };
+                        Operand::Value(self.insert(InstructionKind::StackLoad, vec![Operand::Place(*stack_slot_id)], Some(deref_ty.clone())).unwrap())
                     }
                     _ => todo!(),
                 }
@@ -302,7 +311,7 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
         next_id
     }
     pub fn stack_store(&mut self, slot: StackSlotId, value: Operand) {
-        self.insert(mir::InstructionKind::Store, vec![Operand::Place(slot), value], None);
+        self.insert(mir::InstructionKind::StackStore, vec![Operand::Place(slot), value], None);
     }
     pub fn const_i64(&mut self, value: i64) -> Value {
         self.insert(cyntax_mir::InstructionKind::Const, vec![mir::Operand::Constant(value)], Some(mir::Ty::I64)).unwrap()

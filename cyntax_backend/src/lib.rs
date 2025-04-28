@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap};
 
 use cranelift::{
     codegen::{Context, ir},
@@ -41,7 +41,9 @@ impl<'src> CliffLower<'src> {
     }
     pub fn lower_function(&mut self, func: &cyntax_mir::Function) {
         let mut func_ctx = FunctionBuilderContext::new();
-        self.ctx.func.signature.returns.push(AbiParam::new(types::I64));
+        let t = Self::cliff_ty(func.ty.as_ref().unwrap());
+
+        self.ctx.func.signature.returns.push(AbiParam::new(t));
 
         let mut builder = FunctionBuilder::new(&mut self.ctx.func, &mut func_ctx);
 
@@ -75,15 +77,7 @@ impl<'src> CliffLower<'src> {
                         let rhs = Self::get_value(&ins.inputs[1], &slot_map, &mut builder, &ins_map);
                         ins_map.insert(ins.output.as_ref().unwrap().id, builder.ins().iadd(lhs, rhs));
                     }
-                    cyntax_mir::InstructionKind::Store => {
-                        if let Operand::Place(place) = &ins.inputs[0] {
-                            let ss = slot_map.get(&place.0).unwrap();
-                            let value = Self::get_value(&ins.inputs[1], &slot_map, &mut builder, &ins_map);
-                            builder.ins().stack_store(value, *ss, 0);
-                        } else {
-                            panic!("First operand to store must be a place")
-                        }
-                    }
+                 
                     cyntax_mir::InstructionKind::Const => {
                         let i = Self::get_value(&ins.inputs[0], &slot_map, &mut builder, &ins_map);
                         ins_map.insert(ins.output.as_ref().unwrap().id, i);
@@ -112,11 +106,20 @@ impl<'src> CliffLower<'src> {
                         let value = Self::get_value(&ins.inputs[0], &slot_map, &mut builder, &ins_map);
                         builder.ins().return_(&[value]);
                     }
+                    cyntax_mir::InstructionKind::StackStore => {
+                        if let Operand::Place(place) = &ins.inputs[0] {
+                            let ss = slot_map.get(&place.0).unwrap();
+                            let value = Self::get_value(&ins.inputs[1], &slot_map, &mut builder, &ins_map);
+                            builder.ins().stack_store(value, *ss, 0);
+                        } else {
+                            panic!("First operand to store must be a place")
+                        }
+                    }
+                    // completely unused by the current setup
                     cyntax_mir::InstructionKind::Load => {
-                        let value = Self::get_value(&ins.inputs[0], &slot_map, &mut builder, &ins_map);
-                        let ty = &ins.output.as_ref().unwrap().ty;
-                        let cty = Self::cliff_ty(ty);
-                        ins_map.insert(ins.output.as_ref().unwrap().id, builder.ins().load(cty, MemFlags::new(), value, 0));
+                        // let value = Self::get_value(&ins.inputs[0], &slot_map, &mut builder, &ins_map);
+                        // ins_map.insert(ins.output.as_ref().unwrap().id, value);
+                        unreachable!()
                     }
                     cyntax_mir::InstructionKind::StackLoad => {
                         let slot = slot_map.get(&ins.inputs[0].as_place().unwrap().0).unwrap();
@@ -160,10 +163,10 @@ impl<'src> CliffLower<'src> {
         match o {
             Operand::Place(stack_slot_id) => {
                 let ss = slot_map.get(&stack_slot_id.0).unwrap();
-                builder.ins().stack_load(ir::types::I64, *ss, 0)
+                builder.ins().stack_addr(ir::types::I64, *ss, 0)
             }
             Operand::Value(value) => *ins_map.get(&value.id).unwrap(),
-            Operand::Constant(value) => builder.ins().iconst(ir::types::I64, *value),
+            Operand::Constant(value) => builder.ins().iconst(ir::types::I32, *value),
             Operand::BlockId(block_id) => panic!("??"),
         }
     }

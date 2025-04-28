@@ -38,6 +38,7 @@ pub enum ExternalDeclaration<'hir> {
 #[derive(Debug)]
 pub struct FunctionDefinition<'hir> {
     pub body: &'hir Statement<'hir>,
+    pub ty: &'hir Ty<'hir>
 }
 #[derive(Debug)]
 pub struct Declaration<'hir> {
