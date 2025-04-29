@@ -316,6 +316,7 @@ dependencies = [
  "cyntax_errors",
  "cyntax_hir",
  "cyntax_mir",
+ "cyntax_parser",
 ]
 
 [[package]]

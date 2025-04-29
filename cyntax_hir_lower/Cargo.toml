@@ -6,5 +6,6 @@ edition = "2024"
 [dependencies]
 cyntax_errors = {path = "../cyntax_errors"}
 cyntax_common = {path="../cyntax_common"}
+cyntax_parser = {path="../cyntax_parser"}
 cyntax_hir = {path = "../cyntax_hir"}
 cyntax_mir = {path="../cyntax_mir"}

@@ -1,8 +1,9 @@
 use std::{collections::HashMap, fmt::Display, ops::Deref};
 
-use cyntax_common::ctx::ParseContext;
+use cyntax_common::{ctx::ParseContext, span};
 use cyntax_hir::{self as hir, HirId, HirMap, StructTypeKind};
 use cyntax_mir::{self as mir, BasicBlock, BlockId, Instruction, InstructionKind, Operand, StackSlotId, Value};
+use cyntax_parser::ast::InfixOperator;
 
 pub type PResult<T> = Result<T, cyntax_errors::codespan_reporting::diagnostic::Diagnostic<usize>>;
 
@@ -236,16 +237,52 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
         match &expr.kind {
             cyntax_hir::ExpressionKind::Constant(spanned) => {
                 let num = spanned.value.number.parse::<i64>().unwrap();
-                Operand::Constant(num)
+                cyntax_mir::Operand::Value(self.const_i64(num))
             }
             cyntax_hir::ExpressionKind::BinaryOp(spanned, lhs, rhs) => {
                 let lhs = self.lower_expression(&lhs);
                 let rhs = self.lower_expression(&rhs);
-                Operand::Value(self.add(lhs, rhs))
+
+                match spanned.value {
+                    InfixOperator::Add => Operand::Value(self.ins_add(lhs, rhs)),
+                    InfixOperator::Subtract => todo!(),
+                    InfixOperator::Multiply => todo!(),
+                    InfixOperator::Divide => todo!(),
+                    InfixOperator::Modulo => todo!(),
+                    InfixOperator::Less => todo!(),
+                    InfixOperator::Greater => todo!(),
+                    InfixOperator::LessEqual => todo!(),
+                    InfixOperator::GreaterEqual => todo!(),
+                    InfixOperator::Equal => todo!(),
+                    InfixOperator::NotEqual => todo!(),
+                    InfixOperator::LogicalAnd => todo!(),
+                    InfixOperator::LogicalOr => todo!(),
+                    InfixOperator::BitwiseAnd => todo!(),
+                    InfixOperator::BitwiseOr => todo!(),
+                    InfixOperator::BitwiseXor => todo!(),
+                    InfixOperator::BitwiseShiftLeft => todo!(),
+                    InfixOperator::BitwiseShiftRight => todo!(),
+                    InfixOperator::Assign => {self.ins_assign(lhs, rhs.clone()); rhs},
+                    InfixOperator::AddAssign => todo!(),
+                    InfixOperator::SubtractAssign => todo!(),
+                    InfixOperator::MultiplyAssign => todo!(),
+                    InfixOperator::DivideAssign => todo!(),
+                    InfixOperator::ModuloAssign => todo!(),
+                    InfixOperator::BitwiseAndAssign => todo!(),
+                    InfixOperator::BitwiseOrAssign => todo!(),
+                    InfixOperator::BitwiseXorAssign => todo!(),
+                    InfixOperator::BitwiseShiftRightAssign => todo!(),
+                    InfixOperator::BitwiseShiftLeftAssign => todo!(),
+                    InfixOperator::Access => todo!(),
+                    InfixOperator::IndirectAccess => todo!(),
+                }
             }
             cyntax_hir::ExpressionKind::DeclarationReference(hir_id) => Operand::Place(self.ss_map.get(hir_id).unwrap().clone()),
             cyntax_hir::ExpressionKind::Cast(ty, expression) => todo!(),
-            cyntax_hir::ExpressionKind::MemberAccess(expression, spanned) => todo!(),
+            cyntax_hir::ExpressionKind::MemberAccess(expression, spanned) => {
+
+                todo!()
+            }
             cyntax_hir::ExpressionKind::AddressOf(expression) => {
                 let operand = self.lower_expression(&expression);
                 match operand {
@@ -255,7 +292,6 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
                     //     let addr = self.insert(InstructionKind::StackAddr, vec![Operand::Place(stack_slot)], Some(cyntax_mir::Ty::Ptr(Box::new(value.ty.clone())))).unwrap();
                     //     Operand::Value(addr)
                     // }
-
                     Operand::Place(stack_slot) => {
                         let ty = self.func.slots[stack_slot.0].ty.clone();
                         let addr = self.insert(InstructionKind::StackAddr, vec![operand.clone()], Some(cyntax_mir::Ty::Ptr(Box::new(ty)))).unwrap();
@@ -274,7 +310,6 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
                         };
                         Operand::Value(self.insert(InstructionKind::Load, vec![o.clone()], Some(*deref_ty.clone())).unwrap())
                     }
-                    Operand::Constant(_) => todo!(),
                     Operand::Place(stack_slot_id) => {
                         let slot = self.func.slots[stack_slot_id.0].clone();
 
@@ -311,10 +346,21 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
         self.insert(mir::InstructionKind::StackStore, vec![Operand::Place(slot), value], None);
     }
     pub fn const_i64(&mut self, value: i64) -> Value {
-        self.insert(cyntax_mir::InstructionKind::Const, vec![mir::Operand::Constant(value)], Some(mir::Ty::I64)).unwrap()
+        self.insert(cyntax_mir::InstructionKind::Const(value), vec![], Some(mir::Ty::I64)).unwrap()
     }
-    pub fn add(&mut self, lhs: Operand, rhs: Operand) -> Value {
+    pub fn ins_add(&mut self, lhs: Operand, rhs: Operand) -> Value {
         self.insert(InstructionKind::Add, vec![lhs, rhs], Some(mir::Ty::I64)).unwrap()
+    }
+    pub fn ins_assign(&mut self, target: Operand, rhs: Operand) {
+        match target {
+            Operand::Value(value) => {
+                self.insert(mir::InstructionKind::Store, vec![Operand::Value(value), rhs.clone()], None);
+            }
+            Operand::Place(stack_slot_id) => {
+                self.insert(mir::InstructionKind::StackStore, vec![Operand::Place(stack_slot_id), rhs.clone()], None);
+            }
+            _ => unreachable!(),
+        }
     }
     pub fn insert(&mut self, kind: InstructionKind, inputs: Vec<Operand>, output: Option<mir::Ty>) -> Option<mir::Value> {
         if kind.is_terminator() && self.current_block_has_terminator() {

@@ -78,9 +78,9 @@ impl<'src> CliffLower<'src> {
                         ins_map.insert(ins.output.as_ref().unwrap().id, builder.ins().iadd(lhs, rhs));
                     }
                  
-                    cyntax_mir::InstructionKind::Const => {
-                        let i = Self::read_rvalue(&ins.inputs[0], &slot_map, &mut builder, &ins_map);
-                        ins_map.insert(ins.output.as_ref().unwrap().id, i);
+                    cyntax_mir::InstructionKind::Const(value) => {
+                        let value = builder.ins().iconst(types::I32, value);
+                        ins_map.insert(ins.output.as_ref().unwrap().id, value);
                     }
                     cyntax_mir::InstructionKind::JumpIf => {
                         let condition = Self::read_rvalue(&ins.inputs[0], &slot_map, &mut builder, &ins_map);
@@ -115,13 +115,19 @@ impl<'src> CliffLower<'src> {
                             panic!("First operand to store must be a place")
                         }
                     }
-                    // completely unused by the current setup
+                    cyntax_mir::InstructionKind::Store => {
+                        let address = Self::read_rvalue(&ins.inputs[0], &slot_map, &mut builder, &ins_map);
+                        let data = Self::read_rvalue(&ins.inputs[1], &slot_map, &mut builder, &ins_map);
+
+                        let i = builder.ins().store(MemFlags::new(), address, data, 0);
+                        dbg!(&builder.inst_results(i));
+                    }
                     cyntax_mir::InstructionKind::Load => {
-                        dbg!(&ins.inputs);
                         let value = Self::read_rvalue(&ins.inputs[0], &slot_map, &mut builder, &ins_map);
                         let t = Self::cliff_ty(&ins.output.as_ref().unwrap().ty);
                         ins_map.insert(ins.output.as_ref().unwrap().id, builder.ins().load(t, MemFlags::new(), value, 0));
                     }
+                    //Load struct, deals with all of it's fields then returns a pointer(?)
                     cyntax_mir::InstructionKind::StackLoad => {
                         let slot_id = ins.inputs[0].as_place().unwrap().clone();
                         let slot = slot_map.get(&slot_id.0).unwrap();
@@ -162,6 +168,7 @@ impl<'src> CliffLower<'src> {
         }
     }
     fn read_rvalue(o: &Operand, slot_map: &HashMap<usize, ir::StackSlot>, builder: &mut FunctionBuilder<'_>, ins_map: &HashMap<usize, Value>) -> Value {
+        
         match o {
             Operand::Place(stack_slot_id) => {
                 let ss = slot_map.get(&stack_slot_id.0).unwrap();
@@ -169,7 +176,7 @@ impl<'src> CliffLower<'src> {
                 v
             }
             Operand::Value(value) => *ins_map.get(&value.id).unwrap(),
-            Operand::Constant(value) => builder.ins().iconst(ir::types::I32, *value),
+            // Operand::Constant(value) => builder.ins().iconst(ir::types::I32, *value),
             Operand::BlockId(block_id) => panic!("??"),
         }
     }

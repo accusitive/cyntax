@@ -107,7 +107,6 @@ pub enum Operand {
     Value(Value),
     Place(StackSlotId),
     BlockId(BlockId),
-    Constant(i64),
 }
 
 
@@ -119,12 +118,19 @@ pub struct Instruction {
 }
 #[derive(Debug, Clone)]
 pub enum InstructionKind {
+    // Math
     Add,
-    StackStore,
+
+    // Memory
     Load,
+    Store,
     StackLoad,
+    StackStore,
     StackAddr,
-    Const,
+
+    Const(i64),
+
+    // Control flow
     JumpIf,
     Jump,
     Return,
@@ -143,9 +149,6 @@ impl Operand {
     }
     pub fn as_block_id(&self) -> Option<&BlockId> {
         if let Operand::BlockId(b) = self { Some(b) } else { None }
-    }
-    pub fn as_constant(&self) -> Option<i64> {
-        if let Operand::Constant(c) = self { Some(*c) } else { None }
     }
 }
 impl Display for Function {
@@ -171,9 +174,9 @@ impl Display for Function {
                         Operand::Place(stack_slot_id) => {
                             write!(f, "slot:{}", stack_slot_id.0)?;
                         }
-                        Operand::Constant(val) => {
-                            write!(f, "const:{}", val)?;
-                        }
+                        // Operand::Constant(val) => {
+                        //     write!(f, "const:{}", val)?;
+                        // }
                         Operand::BlockId(block_id) => {
                             write!(f, "bb:{}", block_id.0)?;
                         }
