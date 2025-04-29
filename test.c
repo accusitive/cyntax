@@ -1,14 +1,20 @@
 int
-
 #ifdef harness /* true if compiling from GCC, false if compiling with cyntax (used to change symbol name)*/
-harness_x() {
+harness_x()
+{
 #else
-x() {
+x()
+{
 #endif
-   int a = 55;
-   a = 10;
-   // xy.x = 0;
-   // xy.y = 1;
-
-   return a=20;
+   int accumulator = 0;
+   for(int i = 0; i < 5; i=i+1) {
+      for(int j = 0; j < 5; j=j+1) {
+         if (i==5 && j==5) {
+            accumulator = 100000;
+         }
+         accumulator  = accumulator + 10;
+      }
+   }
+   return accumulator;
 }
+

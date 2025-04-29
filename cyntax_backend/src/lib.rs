@@ -77,9 +77,20 @@ impl<'src> CliffLower<'src> {
                         let rhs = Self::read_rvalue(&ins.inputs[1], &slot_map, &mut builder, &ins_map);
                         ins_map.insert(ins.output.as_ref().unwrap().id, builder.ins().iadd(lhs, rhs));
                     }
-                 
+                    cyntax_mir::InstructionKind::LessThan => {
+                        let lhs = Self::read_rvalue(&ins.inputs[0], &slot_map, &mut builder, &ins_map);
+                        let rhs = Self::read_rvalue(&ins.inputs[1], &slot_map, &mut builder, &ins_map);
+                        ins_map.insert(ins.output.as_ref().unwrap().id, builder.ins().icmp(IntCC::SignedLessThan, lhs, rhs));
+                    }
+                    cyntax_mir::InstructionKind::Equal => {
+                        let lhs = Self::read_rvalue(&ins.inputs[0], &slot_map, &mut builder, &ins_map);
+                        let rhs = Self::read_rvalue(&ins.inputs[1], &slot_map, &mut builder, &ins_map);
+                        ins_map.insert(ins.output.as_ref().unwrap().id, builder.ins().icmp(IntCC::Equal, lhs, rhs));
+                    }
+
                     cyntax_mir::InstructionKind::Const(value) => {
-                        let value = builder.ins().iconst(types::I32, value);
+                        let ty = &ins.output.as_ref().unwrap().ty;
+                        let value = builder.ins().iconst(Self::cliff_ty(ty), value);
                         ins_map.insert(ins.output.as_ref().unwrap().id, value);
                     }
                     cyntax_mir::InstructionKind::JumpIf => {
@@ -148,7 +159,14 @@ impl<'src> CliffLower<'src> {
         println!("{}", self.ctx.func.display());
         let func_id = self.module.declare_function(self.pctx.res(func.name), Linkage::Export, &self.ctx.func.signature).unwrap();
 
-        self.module.define_function(func_id, &mut self.ctx).unwrap();
+        match self.module.define_function(func_id, &mut self.ctx) {
+            Ok(ok) => {
+                
+            },
+            Err(e) => {
+                panic!("{:#?}", e)
+            },
+        }
 
     }
     fn cliff_ty(ty: &cyntax_mir::Ty) -> ir::Type{

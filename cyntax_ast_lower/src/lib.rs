@@ -522,7 +522,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                 hir::ExpressionKind::Dereference(self.lower_expression(expr)?)
             }
             ast::Expression::UnaryOp(op, expr) => todo!(),
-            ast::Expression::PostfixOp(op, expr) => todo!(),
+            ast::Expression::PostfixOp(op, expr) => todo!("{:#?}", op),
             ast::Expression::Cast(type_name, expr) => {
                 let base = self.lower_ty_specifiers_qualifiers(&type_name.value.specifier_qualifiers)?;
                 let derived = self.lower_ty(&base.into(), &type_name.value.declarator)?;

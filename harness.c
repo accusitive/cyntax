@@ -6,6 +6,7 @@ extern long int x();
 #include "test.c"
 
 int main() {
-    printf("x() = %p\n", x());
-    printf("h_x() = %p\n", harness_x());
+    printf("Base truth: x() = %i\n", harness_x());
+    printf("GLScc       x() = %i\n", x());
+
 }

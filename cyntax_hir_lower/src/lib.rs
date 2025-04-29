@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Display, ops::Deref};
 
-use cyntax_common::{ctx::ParseContext, span};
+use cyntax_common::{ctx::ParseContext, span, spanned::Spanned};
 use cyntax_hir::{self as hir, HirId, HirMap, StructTypeKind};
 use cyntax_mir::{self as mir, BasicBlock, BlockId, Instruction, InstructionKind, Operand, StackSlotId, Value};
 use cyntax_parser::ast::InfixOperator;
@@ -184,10 +184,25 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
                 let value = self.lower_expression(expression);
                 self.insert(InstructionKind::ReturnValue, vec![value], None);
             }
-            cyntax_hir::StatementKind::Return(expression) => {
+            cyntax_hir::StatementKind::Return(None) => {
                 self.insert(InstructionKind::Return, vec![], None);
             }
-            cyntax_hir::StatementKind::While(expression, statement) => todo!(),
+            cyntax_hir::StatementKind::While(expression, statement) => {
+                let header = self.allocate_block();
+                let body = self.allocate_block();
+                let cont = self.allocate_block();
+
+                self.insert(InstructionKind::Jump, vec![cyntax_mir::Operand::BlockId(header)], None);
+                self.current_block = header;
+                let condition = self.lower_expression(expression);
+                self.insert(InstructionKind::JumpIf, vec![condition, Operand::BlockId(body), Operand::BlockId(cont)], None);
+
+                self.current_block = body;
+                self.lower_statement(statement);
+                self.insert(InstructionKind::Jump, vec![Operand::BlockId(header)], None);
+
+                self.current_block = cont;
+            }
             cyntax_hir::StatementKind::Continue => todo!(),
             cyntax_hir::StatementKind::Break => todo!(),
             cyntax_hir::StatementKind::IfThen(expression, then_statement) => {
@@ -237,7 +252,52 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
         match &expr.kind {
             cyntax_hir::ExpressionKind::Constant(spanned) => {
                 let num = spanned.value.number.parse::<i64>().unwrap();
-                cyntax_mir::Operand::Value(self.const_i64(num))
+                match spanned.value.suffix.width {
+                    cyntax_parser::constant::Width::Long => {
+                        cyntax_mir::Operand::Value(self.const_i64(num))
+                    },
+                    cyntax_parser::constant::Width::LongLong => {
+                        todo!()
+                    }
+                    cyntax_parser::constant::Width::None => {
+                        cyntax_mir::Operand::Value(self.const_i32(num))
+
+                    }
+                }
+            }
+            cyntax_hir::ExpressionKind::BinaryOp(span!(InfixOperator::LogicalAnd), lhs, rhs) => {
+                let zero = self.const_i8(0);
+                let one = self.const_i8(1);
+
+                let result_blocok = self.allocate_block();
+                let check_rhs = self.allocate_block();
+
+                let result_place = self.allocate_stack_slot(&cyntax_mir::Ty::I8);
+                self.stack_store(result_place, cyntax_mir::Operand::Value(zero));
+
+                
+                {
+                    let lhs = self.lower_expression(lhs);
+                    let lhs_truthy = self.ins_eq(lhs, cyntax_mir::Operand::Value(one.clone()));
+
+                    self.insert(InstructionKind::JumpIf, vec![cyntax_mir::Operand::Value(lhs_truthy), cyntax_mir::Operand::BlockId(check_rhs), cyntax_mir::Operand::BlockId(result_blocok)], None);
+                }
+
+                // check_rhs
+                {
+                    self.current_block = check_rhs;
+                    let rhs = self.lower_expression(rhs);
+                    let rhs_truthy = self.ins_eq(rhs, cyntax_mir::Operand::Value(one));
+                    self.stack_store(result_place, cyntax_mir::Operand::Value(rhs_truthy));
+                    self.insert(InstructionKind::Jump, vec![cyntax_mir::Operand::BlockId(result_blocok)], None);
+                }
+                // return block
+                {
+                    self.current_block = result_blocok;
+                    let loaded_result = self.insert(InstructionKind::StackLoad, vec![Operand::Place(result_place)], Some(cyntax_mir::Ty::I8)).unwrap();
+
+                    cyntax_mir::Operand::Value(loaded_result)
+                }
             }
             cyntax_hir::ExpressionKind::BinaryOp(spanned, lhs, rhs) => {
                 let lhs = self.lower_expression(&lhs);
@@ -249,20 +309,22 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
                     InfixOperator::Multiply => todo!(),
                     InfixOperator::Divide => todo!(),
                     InfixOperator::Modulo => todo!(),
-                    InfixOperator::Less => todo!(),
+                    InfixOperator::Less => Operand::Value(self.ins_lt(lhs, rhs)),
                     InfixOperator::Greater => todo!(),
                     InfixOperator::LessEqual => todo!(),
                     InfixOperator::GreaterEqual => todo!(),
-                    InfixOperator::Equal => todo!(),
+                    InfixOperator::Equal => Operand::Value(self.ins_eq(lhs, rhs)),
                     InfixOperator::NotEqual => todo!(),
-                    InfixOperator::LogicalAnd => todo!(),
                     InfixOperator::LogicalOr => todo!(),
                     InfixOperator::BitwiseAnd => todo!(),
                     InfixOperator::BitwiseOr => todo!(),
                     InfixOperator::BitwiseXor => todo!(),
                     InfixOperator::BitwiseShiftLeft => todo!(),
                     InfixOperator::BitwiseShiftRight => todo!(),
-                    InfixOperator::Assign => {self.ins_assign(lhs, rhs.clone()); rhs},
+                    InfixOperator::Assign => {
+                        self.ins_assign(lhs, rhs.clone());
+                        rhs
+                    }
                     InfixOperator::AddAssign => todo!(),
                     InfixOperator::SubtractAssign => todo!(),
                     InfixOperator::MultiplyAssign => todo!(),
@@ -275,12 +337,12 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
                     InfixOperator::BitwiseShiftLeftAssign => todo!(),
                     InfixOperator::Access => todo!(),
                     InfixOperator::IndirectAccess => todo!(),
+                    _ => unreachable!(),
                 }
             }
             cyntax_hir::ExpressionKind::DeclarationReference(hir_id) => Operand::Place(self.ss_map.get(hir_id).unwrap().clone()),
             cyntax_hir::ExpressionKind::Cast(ty, expression) => todo!(),
             cyntax_hir::ExpressionKind::MemberAccess(expression, spanned) => {
-
                 todo!()
             }
             cyntax_hir::ExpressionKind::AddressOf(expression) => {
@@ -348,9 +410,24 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
     pub fn const_i64(&mut self, value: i64) -> Value {
         self.insert(cyntax_mir::InstructionKind::Const(value), vec![], Some(mir::Ty::I64)).unwrap()
     }
+    pub fn const_i32(&mut self, value: i64) -> Value {
+        self.insert(cyntax_mir::InstructionKind::Const(value), vec![], Some(mir::Ty::I32)).unwrap()
+    }
+    pub fn const_i8(&mut self, value: i64) -> Value {
+        self.insert(cyntax_mir::InstructionKind::Const(value), vec![], Some(mir::Ty::I8)).unwrap()
+    }
     pub fn ins_add(&mut self, lhs: Operand, rhs: Operand) -> Value {
         self.insert(InstructionKind::Add, vec![lhs, rhs], Some(mir::Ty::I64)).unwrap()
     }
+    pub fn ins_lt(&mut self, lhs: Operand, rhs: Operand) -> Value {
+        self.insert(InstructionKind::LessThan, vec![lhs, rhs], Some(mir::Ty::I64)).unwrap()
+    }
+    pub fn ins_eq(&mut self, lhs: Operand, rhs: Operand) -> Value {
+        self.insert(InstructionKind::Equal, vec![lhs, rhs], Some(mir::Ty::I64)).unwrap()
+    }
+    // pub fn ins_land(&mut self, lhs: Operand, rhs: Operand) -> Value {
+    //     // self.insert(InstructionKind::LogicalAnd, vec![lhs, rhs], Some(mir::Ty::I64)).unwrap()
+    // }
     pub fn ins_assign(&mut self, target: Operand, rhs: Operand) {
         match target {
             Operand::Value(value) => {

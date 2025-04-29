@@ -120,6 +120,8 @@ pub struct Instruction {
 pub enum InstructionKind {
     // Math
     Add,
+    LessThan,
+    Equal,
 
     // Memory
     Load,
@@ -165,7 +167,7 @@ impl Display for Function {
             writeln!(f, "block{block_id}:")?;
             for ins in &block.instructions {
                 let id = ins.output.as_ref().map(|v| format!("{:?} ({:?})", v.id, v.ty)).unwrap_or(String::from("N/A"));
-                write!(f, "\tval:{:3 } = {:?} (", id, ins.kind)?;
+                write!(f, "\tval:{:7 } = {:?} (", id, ins.kind)?;
                 for op in &ins.inputs {
                     match op {
                         Operand::Value(value) => {
