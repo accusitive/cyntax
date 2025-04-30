@@ -32,6 +32,7 @@ impl<'src> CliffLower<'src> {
         Self { pctx, ctx, module }
     }
     pub fn lower(mut self, tu: &cyntax_mir::TranslationUnit) {
+        println!("====mir done. cliff below====");
         self.lower_translation_unit(tu);
         self.module.clear_context(&mut self.ctx);
         let obj = self.module.finish();
@@ -71,23 +72,22 @@ impl<'src> CliffLower<'src> {
         for bb in &func.blocks {
             let block = *block_map.get(&block_id).unwrap();
             builder.switch_to_block(block);
-            println!("handling block {:?}", block_id);
 
             for ins in &bb.instructions {
                 match ins.kind {
                     cyntax_mir::InstructionKind::Add => {
-                        let lhs = Self::read_rvalue(&ins.inputs[0], &slot_map, &mut builder, &ins_map);
-                        let rhs = Self::read_rvalue(&ins.inputs[1], &slot_map, &mut builder, &ins_map);
+                        let lhs = Self::read_rvalue(&ins.inputs[0], &func.slots, &slot_map, &mut builder, &ins_map);
+                        let rhs = Self::read_rvalue(&ins.inputs[1], &func.slots, &slot_map, &mut builder, &ins_map);
                         ins_map.insert(ins.output.as_ref().unwrap().id, builder.ins().iadd(lhs, rhs));
                     }
                     cyntax_mir::InstructionKind::LessThan => {
-                        let lhs = Self::read_rvalue(&ins.inputs[0], &slot_map, &mut builder, &ins_map);
-                        let rhs = Self::read_rvalue(&ins.inputs[1], &slot_map, &mut builder, &ins_map);
+                        let lhs = Self::read_rvalue(&ins.inputs[0], &func.slots, &slot_map, &mut builder, &ins_map);
+                        let rhs = Self::read_rvalue(&ins.inputs[1], &func.slots, &slot_map, &mut builder, &ins_map);
                         ins_map.insert(ins.output.as_ref().unwrap().id, builder.ins().icmp(IntCC::SignedLessThan, lhs, rhs));
                     }
                     cyntax_mir::InstructionKind::Equal => {
-                        let lhs = Self::read_rvalue(&ins.inputs[0], &slot_map, &mut builder, &ins_map);
-                        let rhs = Self::read_rvalue(&ins.inputs[1], &slot_map, &mut builder, &ins_map);
+                        let lhs = Self::read_rvalue(&ins.inputs[0], &func.slots, &slot_map, &mut builder, &ins_map);
+                        let rhs = Self::read_rvalue(&ins.inputs[1], &func.slots, &slot_map, &mut builder, &ins_map);
                         ins_map.insert(ins.output.as_ref().unwrap().id, builder.ins().icmp(IntCC::Equal, lhs, rhs));
                     }
 
@@ -97,7 +97,7 @@ impl<'src> CliffLower<'src> {
                         ins_map.insert(ins.output.as_ref().unwrap().id, value);
                     }
                     cyntax_mir::InstructionKind::JumpIf => {
-                        let condition = Self::read_rvalue(&ins.inputs[0], &slot_map, &mut builder, &ins_map);
+                        let condition = Self::read_rvalue(&ins.inputs[0], &func.slots, &slot_map, &mut builder, &ins_map);
 
                         let then = ins.inputs[1].as_block_id().unwrap();
                         let then_block = block_map.get(&then.0).unwrap();
@@ -117,27 +117,27 @@ impl<'src> CliffLower<'src> {
                         builder.ins().return_(&[]);
                     }
                     cyntax_mir::InstructionKind::ReturnValue => {
-                        let value = Self::read_rvalue(&ins.inputs[0], &slot_map, &mut builder, &ins_map);
+                        let value = Self::read_rvalue(&ins.inputs[0], &func.slots, &slot_map, &mut builder, &ins_map);
                         builder.ins().return_(&[value]);
                     }
                     cyntax_mir::InstructionKind::StackStore => {
                         if let Operand::Place(place) = &ins.inputs[0] {
                             let ss = slot_map.get(&place.slot_id.0).unwrap();
-                            let value = Self::read_rvalue(&ins.inputs[1], &slot_map, &mut builder, &ins_map);
+                            let value = Self::read_rvalue(&ins.inputs[1], &func.slots, &slot_map, &mut builder, &ins_map);
                             builder.ins().stack_store(value, *ss, place.offset);
                         } else {
                             panic!("First operand to store must be a place")
                         }
                     }
                     cyntax_mir::InstructionKind::Store => {
-                        let address = Self::read_rvalue(&ins.inputs[0], &slot_map, &mut builder, &ins_map);
-                        let data = Self::read_rvalue(&ins.inputs[1], &slot_map, &mut builder, &ins_map);
+                        let address = Self::read_rvalue(&ins.inputs[0], &func.slots, &slot_map, &mut builder, &ins_map);
+                        let data = Self::read_rvalue(&ins.inputs[1], &func.slots, &slot_map, &mut builder, &ins_map);
 
                         let i = builder.ins().store(MemFlags::new(), address, data, 0);
                         dbg!(&builder.inst_results(i));
                     }
                     cyntax_mir::InstructionKind::Load => {
-                        let value = Self::read_rvalue(&ins.inputs[0], &slot_map, &mut builder, &ins_map);
+                        let value = Self::read_rvalue(&ins.inputs[0], &func.slots, &slot_map, &mut builder, &ins_map);
                         let t = Self::cliff_ty(&ins.output.as_ref().unwrap().ty);
                         ins_map.insert(ins.output.as_ref().unwrap().id, builder.ins().load(t, MemFlags::new(), value, 0));
                     }
@@ -184,11 +184,13 @@ impl<'src> CliffLower<'src> {
             cyntax_mir::Ty::Ptr(_) => ir::types::I64,
         }
     }
-    fn read_rvalue(o: &Operand, slot_map: &HashMap<usize, ir::StackSlot>, builder: &mut FunctionBuilder<'_>, ins_map: &HashMap<usize, Value>) -> Value {
+    fn read_rvalue(o: &Operand, slots: &[cyntax_mir::Slot], slot_map: &HashMap<usize, ir::StackSlot>, builder: &mut FunctionBuilder<'_>, ins_map: &HashMap<usize, Value>) -> Value {
         match o {
             Operand::Place(place) => {
                 let ss = slot_map.get(&place.slot_id.0).unwrap();
-                let v = builder.ins().stack_load(ir::types::I32, *ss, place.offset);
+                let slot_ty = &slots[place.slot_id.0];
+                let field_ty = slot_ty.ty.type_at_offset(place.offset);
+                let v = builder.ins().stack_load(Self::cliff_ty(field_ty), *ss, place.offset);
                 v
             }
             Operand::Value(value) => *ins_map.get(&value.id).unwrap(),

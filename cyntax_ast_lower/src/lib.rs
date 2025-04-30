@@ -289,8 +289,14 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
             kind: cyntax_hir::StructTypeKind::Incomplete,
         };
         self.map.tags.insert(id, self.arena.alloc(struct_ty));
+
         if let Some(tag) = &specifier.tag {
-            let _ = self.define_struct_type(tag, id);
+            if specifier.declarations.is_some() {
+                self.define_struct_type(tag, id)?;
+            } else {
+                return Ok(self.find_struct_in_scope(tag)?);
+            }
+            // let _ = self.define_struct_type(tag, id);
         }
 
         if let Some(declarations) = &specifier.declarations {
@@ -602,4 +608,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
             Ok(())
         }
     }
+    // pub fn declare_struct_type(&mut self, tag: &Spanned<Identifier>, id:HirId) -> PResult<()> {
+        
+    // }
 }

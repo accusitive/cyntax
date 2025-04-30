@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{collections::HashMap, fmt::Display};
 
 use cyntax_parser::ast::Identifier;
 #[derive(Debug, Clone)]
@@ -64,6 +64,12 @@ impl StructField {
             StructField::Padding(ty) => None,
         }
     }
+    fn is_struct(&self) -> bool {
+        match self.get_ty() {
+            Ty::Struct(struct_fields) => true,
+            _ => false,
+        }
+    }
 }
 impl Ty {
     pub fn align_of(&self) -> u32 {
@@ -96,6 +102,47 @@ impl Ty {
             Ty::F64 => 8,
             Ty::Struct(fields) => fields.iter().map(|field| field.get_ty().size_of()).sum(),
             Ty::Ptr(_) => 8,
+        }
+    }
+    pub fn flat_fields(&self) -> Vec<&Ty> {
+        match self {
+            Ty::Struct(struct_fields) => struct_fields.iter().map(|field| field.get_ty().flat_fields()).flatten().collect(),
+            _ => vec![self],
+        }
+    }
+    // recursively visit children to build out a map of Identifier : Byte offset
+    pub fn build_offset_map(&self, offset: &mut i32, map: &mut HashMap<Identifier, i32>) {
+        match self {
+            Ty::Struct(struct_fields) => {
+                for field in struct_fields {
+                    if let Some(field_name) = field.get_name() {
+                        map.insert(field_name, *offset);
+                    }
+                    field.get_ty().build_offset_map(offset, map);
+
+                    if !field.is_struct() {
+                        *offset += field.get_ty().size_of() as i32;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub fn type_at_offset(&self, offset: i32) -> &Self {
+        match self {
+            Ty::Struct(_) => {
+                let mut acc = 0;
+                for t in self.flat_fields() {
+                    acc += t.size_of() as i32;
+                    if acc > offset {
+                        return t;
+                    }
+                }
+                panic!("offset {} out of bounds for {:?}", offset, self);
+            }
+            _ if offset > 0 => panic!("tried to get type at offset {} when self is {:?}", offset, self),
+            _ => self,
         }
     }
 }
@@ -162,10 +209,7 @@ impl Operand {
 }
 impl Place {
     pub fn new(slot_id: StackSlotId) -> Self {
-        Self {
-            slot_id,
-            offset: 0,
-        }
+        Self { slot_id, offset: 0 }
     }
 }
 impl Display for Function {
@@ -195,9 +239,6 @@ impl Display for Function {
                             }
                             write!(f, "slot:{}", place_str)?;
                         }
-                        // Operand::Constant(val) => {
-                        //     write!(f, "const:{}", val)?;
-                        // }
                         Operand::BlockId(block_id) => {
                             write!(f, "bb:{}", block_id.0)?;
                         }

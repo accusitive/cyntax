@@ -345,24 +345,16 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
             cyntax_hir::ExpressionKind::MemberAccess(expression, spanned) => {
                 let operand = self.lower_expression(&expression);
                 let target = operand.as_place().unwrap();
-                let ty = self.func.slots[target.slot_id.0].ty.clone();
-                dbg!(&ty);
+                let slot_ty = self.func.slots[target.slot_id.0].ty.clone();
+                dbg!(&slot_ty);
 
-                let mut offset = 0i32;
+                let mut map = HashMap::new();
+                let mut offset = 0;
+                slot_ty.build_offset_map(&mut offset, &mut map);
 
-                let mut found = false;
-                let as_struct_fields = match &ty {
-                    cyntax_mir::Ty::Struct(struct_fields) => struct_fields,
-                    _ => unreachable!("member access on non struct ty"),
-                };
-                for field in as_struct_fields {
-                    if field.get_name().map_or(false, |name| name == spanned.value) {
-                        found = true;
-                        break;
-                    }
-                    offset += field.get_ty().size_of() as i32;
-                }
-                assert!(found, "could not find {:?} in {:#?} in", spanned.value, ty);
+                dbg!(spanned.value, &offset, &map);
+                let offset = *map.get(&spanned.value).unwrap();
+                dbg!(&offset, slot_ty.size_of());
                 let field_place = Place { slot_id: target.slot_id, offset };
 
                 Operand::Place(field_place)
