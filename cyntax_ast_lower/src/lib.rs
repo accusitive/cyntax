@@ -290,7 +290,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
         };
         self.map.tags.insert(id, self.arena.alloc(struct_ty));
         if let Some(tag) = &specifier.tag {
-            self.define_struct_type(tag, id)?;
+            let _ = self.define_struct_type(tag, id);
         }
 
         if let Some(declarations) = &specifier.declarations {
@@ -309,9 +309,9 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                 kind: StructTypeKind::Complete(self.arena.alloc_slice_copy(&fields)),
             };
             self.map.tags.insert(id, self.arena.alloc(struct_ty));
-            if let Some(tag) = &specifier.tag {
-                self.define_struct_type(tag, id)?;
-            }
+            // if let Some(tag) = &specifier.tag {
+            //     self.define_struct_type(tag, id)?;
+            // }
         }
         Ok(id)
     }

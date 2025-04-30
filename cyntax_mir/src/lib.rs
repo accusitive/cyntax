@@ -1,4 +1,3 @@
-
 use std::fmt::Display;
 
 use cyntax_parser::ast::Identifier;
@@ -18,7 +17,7 @@ pub struct Function {
 #[derive(Debug, Clone)]
 pub struct Slot {
     pub size: u32,
-    pub ty: Ty
+    pub ty: Ty,
 }
 #[derive(Debug, Clone)]
 pub struct BasicBlock {
@@ -48,14 +47,21 @@ pub enum Ty {
 pub enum StructField {
     Named(Identifier, Ty),
     Anonymous(Ty),
-    Padding(Ty)
+    Padding(Ty),
 }
 impl StructField {
     pub fn get_ty(&self) -> &Ty {
         match self {
             StructField::Named(_, ty) => ty,
             StructField::Anonymous(ty) => ty,
-            StructField::Padding(ty) => ty
+            StructField::Padding(ty) => ty,
+        }
+    }
+    pub fn get_name(&self) -> Option<Identifier> {
+        match self {
+            StructField::Named(symbol_u32, ty) => Some(*symbol_u32),
+            StructField::Anonymous(ty) => None,
+            StructField::Padding(ty) => None,
         }
     }
 }
@@ -72,9 +78,7 @@ impl Ty {
             Ty::I64 => 8,
             Ty::F32 => 4,
             Ty::F64 => 8,
-            Ty::Struct(fields) => {
-                fields.iter().map(|field| field.get_ty().size_of()).max().unwrap_or(0)
-            }
+            Ty::Struct(fields) => fields.iter().map(|field| field.get_ty().size_of()).max().unwrap_or(1),
             Ty::Ptr(_) => 8,
         }
     }
@@ -90,9 +94,7 @@ impl Ty {
             Ty::I64 => 8,
             Ty::F32 => 4,
             Ty::F64 => 8,
-            Ty::Struct(fields) => {
-                fields.iter().map(|field| field.get_ty().size_of()).sum()
-            },
+            Ty::Struct(fields) => fields.iter().map(|field| field.get_ty().size_of()).sum(),
             Ty::Ptr(_) => 8,
         }
     }
@@ -105,10 +107,14 @@ pub struct Value {
 #[derive(Debug, Clone)]
 pub enum Operand {
     Value(Value),
-    Place(StackSlotId),
+    Place(Place),
     BlockId(BlockId),
 }
-
+#[derive(Debug, Clone)]
+pub struct Place {
+    pub slot_id: StackSlotId,
+    pub offset: i32,
+}
 
 #[derive(Debug, Clone)]
 pub struct Instruction {
@@ -126,6 +132,7 @@ pub enum InstructionKind {
     // Memory
     Load,
     Store,
+
     StackLoad,
     StackStore,
     StackAddr,
@@ -146,11 +153,19 @@ impl Operand {
     pub fn as_value(&self) -> Option<&Value> {
         if let Operand::Value(v) = self { Some(v) } else { None }
     }
-    pub fn as_place(&self) -> Option<&StackSlotId> {
-        if let Operand::Place(p) = self { Some(p) } else { None }
+    pub fn as_place(&self) -> Option<&Place> {
+        if let Operand::Place(place) = self { Some(place) } else { None }
     }
     pub fn as_block_id(&self) -> Option<&BlockId> {
         if let Operand::BlockId(b) = self { Some(b) } else { None }
+    }
+}
+impl Place {
+    pub fn new(slot_id: StackSlotId) -> Self {
+        Self {
+            slot_id,
+            offset: 0,
+        }
     }
 }
 impl Display for Function {
@@ -173,8 +188,12 @@ impl Display for Function {
                         Operand::Value(value) => {
                             write!(f, "val:{}", value.id)?;
                         }
-                        Operand::Place(stack_slot_id) => {
-                            write!(f, "slot:{}", stack_slot_id.0)?;
+                        Operand::Place(place) => {
+                            let mut place_str = format!("{}", place.slot_id.0);
+                            if place.offset > 0 {
+                                place_str.push_str(&format!("+{}", place.offset));
+                            }
+                            write!(f, "slot:{}", place_str)?;
                         }
                         // Operand::Constant(val) => {
                         //     write!(f, "const:{}", val)?;

@@ -1,7 +1,10 @@
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 use cranelift::{
-    codegen::{ir::{self, SourceLoc, ValueLabel}, Context, ValueLabelsRanges},
+    codegen::{
+        Context, ValueLabelsRanges,
+        ir::{self, SourceLoc, ValueLabel},
+    },
     prelude::*,
 };
 use cranelift_module::{Linkage, Module};
@@ -119,9 +122,9 @@ impl<'src> CliffLower<'src> {
                     }
                     cyntax_mir::InstructionKind::StackStore => {
                         if let Operand::Place(place) = &ins.inputs[0] {
-                            let ss = slot_map.get(&place.0).unwrap();
+                            let ss = slot_map.get(&place.slot_id.0).unwrap();
                             let value = Self::read_rvalue(&ins.inputs[1], &slot_map, &mut builder, &ins_map);
-                            builder.ins().stack_store(value, *ss, 0);
+                            builder.ins().stack_store(value, *ss, place.offset);
                         } else {
                             panic!("First operand to store must be a place")
                         }
@@ -140,16 +143,15 @@ impl<'src> CliffLower<'src> {
                     }
                     //Load struct, deals with all of it's fields then returns a pointer(?)
                     cyntax_mir::InstructionKind::StackLoad => {
-                        let slot_id = ins.inputs[0].as_place().unwrap().clone();
-                        let slot = slot_map.get(&slot_id.0).unwrap();
+                        let place = ins.inputs[0].as_place().unwrap().clone();
+                        let slot = slot_map.get(&place.slot_id.0).unwrap();
                         let expected = Self::cliff_ty(&ins.output.as_ref().unwrap().ty.clone());
 
-                        ins_map.insert(ins.output.as_ref().unwrap().id, builder.ins().stack_load(expected, *slot, 0));
+                        ins_map.insert(ins.output.as_ref().unwrap().id, builder.ins().stack_load(expected, *slot, place.offset));
                     }
                     cyntax_mir::InstructionKind::StackAddr => {
-                        let slot = slot_map.get(&ins.inputs[0].as_place().unwrap().0).unwrap();
-                        ins_map.insert(ins.output.as_ref().unwrap().id, builder.ins().stack_addr(ir::types::I64, *slot,0));
-
+                        let slot = slot_map.get(&ins.inputs[0].as_place().unwrap().slot_id.0).unwrap();
+                        ins_map.insert(ins.output.as_ref().unwrap().id, builder.ins().stack_addr(ir::types::I64, *slot, 0));
                     }
                 }
             }
@@ -160,16 +162,13 @@ impl<'src> CliffLower<'src> {
         let func_id = self.module.declare_function(self.pctx.res(func.name), Linkage::Export, &self.ctx.func.signature).unwrap();
 
         match self.module.define_function(func_id, &mut self.ctx) {
-            Ok(ok) => {
-                
-            },
+            Ok(ok) => {}
             Err(e) => {
                 panic!("{:#?}", e)
-            },
+            }
         }
-
     }
-    fn cliff_ty(ty: &cyntax_mir::Ty) -> ir::Type{
+    fn cliff_ty(ty: &cyntax_mir::Ty) -> ir::Type {
         match ty {
             cyntax_mir::Ty::U8 => ir::types::I8,
             cyntax_mir::Ty::I8 => ir::types::I8,
@@ -186,11 +185,10 @@ impl<'src> CliffLower<'src> {
         }
     }
     fn read_rvalue(o: &Operand, slot_map: &HashMap<usize, ir::StackSlot>, builder: &mut FunctionBuilder<'_>, ins_map: &HashMap<usize, Value>) -> Value {
-        
         match o {
-            Operand::Place(stack_slot_id) => {
-                let ss = slot_map.get(&stack_slot_id.0).unwrap();
-                let v = builder.ins().stack_load(ir::types::I32, *ss, 0);
+            Operand::Place(place) => {
+                let ss = slot_map.get(&place.slot_id.0).unwrap();
+                let v = builder.ins().stack_load(ir::types::I32, *ss, place.offset);
                 v
             }
             Operand::Value(value) => *ins_map.get(&value.id).unwrap(),
@@ -200,9 +198,9 @@ impl<'src> CliffLower<'src> {
     }
     fn read_rvalue_address(o: &Operand, slot_map: &HashMap<usize, ir::StackSlot>, builder: &mut FunctionBuilder<'_>, ins_map: &HashMap<usize, Value>) -> Value {
         match o {
-            Operand::Place(stack_slot_id) => {
-                let ss = slot_map.get(&stack_slot_id.0).unwrap();
-                builder.ins().stack_addr(ir::types::I64, *ss, 0)
+            Operand::Place(place) => {
+                let ss = slot_map.get(&place.slot_id.0).unwrap();
+                builder.ins().stack_addr(ir::types::I64, *ss, place.offset)
             }
             _ => panic!("Can only take address of a Place"),
         }
