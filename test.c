@@ -15,6 +15,11 @@ x()
          accumulator  = accumulator + 10;
       }
    }
+   while(accumulator < 1000000) {
+      accumulator = accumulator + 1;
+   }
+   
    return accumulator;
 }
+
 

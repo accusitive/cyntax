@@ -265,35 +265,36 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
                     }
                 }
             }
+
+            // TODO: Figure out phi/block params, creating an intermediate stack value isnt optimal
             cyntax_hir::ExpressionKind::BinaryOp(span!(InfixOperator::LogicalAnd), lhs, rhs) => {
                 let zero = self.const_i8(0);
                 let one = self.const_i8(1);
 
-                let result_blocok = self.allocate_block();
+                let result_block = self.allocate_block();
                 let check_rhs = self.allocate_block();
 
                 let result_place = self.allocate_stack_slot(&cyntax_mir::Ty::I8);
                 self.stack_store(result_place, cyntax_mir::Operand::Value(zero));
-
                 
                 {
                     let lhs = self.lower_expression(lhs);
                     let lhs_truthy = self.ins_eq(lhs, cyntax_mir::Operand::Value(one.clone()));
 
-                    self.insert(InstructionKind::JumpIf, vec![cyntax_mir::Operand::Value(lhs_truthy), cyntax_mir::Operand::BlockId(check_rhs), cyntax_mir::Operand::BlockId(result_blocok)], None);
+                    self.insert(InstructionKind::JumpIf, vec![cyntax_mir::Operand::Value(lhs_truthy), cyntax_mir::Operand::BlockId(check_rhs), cyntax_mir::Operand::BlockId(result_block)], None);
                 }
 
-                // check_rhs
+                // lhs was true, now check right side
                 {
                     self.current_block = check_rhs;
                     let rhs = self.lower_expression(rhs);
                     let rhs_truthy = self.ins_eq(rhs, cyntax_mir::Operand::Value(one));
                     self.stack_store(result_place, cyntax_mir::Operand::Value(rhs_truthy));
-                    self.insert(InstructionKind::Jump, vec![cyntax_mir::Operand::BlockId(result_blocok)], None);
+                    self.insert(InstructionKind::Jump, vec![cyntax_mir::Operand::BlockId(result_block)], None);
                 }
                 // return block
                 {
-                    self.current_block = result_blocok;
+                    self.current_block = result_block;
                     let loaded_result = self.insert(InstructionKind::StackLoad, vec![Operand::Place(result_place)], Some(cyntax_mir::Ty::I8)).unwrap();
 
                     cyntax_mir::Operand::Value(loaded_result)

@@ -405,7 +405,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                 hir::StatementKind::Compound(self.arena.alloc_slice_fill_iter(hir_block_items.into_iter()))
             }
             ast::Statement::Expression(expression) => hir::StatementKind::Expression(self.arena.alloc(self.lower_expression(expression)?)),
-            ast::Statement::Iteration(IterationStatement::While(condition, body)) => hir::StatementKind::While(self.lower_expression(condition)?, self.lower_statement(&statement)?),
+            ast::Statement::Iteration(IterationStatement::While(condition, body)) => hir::StatementKind::While(self.lower_expression(condition)?, self.lower_statement(&body)?),
             ast::Statement::Iteration(IterationStatement::ForLoop { init, condition, update, body }) => {
                 let mut block_items = vec![];
                 if let Some(init) = init {
