@@ -84,14 +84,15 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                 let base = self.lower_declaration_ty_specifiers(&function_definition.specifiers)?;
                 let ty = self.lower_ty(&base, &function_definition.declarator)?;
                 if let TyKind::Function { return_ty, parameters } = &ty.kind {
+                    let mut params = vec![];
                     for param in *parameters {
                         let id = self.next_id();
                         let declaration = hir::Declaration {
-                            id,
+                            id: id,
+                            ty: param.ty,
                             declarator_loc: Location::new(),
                             full_location: Location::new(),
                             init: None,
-                            ty,
                         };
                         let declaration: &'hir _ = self.arena.alloc(declaration);
                         self.map.ordinary.insert(id, declaration);
@@ -99,18 +100,23 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                         if let Some(identifier) = &param.identifier {
                             self.scopes.last_mut().unwrap().ordinary.insert(identifier.value, id);
                         }
+                        params.push(declaration);
                     }
 
+                    let params: &'hir _ = self.arena.alloc_slice_fill_iter(params.into_iter());
+
                     dbg!(&return_ty, &parameters);
-                    // self.scopes.last_mut().unwrap().ordinary.
+                    let body: &cyntax_hir::Statement<'hir> = self.lower_statement(&function_definition.body)?;
+                    let base_ty = self.lower_declaration_ty_specifiers(&function_definition.specifiers)?;
+                    let ty = self.lower_ty(&base_ty, &function_definition.declarator)?;
+    
+                    let def = hir::ExternalDeclaration::FunctionDefinition(hir::FunctionDefinition { parameters: params, body , ty, identifier: function_definition.declarator.value.get_identifier().unwrap()});
+    
+                    Ok(vec![self.arena.alloc(def)])
+                } else {
+                    unreachable!("function definition must be of function type")
                 }
-                let body: &cyntax_hir::Statement<'hir> = self.lower_statement(&function_definition.body)?;
-                let base_ty = self.lower_declaration_ty_specifiers(&function_definition.specifiers)?;
-                let ty = self.lower_ty(&base_ty, &function_definition.declarator)?;
-
-                let def = hir::ExternalDeclaration::FunctionDefinition(hir::FunctionDefinition { body , ty, identifier: function_definition.declarator.value.get_identifier().unwrap()});
-
-                Ok(vec![self.arena.alloc(def)])
+              
             }
             ast::ExternalDeclaration::Declaration(declaration) => {
                 let declarations: Vec<&'hir _> = self.lower_declaration(declaration)?;
@@ -366,7 +372,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
 
                         let ty = self.lower_ty(&spec, param.value.declarator.as_ref().unwrap_or(&Spanned::new(Location::new(), ast::Declarator::Abstract)))?;
                         let name = param.value.declarator.as_ref().map(|declarator| declarator.value.get_identifier().map(|identifier| declarator.location.to_spanned(identifier))).flatten();
-                        parameters.push(FunctionParameter { ty, identifier: name });
+                        parameters.push(FunctionParameter {ty, identifier: name });
                     }
                     let parameters: &'hir _ = self.arena.alloc_slice_fill_iter(parameters.into_iter());
 

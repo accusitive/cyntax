@@ -32,10 +32,11 @@ impl<'src, 'hir> HirLower<'src, 'hir> {
     }
     pub fn lower_function_definition(&mut self, funcdef: &hir::FunctionDefinition) -> PResult<mir::Function> {
         let mut func = mir::Function {
+            params: None,
             ty: None,
             name: funcdef.identifier,
             slots: vec![],
-            blocks: vec![BasicBlock { instructions: vec![] }],
+            blocks: vec![BasicBlock { instructions: vec![], entry: true}],
         };
         FunctionLowerer::new(&mut func, &self.hir_map).lower(funcdef);
 
@@ -49,6 +50,7 @@ pub struct FunctionLowerer<'a, 'hir> {
     next_id: usize,
     current_block: BlockId,
     hir_map: &'a HirMap<'hir>,
+    param_map: HashMap<HirId, usize>,
 }
 
 impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
@@ -59,6 +61,7 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
             next_id: 0,
             current_block: BlockId(0),
             hir_map,
+            param_map: HashMap::new(),
         }
     }
     fn lower_ty_kind(&mut self, ty: &hir::TyKind) -> mir::Ty {
@@ -138,16 +141,33 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
         self.func.slots.push(cyntax_mir::Slot { size: mir_ty.size_of(), ty: mir_ty.clone() });
         StackSlotId(id)
     }
+    fn allocate_entry_block(&mut self) -> BlockId {
+        let id = self.func.blocks.len();
+        self.func.blocks.push(BasicBlock { instructions: vec![], entry: true });
+        BlockId(id)
+    }
     fn allocate_block(&mut self) -> BlockId {
         let id = self.func.blocks.len();
-        self.func.blocks.push(BasicBlock { instructions: vec![] });
+        self.func.blocks.push(BasicBlock { instructions: vec![], entry: false });
         BlockId(id)
     }
     pub fn lower(&mut self, funcdef: &hir::FunctionDefinition<'hir>) {
-        if let hir::TyKind::Function { return_ty, parameters: _ } = &funcdef.ty.kind {
+        if let hir::TyKind::Function { return_ty, parameters } = &funcdef.ty.kind {
             let ret = self.lower_ty_kind(&return_ty);
             self.func.ty = Some(ret);
+            self.func.params = Some(parameters.iter().map(|param| self.lower_ty_kind(&param.ty.kind)).collect());
+
+            for (param_idx, param) in funcdef.parameters.iter().enumerate() {
+                self.param_map.insert(param.id, param_idx);
+                let mir_ty = self.lower_ty_kind(&param.ty.kind);
+                let slot = self.allocate_stack_slot(&mir_ty);
+                let arg = self.insert(InstructionKind::Argument(param_idx), vec![], Some(mir_ty)).unwrap();
+                self.stack_store(slot, cyntax_mir::Operand::Value(arg));
+
+                self.ss_map.insert(param.id, slot.clone());
+            }
         }
+
         self.lower_statement(funcdef.body);
     }
     pub fn lower_statement(&mut self, stmt: &hir::Statement<'hir>) {
@@ -294,7 +314,7 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
                 // return block
                 {
                     self.current_block = result_block;
-                    let loaded_result = self.insert(InstructionKind::StackLoad, vec![Operand::Place(Place::new(result_place))], Some(cyntax_mir::Ty::I8)).unwrap();
+                    let loaded_result = self.insert(InstructionKind::StackLoad, vec![Operand::Place(Place::new_slot(result_place))], Some(cyntax_mir::Ty::I8)).unwrap();
 
                     cyntax_mir::Operand::Value(loaded_result)
                 }
@@ -340,7 +360,9 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
                     _ => unreachable!(),
                 }
             }
-            cyntax_hir::ExpressionKind::DeclarationReference(hir_id) => Operand::Place(Place::new(self.ss_map.get(hir_id).unwrap().clone())),
+            cyntax_hir::ExpressionKind::DeclarationReference(hir_id) => {
+                Operand::Place(Place::new_slot(self.ss_map.get(hir_id).unwrap().clone()))
+            }
             cyntax_hir::ExpressionKind::Cast(ty, expression) => todo!(),
             cyntax_hir::ExpressionKind::MemberAccess(expression, spanned) => {
                 let operand = self.lower_expression(&expression);
@@ -419,7 +441,7 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
         next_id
     }
     pub fn stack_store(&mut self, slot: StackSlotId, value: Operand) {
-        self.insert(mir::InstructionKind::StackStore, vec![Operand::Place(Place::new(slot)), value], None);
+        self.insert(mir::InstructionKind::StackStore, vec![Operand::Place(Place::new_slot(slot)), value], None);
     }
     pub fn const_i64(&mut self, value: i64) -> Value {
         self.insert(cyntax_mir::InstructionKind::Const(value), vec![], Some(mir::Ty::I64)).unwrap()

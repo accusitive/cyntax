@@ -6,7 +6,7 @@ extern long int x();
 #include "test.c"
 
 int main() {
-    printf("Base truth: x() = %i\n", harness_x());
-    printf("GLScc       x() = %i\n", x());
+    printf("Base truth: x() = %i\n", invoke);
+    printf("GLScc       x() = %i\n", x args);
 
 }

@@ -8,7 +8,10 @@ pub struct TranslationUnit {
 }
 #[derive(Debug, Clone)]
 pub struct Function {
+    /// Deferred
+    pub params: Option<Vec<Ty>>,
     pub name: Identifier,
+    // Deferred
     pub ty: Option<Ty>,
     // size
     pub slots: Vec<Slot>,
@@ -22,6 +25,7 @@ pub struct Slot {
 #[derive(Debug, Clone)]
 pub struct BasicBlock {
     pub instructions: Vec<Instruction>,
+    pub entry: bool
 }
 #[derive(Debug, Clone)]
 pub enum Ty {
@@ -162,7 +166,6 @@ pub struct Place {
     pub slot_id: StackSlotId,
     pub offset: i32,
 }
-
 #[derive(Debug, Clone)]
 pub struct Instruction {
     pub inputs: Vec<Operand>,
@@ -191,6 +194,7 @@ pub enum InstructionKind {
     Jump,
     Return,
     ReturnValue,
+    Argument(usize)
 }
 #[derive(Debug, Clone, Copy)]
 pub struct StackSlotId(pub usize);
@@ -208,8 +212,9 @@ impl Operand {
     }
 }
 impl Place {
-    pub fn new(slot_id: StackSlotId) -> Self {
+    pub fn new_slot(slot_id: StackSlotId) -> Self {
         Self { slot_id, offset: 0 }
+
     }
 }
 impl Display for Function {
@@ -233,7 +238,7 @@ impl Display for Function {
                             write!(f, "val:{}", value.id)?;
                         }
                         Operand::Place(place) => {
-                            let mut place_str = format!("{}", place.slot_id.0);
+                            let mut place_str = format!("{:?}", place.slot_id);
                             if place.offset > 0 {
                                 place_str.push_str(&format!("+{}", place.offset));
                             }

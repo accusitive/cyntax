@@ -48,7 +48,13 @@ impl<'src> CliffLower<'src> {
         let t = Self::cliff_ty(func.ty.as_ref().unwrap());
 
         self.ctx.func.signature.returns.push(AbiParam::new(t));
-
+        for param in func.params.as_ref().unwrap() {
+            self.ctx.func.signature.params.push(AbiParam {
+                value_type: Self::cliff_ty(param),
+                purpose: ir::ArgumentPurpose::Normal,
+                extension: ir::ArgumentExtension::None,
+            });
+        }
         let mut builder = FunctionBuilder::new(&mut self.ctx.func, &mut func_ctx);
         builder.func.collect_debug_info();
 
@@ -69,8 +75,13 @@ impl<'src> CliffLower<'src> {
         }
 
         block_id = 0;
+        let mut entry = None;
         for bb in &func.blocks {
             let block = *block_map.get(&block_id).unwrap();
+            if bb.entry {
+                builder.append_block_params_for_function_params(block);
+                entry = Some(block);
+            }
             builder.switch_to_block(block);
 
             for ins in &bb.instructions {
@@ -90,7 +101,6 @@ impl<'src> CliffLower<'src> {
                         let rhs = Self::read_rvalue(&ins.inputs[1], &func.slots, &slot_map, &mut builder, &ins_map);
                         ins_map.insert(ins.output.as_ref().unwrap().id, builder.ins().icmp(IntCC::Equal, lhs, rhs));
                     }
-
                     cyntax_mir::InstructionKind::Const(value) => {
                         let ty = &ins.output.as_ref().unwrap().ty;
                         let value = builder.ins().iconst(Self::cliff_ty(ty), value);
@@ -110,7 +120,6 @@ impl<'src> CliffLower<'src> {
                     cyntax_mir::InstructionKind::Jump => {
                         let block_id = ins.inputs[0].as_block_id().unwrap();
                         let block = block_map.get(&block_id.0).unwrap();
-
                         builder.ins().jump(*block, &[]);
                     }
                     cyntax_mir::InstructionKind::Return => {
@@ -118,6 +127,7 @@ impl<'src> CliffLower<'src> {
                     }
                     cyntax_mir::InstructionKind::ReturnValue => {
                         let value = Self::read_rvalue(&ins.inputs[0], &func.slots, &slot_map, &mut builder, &ins_map);
+                        // let value = builder.block_params(entry.unwrap())[0];
                         builder.ins().return_(&[value]);
                     }
                     cyntax_mir::InstructionKind::StackStore => {
@@ -133,15 +143,13 @@ impl<'src> CliffLower<'src> {
                         let address = Self::read_rvalue(&ins.inputs[0], &func.slots, &slot_map, &mut builder, &ins_map);
                         let data = Self::read_rvalue(&ins.inputs[1], &func.slots, &slot_map, &mut builder, &ins_map);
 
-                        let i = builder.ins().store(MemFlags::new(), address, data, 0);
-                        dbg!(&builder.inst_results(i));
+                        builder.ins().store(MemFlags::new(), address, data, 0);
                     }
                     cyntax_mir::InstructionKind::Load => {
                         let value = Self::read_rvalue(&ins.inputs[0], &func.slots, &slot_map, &mut builder, &ins_map);
                         let t = Self::cliff_ty(&ins.output.as_ref().unwrap().ty);
                         ins_map.insert(ins.output.as_ref().unwrap().id, builder.ins().load(t, MemFlags::new(), value, 0));
                     }
-                    //Load struct, deals with all of it's fields then returns a pointer(?)
                     cyntax_mir::InstructionKind::StackLoad => {
                         let place = ins.inputs[0].as_place().unwrap().clone();
                         let slot = slot_map.get(&place.slot_id.0).unwrap();
@@ -152,6 +160,9 @@ impl<'src> CliffLower<'src> {
                     cyntax_mir::InstructionKind::StackAddr => {
                         let slot = slot_map.get(&ins.inputs[0].as_place().unwrap().slot_id.0).unwrap();
                         ins_map.insert(ins.output.as_ref().unwrap().id, builder.ins().stack_addr(ir::types::I64, *slot, 0));
+                    }
+                    cyntax_mir::InstructionKind::Argument(idx) => {
+                        ins_map.insert(ins.output.as_ref().unwrap().id, builder.block_params(entry.unwrap())[idx]);
                     }
                 }
             }
