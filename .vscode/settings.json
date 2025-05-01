@@ -21,6 +21,12 @@
         "__fpos_t.h": "c",
         "__stddef_size_t.h": "c",
         "signal.h": "c",
-        "xproto.h": "c"
+        "xproto.h": "c",
+        "bit": "c",
+        "*.tcc": "c",
+        "cmath": "c",
+        "functional": "c",
+        "limits": "c",
+        "tuple": "c"
     }
 }

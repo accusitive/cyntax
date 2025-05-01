@@ -1,9 +1,9 @@
 use cyntax_common::ast::PreprocessingToken;
 use cyntax_common::ast::Punctuator;
 use cyntax_common::ast::Whitespace;
-use cyntax_common::ctx::ParseContext;
 use cyntax_common::ctx::HasContext;
 use cyntax_common::ctx::HasMutContext;
+use cyntax_common::ctx::ParseContext;
 use cyntax_common::span;
 use cyntax_common::spanned::Location;
 use cyntax_common::spanned::Spanned;

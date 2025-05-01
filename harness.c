@@ -1,12 +1,11 @@
 #include <stdio.h>
 
-extern long int x();
 
 #define harness
 #include "test.c"
+extern proto(x);
 
 int main() {
-    printf("Base truth: x() = %i\n", invoke);
-    printf("GLScc       x() = %i\n", x args);
-
+    printf("Base truth: x() = %i\n", harness_run args);
+    printf("GLScc       x() = %i\n", run args);
 }

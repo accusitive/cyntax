@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display, ops::Deref};
 
 use cyntax_common::{ctx::ParseContext, span, spanned::Spanned};
 use cyntax_hir::{self as hir, HirId, HirMap, StructTypeKind};
-use cyntax_mir::{self as mir, BasicBlock, BlockId, Instruction, InstructionKind, Operand, Place, StackSlotId, Value};
+use cyntax_mir::{self as mir, BasicBlock, BlockId, Instruction, InstructionKind, Operand, Place, PlaceKind, StackSlotId, Value};
 use cyntax_parser::ast::InfixOperator;
 
 pub type PResult<T> = Result<T, cyntax_errors::codespan_reporting::diagnostic::Diagnostic<usize>>;
@@ -24,7 +24,7 @@ impl<'src, 'hir> HirLower<'src, 'hir> {
                     funcs.push(self.lower_function_definition(function_definition)?);
                 }
 
-                cyntax_hir::ExternalDeclaration::Declaration(declaration) => todo!(),
+               cyntax_hir::ExternalDeclaration::Declaration(declaration) => todo!(),
             }
         }
 
@@ -36,7 +36,7 @@ impl<'src, 'hir> HirLower<'src, 'hir> {
             ty: None,
             name: funcdef.identifier,
             slots: vec![],
-            blocks: vec![BasicBlock { instructions: vec![], entry: true}],
+            blocks: vec![BasicBlock { instructions: vec![], entry: true }],
         };
         FunctionLowerer::new(&mut func, &self.hir_map).lower(funcdef);
 
@@ -280,8 +280,6 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
                     cyntax_parser::constant::Width::None => cyntax_mir::Operand::Value(self.const_i32(num)),
                 }
             }
-
-            // TODO: Figure out phi/block params, creating an intermediate stack value isnt optimal
             cyntax_hir::ExpressionKind::BinaryOp(span!(InfixOperator::LogicalAnd), lhs, rhs) => {
                 let zero = self.const_i8(0);
                 let one = self.const_i8(1);
@@ -361,25 +359,29 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
                 }
             }
             cyntax_hir::ExpressionKind::DeclarationReference(hir_id) => {
+                dbg!(&self.hir_map.ordinary.get(hir_id).unwrap());
                 Operand::Place(Place::new_slot(self.ss_map.get(hir_id).unwrap().clone()))
             }
             cyntax_hir::ExpressionKind::Cast(ty, expression) => todo!(),
             cyntax_hir::ExpressionKind::MemberAccess(expression, spanned) => {
                 let operand = self.lower_expression(&expression);
                 let target = operand.as_place().unwrap();
-                let slot_ty = self.func.slots[target.slot_id.0].ty.clone();
-                dbg!(&slot_ty);
-
-                let mut map = HashMap::new();
-                let mut offset = 0;
-                slot_ty.build_offset_map(&mut offset, &mut map);
-
-                dbg!(spanned.value, &offset, &map);
-                let offset = *map.get(&spanned.value).unwrap();
-                dbg!(&offset, slot_ty.size_of());
-                let field_place = Place { slot_id: target.slot_id, offset };
-
-                Operand::Place(field_place)
+                match target.kind {
+                    PlaceKind::Slot(slot_id) => {
+                        let slot_ty = self.func.slots[slot_id.0].ty.clone();
+                        dbg!(&slot_ty);
+                        let mut map = HashMap::new();
+                        let mut offset = 0;
+                        slot_ty.build_offset_map(&mut offset, &mut map);
+                        dbg!(spanned.value, &offset, &map);
+                        let offset = *map.get(&spanned.value).unwrap();
+                        dbg!(&offset, slot_ty.size_of());
+                        let field_place = Place { kind: target.kind, offset };
+                        Operand::Place(field_place)
+                    }
+                    _ => panic!(),
+                }
+               
             }
             cyntax_hir::ExpressionKind::AddressOf(expression) => {
                 let operand = self.lower_expression(&expression);
@@ -390,8 +392,9 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
                     //     let addr = self.insert(InstructionKind::StackAddr, vec![Operand::Place(stack_slot)], Some(cyntax_mir::Ty::Ptr(Box::new(value.ty.clone())))).unwrap();
                     //     Operand::Value(addr)
                     // }
-                    Operand::Place(stack_slot) => {
-                        let ty = self.func.slots[stack_slot.slot_id.0].ty.clone();
+
+                    Operand::Place(Place { kind: PlaceKind::Slot(slot_id), offset }) => {
+                        let ty = self.func.slots[slot_id.0].ty.clone();
                         let addr = self.insert(InstructionKind::StackAddr, vec![operand.clone()], Some(cyntax_mir::Ty::Ptr(Box::new(ty)))).unwrap();
                         Operand::Value(addr)
                     }
@@ -408,15 +411,15 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
                         };
                         Operand::Value(self.insert(InstructionKind::Load, vec![o.clone()], Some(*deref_ty.clone())).unwrap())
                     }
-                    Operand::Place(stack_slot_id) => {
-                        let slot = self.func.slots[stack_slot_id.slot_id.0].clone();
+                    Operand::Place(place @ Place { kind: PlaceKind::Slot(slot_id), offset: _ }) => {
+                        let slot = self.func.slots[slot_id.0].clone();
 
                         let expected_ty = match &slot.ty {
                             cyntax_mir::Ty::Ptr(ty) => ty.clone(),
                             _ => panic!(),
                         };
                         // Load the pointer out of the place
-                        let loaded_ptr = self.insert(InstructionKind::StackLoad, vec![Operand::Place(stack_slot_id.clone())], Some(slot.ty.clone())).unwrap();
+                        let loaded_ptr = self.insert(InstructionKind::StackLoad, vec![Operand::Place(place.clone())], Some(slot.ty.clone())).unwrap();
                         // Load the value out of the pointer
                         let loaded_value = self.insert(InstructionKind::Load, vec![Operand::Value(loaded_ptr)], Some(*expected_ty.clone())).unwrap();
                         Operand::Value(loaded_value)
@@ -424,6 +427,13 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
                     _ => todo!(),
                 }
             }
+            cyntax_hir::ExpressionKind::Call(expression, args) => {
+                let target = self.lower_expression(&expression);
+                let args = args.iter().map(|expr| self.lower_expression(expr)).collect();
+                let func_result = self.insert(InstructionKind::Call, args, Some(cyntax_mir::Ty::I32)).unwrap();
+
+                cyntax_mir::Operand::Value(func_result)
+            },
         }
     }
     fn current_block_has_terminator(&mut self) -> bool {

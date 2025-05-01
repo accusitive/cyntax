@@ -2,7 +2,10 @@ use std::{collections::HashMap, fmt::Display};
 
 use cyntax_common::spanned::{Location, Spanned};
 use cyntax_errors::Diagnostic;
-use cyntax_parser::{ast::{self, Identifier, TypeSpecifier}, PResult};
+use cyntax_parser::{
+    PResult,
+    ast::{self, Identifier, TypeSpecifier},
+};
 pub type HirId = usize;
 #[derive(Debug)]
 pub struct HirMap<'hir> {
@@ -37,10 +40,11 @@ pub enum ExternalDeclaration<'hir> {
 }
 #[derive(Debug)]
 pub struct FunctionDefinition<'hir> {
+    pub id: HirId,
     pub identifier: Identifier,
     pub parameters: &'hir [&'hir Declaration<'hir>],
     pub body: &'hir Statement<'hir>,
-    pub ty: &'hir Ty<'hir>
+    pub ty: &'hir Ty<'hir>,
 }
 #[derive(Debug)]
 pub struct Declaration<'hir> {
@@ -84,7 +88,8 @@ pub enum ExpressionKind<'hir> {
     Cast(&'hir Ty<'hir>, &'hir Expression<'hir>),
     MemberAccess(&'hir Expression<'hir>, Spanned<ast::Identifier>),
     AddressOf(&'hir Expression<'hir>),
-    Dereference(&'hir Expression<'hir>)
+    Dereference(&'hir Expression<'hir>),
+    Call(&'hir Expression<'hir>, Vec<&'hir Expression<'hir>>)
 }
 #[derive(Debug)]
 pub struct Statement<'hir> {
@@ -364,7 +369,11 @@ impl<'hir> Display for Ty<'hir> {
 }
 impl<'hir> Display for TyKind<'hir> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if let Self::Base(SpecifierQualifiers { specifiers: TypeSpecifierStateMachine::StructOrUnion(hir_id), qualifier }) = self {
+        if let Self::Base(SpecifierQualifiers {
+            specifiers: TypeSpecifierStateMachine::StructOrUnion(hir_id),
+            qualifier,
+        }) = self
+        {
             return f.write_fmt(format_args!("StructOrUnion({})", hir_id));
         }
         match self {
@@ -408,7 +417,7 @@ impl<'hir> Display for TyKind<'hir> {
                     TypeSpecifierStateMachine::FloatComplex => "FloatComplex",
                     TypeSpecifierStateMachine::DoubleComplex => "DoubleComplex",
                     TypeSpecifierStateMachine::LongDoubleComplex => "LongDoubleComplex",
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 }
             )),
             TyKind::Pointer(spanneds, ty_kind) => f.write_fmt(format_args!("{}*", ty_kind)),
@@ -416,12 +425,12 @@ impl<'hir> Display for TyKind<'hir> {
             TyKind::Array(ty_kind, expression) => {
                 // todo: expression in the array
                 f.write_fmt(format_args!("{}[]", ty_kind))
-            },
+            }
         }
     }
 }
 impl<'hir> TyKind<'hir> {
-    pub fn get_specifier_qualifier(&self) -> &SpecifierQualifiers{
+    pub fn get_specifier_qualifier(&self) -> &SpecifierQualifiers {
         match self {
             TyKind::Base(specifier_qualifiers) => specifier_qualifiers,
             TyKind::Pointer(spanneds, ty_kind) => ty_kind.get_specifier_qualifier(),

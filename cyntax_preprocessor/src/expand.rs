@@ -1,6 +1,6 @@
 use cyntax_common::{
     ast::{Delimited, PreprocessingToken, Punctuator},
-    ctx::{ParseContext, HasContext, string_interner::symbol::SymbolU32},
+    ctx::{HasContext, ParseContext, string_interner::symbol::SymbolU32},
     span,
     spanned::{Location, Spanned},
 };

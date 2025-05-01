@@ -36,7 +36,6 @@ pub struct Scope {
     labels: HashMap<ast::Identifier, HirId>,
 }
 
-
 impl<'src, 'hir> AstLower<'src, 'hir> {
     pub fn new(ctx: &'src mut ParseContext, arena: &'hir Bump) -> Self {
         Self {
@@ -109,14 +108,20 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                     let body: &cyntax_hir::Statement<'hir> = self.lower_statement(&function_definition.body)?;
                     let base_ty = self.lower_declaration_ty_specifiers(&function_definition.specifiers)?;
                     let ty = self.lower_ty(&base_ty, &function_definition.declarator)?;
-    
-                    let def = hir::ExternalDeclaration::FunctionDefinition(hir::FunctionDefinition { parameters: params, body , ty, identifier: function_definition.declarator.value.get_identifier().unwrap()});
-    
+
+                    let id = self.next_id();
+                    let def = hir::ExternalDeclaration::FunctionDefinition(hir::FunctionDefinition {
+                        id,
+                        parameters: params,
+                        body,
+                        ty,
+                        identifier: function_definition.declarator.value.get_identifier().unwrap(),
+                    });
+                    self.scopes.last_mut().unwrap().ordinary.insert(function_definition.declarator.value.get_identifier().unwrap(), id);
                     Ok(vec![self.arena.alloc(def)])
                 } else {
                     unreachable!("function definition must be of function type")
                 }
-              
             }
             ast::ExternalDeclaration::Declaration(declaration) => {
                 let declarations: Vec<&'hir _> = self.lower_declaration(declaration)?;
@@ -372,7 +377,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
 
                         let ty = self.lower_ty(&spec, param.value.declarator.as_ref().unwrap_or(&Spanned::new(Location::new(), ast::Declarator::Abstract)))?;
                         let name = param.value.declarator.as_ref().map(|declarator| declarator.value.get_identifier().map(|identifier| declarator.location.to_spanned(identifier))).flatten();
-                        parameters.push(FunctionParameter {ty, identifier: name });
+                        parameters.push(FunctionParameter { ty, identifier: name });
                     }
                     let parameters: &'hir _ = self.arena.alloc_slice_fill_iter(parameters.into_iter());
 
@@ -494,7 +499,6 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                     hir::StatementKind::IfThenElse(condition, then, self.lower_statement(elze.deref())?)
                 } else {
                     hir::StatementKind::IfThen(condition, then)
-
                 }
             }
             ast::Statement::Switch(spanned, statement) => todo!(),
@@ -527,12 +531,8 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                 let rhs = self.lower_expression(rhs.deref())?;
                 hir::ExpressionKind::BinaryOp(op.clone(), lhs, rhs)
             }
-            ast::Expression::UnaryOp(span!(PrefixOperator::AddressOf), expr) => {
-                hir::ExpressionKind::AddressOf(self.lower_expression(expr)?)
-            }
-            ast::Expression::UnaryOp(span!(PrefixOperator::Dereference), expr) => {
-                hir::ExpressionKind::Dereference(self.lower_expression(expr)?)
-            }
+            ast::Expression::UnaryOp(span!(PrefixOperator::AddressOf), expr) => hir::ExpressionKind::AddressOf(self.lower_expression(expr)?),
+            ast::Expression::UnaryOp(span!(PrefixOperator::Dereference), expr) => hir::ExpressionKind::Dereference(self.lower_expression(expr)?),
             ast::Expression::UnaryOp(op, expr) => todo!(),
             ast::Expression::PostfixOp(op, expr) => todo!("{:#?}", op),
             ast::Expression::Cast(type_name, expr) => {
@@ -541,7 +541,12 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                 let expr = self.lower_expression(expr.deref())?;
                 hir::ExpressionKind::Cast(derived, expr)
             }
-            ast::Expression::Call(expr, args) => todo!(),
+            ast::Expression::Call(expr, args) => {
+                let expr = self.lower_expression(expr.deref())?;
+                let args = args.iter().map(|e| self.lower_expression(e)).collect::<PResult<_>>()?;
+
+                hir::ExpressionKind::Call(expr, args)
+            },
             ast::Expression::Subscript(expr, offset) => todo!(),
             ast::Expression::Ternary(control, then, elze) => todo!(),
             ast::Expression::Sizeof(type_name) => todo!(),
@@ -615,6 +620,6 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
         }
     }
     // pub fn declare_struct_type(&mut self, tag: &Spanned<Identifier>, id:HirId) -> PResult<()> {
-        
+
     // }
 }

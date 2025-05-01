@@ -25,7 +25,7 @@ pub struct Slot {
 #[derive(Debug, Clone)]
 pub struct BasicBlock {
     pub instructions: Vec<Instruction>,
-    pub entry: bool
+    pub entry: bool,
 }
 #[derive(Debug, Clone)]
 pub enum Ty {
@@ -163,8 +163,14 @@ pub enum Operand {
 }
 #[derive(Debug, Clone)]
 pub struct Place {
-    pub slot_id: StackSlotId,
+    pub kind: PlaceKind,
     pub offset: i32,
+}
+#[derive(Debug, Clone, Copy)]
+pub enum PlaceKind {
+    Slot(StackSlotId),
+    Argument(usize),
+    Function,
 }
 #[derive(Debug, Clone)]
 pub struct Instruction {
@@ -194,7 +200,8 @@ pub enum InstructionKind {
     Jump,
     Return,
     ReturnValue,
-    Argument(usize)
+    Argument(usize),
+    Call,
 }
 #[derive(Debug, Clone, Copy)]
 pub struct StackSlotId(pub usize);
@@ -213,8 +220,25 @@ impl Operand {
 }
 impl Place {
     pub fn new_slot(slot_id: StackSlotId) -> Self {
-        Self { slot_id, offset: 0 }
-
+        Self { kind: PlaceKind::Slot(slot_id), offset: 0 }
+    }
+    pub fn as_slot(&self) -> Option<StackSlotId> {
+        match self.kind {
+            PlaceKind::Slot(stack_slot_id) => Some(stack_slot_id),
+            _ => None,
+        }
+    }
+    pub fn as_arg(&self) -> Option<usize> {
+        match self.kind {
+            PlaceKind::Argument(arg) => Some(arg),
+            _ => None,
+        }
+    }
+    pub fn as_fn(&self) -> Option<()> {
+        match self.kind {
+            PlaceKind::Function => Some(()),
+            _ => None,
+        }
     }
 }
 impl Display for Function {
@@ -238,11 +262,11 @@ impl Display for Function {
                             write!(f, "val:{}", value.id)?;
                         }
                         Operand::Place(place) => {
-                            let mut place_str = format!("{:?}", place.slot_id);
+                            let mut place_str = format!("{:?}", place.kind);
                             if place.offset > 0 {
                                 place_str.push_str(&format!("+{}", place.offset));
                             }
-                            write!(f, "slot:{}", place_str)?;
+                            write!(f, "place:{}", place_str)?;
                         }
                         Operand::BlockId(block_id) => {
                             write!(f, "bb:{}", block_id.0)?;

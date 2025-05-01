@@ -7,15 +7,16 @@ use cranelift::{
     },
     prelude::*,
 };
-use cranelift_module::{Linkage, Module};
+use cranelift_module::{FuncId, Linkage, Module};
 use cranelift_object::{ObjectBuilder, ObjectModule};
-use cyntax_common::ctx::ParseContext;
-use cyntax_mir::{BlockId, Operand};
+use cyntax_common::ctx::{ParseContext, string_interner::symbol::SymbolU32};
+use cyntax_mir::{BlockId, Operand, Place, PlaceKind};
 
 pub struct CliffLower<'src> {
     pctx: &'src mut ParseContext,
     ctx: Context,
     module: ObjectModule,
+    functions: HashMap<SymbolU32, FuncId>,
 }
 impl<'src> CliffLower<'src> {
     pub fn new(pctx: &'src mut ParseContext) -> Self {
@@ -29,7 +30,7 @@ impl<'src> CliffLower<'src> {
         let builder = ObjectBuilder::new(isa, "module", cranelift_module::default_libcall_names()).unwrap();
         let module = cranelift_object::ObjectModule::new(builder);
         let ctx = module.make_context();
-        Self { pctx, ctx, module }
+        Self { pctx, ctx, module, functions: HashMap::new() }
     }
     pub fn lower(mut self, tu: &cyntax_mir::TranslationUnit) {
         println!("====mir done. cliff below====");
@@ -45,15 +46,29 @@ impl<'src> CliffLower<'src> {
     }
     pub fn lower_function(&mut self, func: &cyntax_mir::Function) {
         let mut func_ctx = FunctionBuilderContext::new();
+        self.ctx.func.clear();
+
         let t = Self::cliff_ty(func.ty.as_ref().unwrap());
 
         self.ctx.func.signature.returns.push(AbiParam::new(t));
-        for param in func.params.as_ref().unwrap() {
-            self.ctx.func.signature.params.push(AbiParam {
-                value_type: Self::cliff_ty(param),
-                purpose: ir::ArgumentPurpose::Normal,
-                extension: ir::ArgumentExtension::None,
-            });
+        for param_ty in func.params.as_ref().unwrap() {
+            match param_ty {
+                cyntax_mir::Ty::Struct(_) => {
+                    let struct_size = param_ty.size_of();
+                    self.ctx.func.signature.params.push(AbiParam {
+                        value_type: types::I64,
+                        purpose: ir::ArgumentPurpose::StructArgument(struct_size),
+                        extension: ir::ArgumentExtension::None,
+                    });
+                }
+                _ => {
+                    self.ctx.func.signature.params.push(AbiParam {
+                        value_type: Self::cliff_ty(param_ty),
+                        purpose: ir::ArgumentPurpose::Normal,
+                        extension: ir::ArgumentExtension::None,
+                    });
+                }
+            }
         }
         let mut builder = FunctionBuilder::new(&mut self.ctx.func, &mut func_ctx);
         builder.func.collect_debug_info();
@@ -132,7 +147,7 @@ impl<'src> CliffLower<'src> {
                     }
                     cyntax_mir::InstructionKind::StackStore => {
                         if let Operand::Place(place) = &ins.inputs[0] {
-                            let ss = slot_map.get(&place.slot_id.0).unwrap();
+                            let ss = slot_map.get(&place.as_slot().unwrap().0).unwrap();
                             let value = Self::read_rvalue(&ins.inputs[1], &func.slots, &slot_map, &mut builder, &ins_map);
                             builder.ins().stack_store(value, *ss, place.offset);
                         } else {
@@ -152,17 +167,24 @@ impl<'src> CliffLower<'src> {
                     }
                     cyntax_mir::InstructionKind::StackLoad => {
                         let place = ins.inputs[0].as_place().unwrap().clone();
-                        let slot = slot_map.get(&place.slot_id.0).unwrap();
+
+                        let slot = slot_map.get(&place.as_slot().unwrap().0).unwrap();
                         let expected = Self::cliff_ty(&ins.output.as_ref().unwrap().ty.clone());
 
                         ins_map.insert(ins.output.as_ref().unwrap().id, builder.ins().stack_load(expected, *slot, place.offset));
                     }
                     cyntax_mir::InstructionKind::StackAddr => {
-                        let slot = slot_map.get(&ins.inputs[0].as_place().unwrap().slot_id.0).unwrap();
+                        let slot = slot_map.get(&ins.inputs[0].as_place().unwrap().as_slot().unwrap().0).unwrap();
                         ins_map.insert(ins.output.as_ref().unwrap().id, builder.ins().stack_addr(ir::types::I64, *slot, 0));
                     }
                     cyntax_mir::InstructionKind::Argument(idx) => {
                         ins_map.insert(ins.output.as_ref().unwrap().id, builder.block_params(entry.unwrap())[idx]);
+                    }
+                    cyntax_mir::InstructionKind::Call => {
+                        let value = Self::read_rvalue(&ins.inputs[0], &func.slots, &slot_map, &mut builder, &ins_map);
+                        // let f = self.functions.get(k)
+                        // builder.ins().call(FN, args)
+                        todo!()
                     }
                 }
             }
@@ -171,7 +193,6 @@ impl<'src> CliffLower<'src> {
 
         println!("{}", self.ctx.func.display());
         let func_id = self.module.declare_function(self.pctx.res(func.name), Linkage::Export, &self.ctx.func.signature).unwrap();
-
         match self.module.define_function(func_id, &mut self.ctx) {
             Ok(ok) => {}
             Err(e) => {
@@ -197,25 +218,38 @@ impl<'src> CliffLower<'src> {
     }
     fn read_rvalue(o: &Operand, slots: &[cyntax_mir::Slot], slot_map: &HashMap<usize, ir::StackSlot>, builder: &mut FunctionBuilder<'_>, ins_map: &HashMap<usize, Value>) -> Value {
         match o {
-            Operand::Place(place) => {
-                let ss = slot_map.get(&place.slot_id.0).unwrap();
-                let slot_ty = &slots[place.slot_id.0];
-                let field_ty = slot_ty.ty.type_at_offset(place.offset);
-                let v = builder.ins().stack_load(Self::cliff_ty(field_ty), *ss, place.offset);
+            Operand::Place(Place { kind: PlaceKind::Slot(slot_id), offset }) => {
+                let ss = slot_map.get(&slot_id.0).unwrap();
+                let slot_ty = &slots[slot_id.0];
+                let field_ty = slot_ty.ty.type_at_offset(*offset);
+                let v = builder.ins().stack_load(Self::cliff_ty(field_ty), *ss, *offset);
                 v
             }
+
+
+            // Operand::Place(place) => {
+            //     let ss = slot_map.get(&place.slot_id.0).unwrap();
+            //     let slot_ty = &slots[place.slot_id.0];
+            //     let field_ty = slot_ty.ty.type_at_offset(place.offset);
+            //     let v = builder.ins().stack_load(Self::cliff_ty(field_ty), *ss, place.offset);
+            //     v
+            // }
             Operand::Value(value) => *ins_map.get(&value.id).unwrap(),
             // Operand::Constant(value) => builder.ins().iconst(ir::types::I32, *value),
             Operand::BlockId(block_id) => panic!("??"),
+            _ => todo!()
         }
     }
-    fn read_rvalue_address(o: &Operand, slot_map: &HashMap<usize, ir::StackSlot>, builder: &mut FunctionBuilder<'_>, ins_map: &HashMap<usize, Value>) -> Value {
-        match o {
-            Operand::Place(place) => {
-                let ss = slot_map.get(&place.slot_id.0).unwrap();
-                builder.ins().stack_addr(ir::types::I64, *ss, place.offset)
-            }
-            _ => panic!("Can only take address of a Place"),
-        }
-    }
+    // fn read_rvalue_address(o: &Operand, slot_map: &HashMap<usize, ir::StackSlot>, builder: &mut FunctionBuilder<'_>, ins_map: &HashMap<usize, Value>) -> Value {
+    //     match o {
+    //         Operand::Place(Place { kind: PlaceKind::Slot(slot_id), offset }) => {
+    //             let ss = slot_map.get(&slot_id.0).unwrap();
+    //             builder.ins().stack_addr(ir::types::I64, *ss, *offset)
+    //         }
+    //         Operand::Place(Place { kind: PlaceKind::Argument(arg_idx), offset }) => {
+    //             builder.block_params()
+    //         }
+    //         _ => panic!("Can only take address of a Place"),
+    //     }
+    // }
 }

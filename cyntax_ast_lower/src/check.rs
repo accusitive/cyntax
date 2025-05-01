@@ -225,6 +225,12 @@ impl<'src, 'ctx, 'hir> Visitor<'hir> for TyCheckVisitor<'src, 'ctx, 'hir> {
             cyntax_hir::ExpressionKind::Dereference(expression) => {
                 self.visit_expression(&expression);
             }
+            cyntax_hir::ExpressionKind::Call(expression, expressions) => {
+                self.visit_expression(&expression);
+                for expr in expressions {
+                    self.visit_expression(expr);
+                }
+            },
         }
     }
 }

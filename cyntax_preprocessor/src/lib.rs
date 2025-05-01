@@ -2,7 +2,7 @@
 #![feature(iter_intersperse)]
 use cyntax_common::{
     ast::PreprocessingToken,
-    ctx::{ParseContext, HasContext},
+    ctx::{HasContext, ParseContext},
     spanned::Spanned,
 };
 use expand::{Expander, PResult};

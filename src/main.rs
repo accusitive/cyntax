@@ -5,7 +5,7 @@ use colored::{ColoredString, Colorize};
 use cyntax_ast_lower::{check::TyCheckVisitor, visit::Visitor};
 use cyntax_common::{
     ast::{Keyword, PreprocessingToken, Whitespace},
-    ctx::{ParseContext, HasContext, string_interner::StringInterner},
+    ctx::{HasContext, ParseContext, string_interner::StringInterner},
     spanned::Spanned,
 };
 use cyntax_errors::UnwrapDiagnostic;

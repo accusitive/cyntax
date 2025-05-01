@@ -314,7 +314,7 @@ pub struct TypeName {
     pub declarator: Spanned<Declarator>,
 }
 
-impl Declarator{
+impl Declarator {
     pub fn get_identifier(&self) -> Option<Identifier> {
         match self {
             Declarator::Identifier(identifier) => Some(identifier.clone()),

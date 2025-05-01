@@ -75,7 +75,6 @@ impl<'src> Parser<'src> {
             let stmt = self.parse_statement()?;
             Ok(identifier.location.until(&stmt.location).into_spanned(Statement::Labeled(LabeledStatement::Identifier(identifier, Box::new(stmt)))))
         }
-
     }
 
     pub fn can_start_compound_statement(&mut self) -> bool {

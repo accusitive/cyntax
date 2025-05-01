@@ -42,7 +42,6 @@ impl<'src> Parser<'src> {
             let start = self.last_location.clone();
             if let Some((specifier_qualifiers, declarators, span)) = self.maybe_recover(
                 |this| {
-
                     let specifier_qualifiers = this.parse_specifier_qualifier_list()?;
                     if !specifier_qualifiers.iter().any(|sq| matches!(sq, span!(span, SpecifierQualifier::Specifier(_)))) {
                         return Err(SimpleError(this.last_location.clone(), "Struct declarations must have atleast one specifier".to_string()).into_codespan_report());
