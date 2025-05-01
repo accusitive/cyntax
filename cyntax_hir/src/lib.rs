@@ -8,14 +8,17 @@ use cyntax_parser::{
 };
 pub type HirId = usize;
 #[derive(Debug)]
+pub enum Ordinary<'hir> {
+    Declaration(&'hir Declaration<'hir>),
+    FunctionDeclaration(&'hir Declaration<'hir>),
+    Parameter(&'hir FunctionParameter<'hir>)
+}
+
+#[derive(Debug)]
 pub struct HirMap<'hir> {
-    // probably expression?
-    pub ordinary: HashMap<HirId, &'hir Declaration<'hir>>,
-    // a type probably?
+    pub ordinary: HashMap<HirId, Ordinary<'hir>>,
     pub typedefs: HashMap<HirId, &'hir Declaration<'hir>>,
-    // etc
     pub tags: HashMap<HirId, &'hir StructType<'hir>>,
-    // etc, i dont even think this needs anything; labels have practically no data
     pub labels: HashMap<HirId, ()>,
 }
 impl<'hir> HirMap<'hir> {
@@ -42,7 +45,7 @@ pub enum ExternalDeclaration<'hir> {
 pub struct FunctionDefinition<'hir> {
     pub id: HirId,
     pub identifier: Identifier,
-    pub parameters: &'hir [&'hir Declaration<'hir>],
+    pub parameters: &'hir [&'hir FunctionParameter<'hir>],
     pub body: &'hir Statement<'hir>,
     pub ty: &'hir Ty<'hir>,
 }
@@ -146,6 +149,7 @@ pub enum TyKind<'hir> {
 
 #[derive(Debug)]
 pub struct FunctionParameter<'hir> {
+    pub id: HirId,
     pub ty: &'hir Ty<'hir>,
     pub identifier: Option<Spanned<ast::Identifier>>,
 }

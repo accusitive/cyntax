@@ -14,7 +14,6 @@ use cyntax_parser::{
     ast::{DeclarationSpecifier, Identifier, IterationStatement, PrefixOperator, SpecifierQualifier},
     constant::{self, IntConstant},
 };
-use visit::Visitor;
 pub mod check;
 pub mod visit;
 pub type PResult<T> = Result<T, cyntax_errors::codespan_reporting::diagnostic::Diagnostic<usize>>;
@@ -86,20 +85,12 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                     let mut params = vec![];
                     for param in *parameters {
                         let id = self.next_id();
-                        let declaration = hir::Declaration {
-                            id: id,
-                            ty: param.ty,
-                            declarator_loc: Location::new(),
-                            full_location: Location::new(),
-                            init: None,
-                        };
-                        let declaration: &'hir _ = self.arena.alloc(declaration);
-                        self.map.ordinary.insert(id, declaration);
+                        self.map.ordinary.insert(id, cyntax_hir::Ordinary::Parameter(param));
 
                         if let Some(identifier) = &param.identifier {
                             self.scopes.last_mut().unwrap().ordinary.insert(identifier.value, id);
                         }
-                        params.push(declaration);
+                        params.push(param);
                     }
 
                     let params: &'hir _ = self.arena.alloc_slice_fill_iter(params.into_iter());

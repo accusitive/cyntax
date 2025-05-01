@@ -471,9 +471,6 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
     pub fn ins_eq(&mut self, lhs: Operand, rhs: Operand) -> Value {
         self.insert(InstructionKind::Equal, vec![lhs, rhs], Some(mir::Ty::I64)).unwrap()
     }
-    // pub fn ins_land(&mut self, lhs: Operand, rhs: Operand) -> Value {
-    //     // self.insert(InstructionKind::LogicalAnd, vec![lhs, rhs], Some(mir::Ty::I64)).unwrap()
-    // }
     pub fn ins_assign(&mut self, target: Operand, rhs: Operand) {
         match target {
             Operand::Value(value) => {
