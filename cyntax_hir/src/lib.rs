@@ -16,20 +16,33 @@ pub enum Ordinary<'hir> {
 
 #[derive(Debug)]
 pub struct HirMap<'hir> {
-    pub ordinary: HashMap<HirId, Ordinary<'hir>>,
-    pub typedefs: HashMap<HirId, &'hir Declaration<'hir>>,
-    pub tags: HashMap<HirId, &'hir StructType<'hir>>,
-    pub labels: HashMap<HirId, ()>,
+    pub nodes: HashMap<HirId, HirNode<'hir>>
+}
+#[derive(Debug)]
+pub enum HirNode<'hir> {
+    Declaration(&'hir Declaration<'hir>),
+    FunctionParameter(&'hir FunctionParameter<'hir>),
+    StructType(&'hir StructType<'hir>)
 }
 impl<'hir> HirMap<'hir> {
     pub fn new() -> Self {
         Self {
-            ordinary: HashMap::new(),
-            typedefs: HashMap::new(),
-            tags: HashMap::new(),
-            labels: HashMap::new(),
+            nodes: HashMap::new()
         }
     }
+    pub fn get_struct_ty(&self, id: &HirId) -> Result<&'hir StructType<'hir>, HirMapError> {
+        match self.nodes.get(id) {
+            Some(HirNode::StructType(st)) => Ok(st),
+            Some(_) => Err(HirMapError::IncorrectType),
+            None => Err(HirMapError::NotFound)
+        }
+    }
+}
+#[derive(Debug)]
+pub enum HirMapError {
+    NotFound,
+    IncorrectType
+
 }
 
 #[derive(Debug)]
