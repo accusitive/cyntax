@@ -21,5 +21,8 @@ proto(method_name(run)) {
    int (*test)() = &method_name(something);
 
    int x = test();
-   return x;
+   int (*test2)() = &method_name(something);
+
+   int y = test2();
+   return x + y;
 }

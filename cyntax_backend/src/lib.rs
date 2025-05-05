@@ -195,11 +195,20 @@ impl<'src> CliffLower<'src> {
                     }
                     cyntax_mir::InstructionKind::Call => {
                         let addr = Self::read_rvalue(&ins.inputs[0], &func.slots, &slot_map, &mut builder, &ins_map);
+                        // let arguments = &ins.inputs[1..];
+                        
+                        // let mut arg_tys = vec![];
+                        // for arg in arguments {
+                        //     let v = arg.as_value().unwrap();
+                        //     arg_tys.push(v.ty.clone());
+                        // }
                         dbg!(&addr);
 
                         let mut s = self.module.make_signature();
+                        let output = &ins.output.as_ref().unwrap().ty;
+
                         s.returns.push(AbiParam {
-                            value_type: types::I32,
+                            value_type: Self::cliff_ty(output),
                             purpose: ir::ArgumentPurpose::Normal,
                             extension: ir::ArgumentExtension::None,
                         });
@@ -207,7 +216,7 @@ impl<'src> CliffLower<'src> {
 
                         let inst = builder.ins().call_indirect(sr, addr, &[]);
                         ins_map.insert(ins.output.as_ref().unwrap().id, builder.inst_results(inst)[0]);
-                        
+
                     }
                     cyntax_mir::InstructionKind::FuncAddr => {
                         let func_identifier = ins.inputs[0].as_function_identifier().unwrap();
