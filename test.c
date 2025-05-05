@@ -9,15 +9,17 @@
 #define params (int lhs, int rhs)
 // args for harness to call with 
 #define args (2,4)
-
+// used for harness to define the extern symbol
 #define proto(name) int name params
 
-int something() {
-
+int method_name(something)() {
+   return 42;
 }
 
 proto(method_name(run)) {
-   int a = 5;
-   int b = something;
-   return 0;
+
+   int (*test)() = &method_name(something);
+
+   int x = test();
+   return x;
 }

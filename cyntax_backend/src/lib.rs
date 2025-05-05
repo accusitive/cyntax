@@ -5,7 +5,7 @@ use cranelift::{
         Context, ValueLabelsRanges,
         ir::{self, SourceLoc, ValueLabel},
     },
-    prelude::*,
+    prelude::{isa::CallConv, *},
 };
 use cranelift_module::{FuncId, Linkage, Module};
 use cranelift_object::{ObjectBuilder, ObjectModule};
@@ -40,29 +40,36 @@ impl<'src> CliffLower<'src> {
         std::fs::write("./target/cyntax/build.o", obj.emit().unwrap()).unwrap();
     }
     pub fn lower_translation_unit(&mut self, tu: &cyntax_mir::TranslationUnit) {
+        self.declare_functions(&tu);
+
         for func in &tu.functions {
             self.lower_function(func);
         }
     }
-    pub fn lower_function(&mut self, func: &cyntax_mir::Function) {
-        let mut func_ctx = FunctionBuilderContext::new();
-        self.ctx.func.clear();
-
+    pub fn declare_functions(&mut self, tu: &cyntax_mir::TranslationUnit) {
+        for func in &tu.functions {
+            let mut s = Signature::new(isa::CallConv::SystemV);
+            Self::setup_abi(func, &mut s);
+            let func_id = self.module.declare_function(self.pctx.res(func.name), Linkage::Export, &s).unwrap();
+            self.functions.insert(func.name, func_id);
+        }
+    }
+    fn setup_abi(func: &cyntax_mir::Function, signature: &mut Signature) {
         let t = Self::cliff_ty(func.ty.as_ref().unwrap());
-
-        self.ctx.func.signature.returns.push(AbiParam::new(t));
+        signature.call_conv = CallConv::SystemV;
+        signature.returns.push(AbiParam::new(t));
         for param_ty in func.params.as_ref().unwrap() {
             match param_ty {
                 cyntax_mir::Ty::Struct(_) => {
                     let struct_size = param_ty.size_of();
-                    self.ctx.func.signature.params.push(AbiParam {
+                    signature.params.push(AbiParam {
                         value_type: types::I64,
                         purpose: ir::ArgumentPurpose::StructArgument(struct_size),
                         extension: ir::ArgumentExtension::None,
                     });
                 }
                 _ => {
-                    self.ctx.func.signature.params.push(AbiParam {
+                    signature.params.push(AbiParam {
                         value_type: Self::cliff_ty(param_ty),
                         purpose: ir::ArgumentPurpose::Normal,
                         extension: ir::ArgumentExtension::None,
@@ -70,6 +77,12 @@ impl<'src> CliffLower<'src> {
                 }
             }
         }
+    }
+    pub fn lower_function(&mut self, func: &cyntax_mir::Function) {
+        let mut func_ctx = FunctionBuilderContext::new();
+        self.ctx.func.clear();
+        Self::setup_abi(func, &mut self.ctx.func.signature);
+
         let mut builder = FunctionBuilder::new(&mut self.ctx.func, &mut func_ctx);
         builder.func.collect_debug_info();
 
@@ -181,10 +194,27 @@ impl<'src> CliffLower<'src> {
                         ins_map.insert(ins.output.as_ref().unwrap().id, builder.block_params(entry.unwrap())[idx]);
                     }
                     cyntax_mir::InstructionKind::Call => {
-                        let value = Self::read_rvalue(&ins.inputs[0], &func.slots, &slot_map, &mut builder, &ins_map);
-                        // let f = self.functions.get(k)
-                        // builder.ins().call(FN, args)
-                        todo!()
+                        let addr = Self::read_rvalue(&ins.inputs[0], &func.slots, &slot_map, &mut builder, &ins_map);
+                        dbg!(&addr);
+
+                        let mut s = self.module.make_signature();
+                        s.returns.push(AbiParam {
+                            value_type: types::I32,
+                            purpose: ir::ArgumentPurpose::Normal,
+                            extension: ir::ArgumentExtension::None,
+                        });
+                        let sr = builder.import_signature(s);
+
+                        let inst = builder.ins().call_indirect(sr, addr, &[]);
+                        ins_map.insert(ins.output.as_ref().unwrap().id, builder.inst_results(inst)[0]);
+                        
+                    }
+                    cyntax_mir::InstructionKind::FuncAddr => {
+                        let func_identifier = ins.inputs[0].as_function_identifier().unwrap();
+                        let func_id = *self.functions.get(func_identifier).unwrap();
+                        let func_ref = self.module.declare_func_in_func(func_id, builder.func);
+
+                        ins_map.insert(ins.output.as_ref().unwrap().id, builder.ins().func_addr(ir::types::I64, func_ref));
                     }
                 }
             }
@@ -192,7 +222,8 @@ impl<'src> CliffLower<'src> {
         }
 
         println!("{}", self.ctx.func.display());
-        let func_id = self.module.declare_function(self.pctx.res(func.name), Linkage::Export, &self.ctx.func.signature).unwrap();
+        let func_id = *self.functions.get(&func.name).unwrap();
+        // let func_id = self.module.declare_function(self.pctx.res(func.name), Linkage::Export, &self.ctx.func.signature).unwrap();
         match self.module.define_function(func_id, &mut self.ctx) {
             Ok(ok) => {}
             Err(e) => {
@@ -214,6 +245,7 @@ impl<'src> CliffLower<'src> {
             cyntax_mir::Ty::F64 => ir::types::F64,
             cyntax_mir::Ty::Struct(struct_fields) => todo!(),
             cyntax_mir::Ty::Ptr(_) => ir::types::I64,
+            cyntax_mir::Ty::Function { .. } => unreachable!(),
         }
     }
     fn read_rvalue(o: &Operand, slots: &[cyntax_mir::Slot], slot_map: &HashMap<usize, ir::StackSlot>, builder: &mut FunctionBuilder<'_>, ins_map: &HashMap<usize, Value>) -> Value {
@@ -226,7 +258,6 @@ impl<'src> CliffLower<'src> {
                 v
             }
 
-
             // Operand::Place(place) => {
             //     let ss = slot_map.get(&place.slot_id.0).unwrap();
             //     let slot_ty = &slots[place.slot_id.0];
@@ -237,7 +268,7 @@ impl<'src> CliffLower<'src> {
             Operand::Value(value) => *ins_map.get(&value.id).unwrap(),
             // Operand::Constant(value) => builder.ins().iconst(ir::types::I32, *value),
             Operand::BlockId(block_id) => panic!("??"),
-            _ => todo!()
+            _ => todo!(),
         }
     }
     // fn read_rvalue_address(o: &Operand, slot_map: &HashMap<usize, ir::StackSlot>, builder: &mut FunctionBuilder<'_>, ins_map: &HashMap<usize, Value>) -> Value {

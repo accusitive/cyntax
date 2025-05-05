@@ -55,6 +55,9 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
             ast::Expression::Null => todo!(),
         };
         let id = self.next_id();
-        Ok(self.arena.alloc(hir::Expression { id, kind, loc: expression.location.clone() }))
+        let expr = self.arena.alloc(hir::Expression { id, kind, loc: expression.location.clone() });
+
+        self.map.insert_expression(id, expr);
+        Ok(expr)
     }
 }

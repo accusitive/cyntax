@@ -3,7 +3,7 @@
 
 #define harness
 #include "test.c"
-extern proto(x);
+extern proto(run);
 
 int main() {
     printf("Base truth: x() = %i\n", harness_run args);

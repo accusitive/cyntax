@@ -46,6 +46,7 @@ pub enum Ty {
 
     Struct(Vec<StructField>),
     Ptr(Box<Self>),
+    Function { params: Vec<Self>, ret: Box<Self> },
 }
 #[derive(Debug, Clone)]
 pub enum StructField {
@@ -90,6 +91,7 @@ impl Ty {
             Ty::F64 => 8,
             Ty::Struct(fields) => fields.iter().map(|field| field.get_ty().size_of()).max().unwrap_or(1),
             Ty::Ptr(_) => 8,
+            Ty::Function { params, ret } => unreachable!(),
         }
     }
     pub fn size_of(&self) -> u32 {
@@ -106,6 +108,7 @@ impl Ty {
             Ty::F64 => 8,
             Ty::Struct(fields) => fields.iter().map(|field| field.get_ty().size_of()).sum(),
             Ty::Ptr(_) => 8,
+            Ty::Function { params, ret } => unreachable!(),
         }
     }
     pub fn flat_fields(&self) -> Vec<&Ty> {
@@ -160,6 +163,7 @@ pub enum Operand {
     Value(Value),
     Place(Place),
     BlockId(BlockId),
+    FunctionIdentifier(Identifier),
 }
 #[derive(Debug, Clone)]
 pub struct Place {
@@ -170,7 +174,7 @@ pub struct Place {
 pub enum PlaceKind {
     Slot(StackSlotId),
     Argument(usize),
-    Function,
+    Function(usize),
 }
 #[derive(Debug, Clone)]
 pub struct Instruction {
@@ -192,6 +196,8 @@ pub enum InstructionKind {
     StackLoad,
     StackStore,
     StackAddr,
+
+    FuncAddr,
 
     Const(i64),
 
@@ -217,6 +223,9 @@ impl Operand {
     pub fn as_block_id(&self) -> Option<&BlockId> {
         if let Operand::BlockId(b) = self { Some(b) } else { None }
     }
+    pub fn as_function_identifier(&self) -> Option<&Identifier> {
+        if let Operand::FunctionIdentifier(ident) = self { Some(ident) } else { None }
+    }
 }
 impl Place {
     pub fn new_slot(slot_id: StackSlotId) -> Self {
@@ -234,9 +243,9 @@ impl Place {
             _ => None,
         }
     }
-    pub fn as_fn(&self) -> Option<()> {
+    pub fn as_fn(&self) -> Option<usize> {
         match self.kind {
-            PlaceKind::Function => Some(()),
+            PlaceKind::Function(id) => Some(id),
             _ => None,
         }
     }
@@ -271,6 +280,7 @@ impl Display for Function {
                         Operand::BlockId(block_id) => {
                             write!(f, "bb:{}", block_id.0)?;
                         }
+                        Operand::FunctionIdentifier(symbol_u32) => write!(f, "fn:{:?}", symbol_u32)?,
                     }
                     write!(f, ", ")?;
                 }

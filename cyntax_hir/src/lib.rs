@@ -20,9 +20,11 @@ pub struct HirMap<'hir> {
 }
 #[derive(Debug)]
 pub enum HirNode<'hir> {
+    FunctionDefinition(&'hir FunctionDefinition<'hir>),
     Declaration(&'hir Declaration<'hir>),
     FunctionParameter(&'hir FunctionParameter<'hir>),
-    StructType(&'hir StructType<'hir>)
+    StructType(&'hir StructType<'hir>),
+    Expression(&'hir Expression<'hir>),
 }
 impl<'hir> HirMap<'hir> {
     pub fn new() -> Self {
@@ -36,6 +38,9 @@ impl<'hir> HirMap<'hir> {
             Some(_) => Err(HirMapError::IncorrectType),
             None => Err(HirMapError::NotFound)
         }
+    }
+    pub fn insert_expression(&mut self, id: HirId, e: &'hir Expression<'hir>) {
+        self.nodes.insert(id, HirNode::Expression(e));
     }
 }
 #[derive(Debug)]
@@ -51,7 +56,7 @@ pub struct TranslationUnit<'hir> {
 }
 #[derive(Debug)]
 pub enum ExternalDeclaration<'hir> {
-    FunctionDefinition(FunctionDefinition<'hir>),
+    FunctionDefinition(&'hir FunctionDefinition<'hir>),
     Declaration(&'hir Declaration<'hir>),
 }
 #[derive(Debug)]

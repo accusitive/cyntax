@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use codespan_reporting::{diagnostic::Diagnostic, files::SimpleFiles, term::termcolor::Ansi};
 use colored::{ColoredString, Colorize};
-use cyntax_ast_lower::{check::TyCheckVisitor, visit::Visitor};
+// use cyntax_ast_lower::{check::TyCheckVisitor, visit::Visitor};
 use cyntax_common::{
     ast::{Keyword, PreprocessingToken, Whitespace},
     ctx::{HasContext, ParseContext, string_interner::StringInterner},

@@ -1,7 +1,7 @@
 use std::{collections::HashMap, ops::Deref, ptr};
 
 pub use bumpalo::Bump;
-use check::TyCheckVisitor;
+// use check::TyCheckVisitor;
 use cyntax_common::{
     ctx::ParseContext,
     span,
@@ -51,7 +51,7 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
     pub fn next_id(&mut self) -> usize {
         let id = self.next_id;
         if id > 0 && !self.map.nodes.contains_key(&id) {
-            panic!("Not all ids exist in the map!")
+            // panic!("Not all ids exist in the map!")
         }
         self.next_id += 1;
         id
@@ -107,13 +107,16 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
                     let ty = self.lower_ty(&base_ty, &function_definition.declarator)?;
 
                     let id = self.next_id();
-                    let def = hir::ExternalDeclaration::FunctionDefinition(hir::FunctionDefinition {
+                    let fndef = self.arena.alloc(hir::FunctionDefinition {
                         id,
                         parameters: params,
                         body,
                         ty,
                         identifier: function_definition.declarator.value.get_identifier().unwrap(),
                     });
+                    self.map.nodes.insert(id, HirNode::FunctionDefinition(fndef));
+
+                    let def = hir::ExternalDeclaration::FunctionDefinition(fndef); 
                     self.scopes.last_mut().unwrap().ordinary.insert(function_definition.declarator.value.get_identifier().unwrap(), id);
                     Ok(vec![self.arena.alloc(def)])
                 } else {

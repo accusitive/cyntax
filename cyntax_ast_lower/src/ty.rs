@@ -1,9 +1,12 @@
 use std::ops::Deref;
 
 use cyntax_common::spanned::{Location, Spanned};
-use cyntax_errors::{errors::SimpleError, Diagnostic};
-use cyntax_hir::{FunctionParameter, HirNode, ParsedDeclarationSpecifiers, SpecifierQualifiers, StructField, StructType, StructTypeKind, Ty, TyKind, TyQualifiers, TypeSpecifierStateMachine};
-use cyntax_parser::{ast::{self, DeclarationSpecifier, SpecifierQualifier}, PResult};
+use cyntax_errors::{Diagnostic, errors::SimpleError};
+use cyntax_hir::{FunctionParameter, HirId, HirNode, ParsedDeclarationSpecifiers, SpecifierQualifiers, StructField, StructType, StructTypeKind, Ty, TyKind, TyQualifiers, TypeSpecifierStateMachine};
+use cyntax_parser::{
+    PResult,
+    ast::{self, DeclarationSpecifier, SpecifierQualifier},
+};
 
 use crate::AstLower;
 
@@ -162,10 +165,12 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
     pub fn lower_ty(&mut self, base: &ParsedDeclarationSpecifiers, declarator: &Spanned<ast::Declarator>) -> PResult<&'hir Ty<'hir>> {
         let id = self.next_id();
 
-        let mut kind = if let TypeSpecifierStateMachine::Typedef(name) = base.specifiers {
-            let decl = self.map.typedefs.get(&name).unwrap();
+        let mut kind = if let TypeSpecifierStateMachine::Typedef(hir_id) = base.specifiers {
+            dbg!(&self.map.nodes[&hir_id]);
+            panic!();
+            // let decl = self.map.typedefs.get(&hir_id).unwrap();
             // cloning here is kinda sad but I don't see a way around it? we need a &ParsedDeclarationSpecifiers since we share it between declarators
-            decl.ty.kind.clone()
+            // decl.ty.kind.clone()
         } else {
             // cloning here is fine honestly, these types are so cheap
             TyKind::Base(SpecifierQualifiers {
@@ -204,7 +209,8 @@ impl<'src, 'hir> AstLower<'src, 'hir> {
 
                         let ty = self.lower_ty(&spec, param.value.declarator.as_ref().unwrap_or(&Spanned::new(Location::new(), ast::Declarator::Abstract)))?;
                         let name = param.value.declarator.as_ref().map(|declarator| declarator.value.get_identifier().map(|identifier| declarator.location.to_spanned(identifier))).flatten();
-                        parameters.push(FunctionParameter { ty, identifier: name });
+                        let id = self.next_id();
+                        parameters.push(FunctionParameter { id, ty, identifier: name });
                     }
                     let parameters: &'hir _ = self.arena.alloc_slice_fill_iter(parameters.into_iter());
 

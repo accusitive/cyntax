@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fmt::Display, ops::Deref};
 
 use cyntax_common::{ctx::ParseContext, span, spanned::Spanned};
-use cyntax_hir::{self as hir, HirId, HirMap, StructTypeKind};
+use cyntax_hir::{self as hir, HirId, HirMap, HirNode, StructTypeKind};
 use cyntax_mir::{self as mir, BasicBlock, BlockId, Instruction, InstructionKind, Operand, Place, PlaceKind, StackSlotId, Value};
 use cyntax_parser::ast::InfixOperator;
 
@@ -24,7 +24,7 @@ impl<'src, 'hir> HirLower<'src, 'hir> {
                     funcs.push(self.lower_function_definition(function_definition)?);
                 }
 
-               cyntax_hir::ExternalDeclaration::Declaration(declaration) => todo!(),
+                cyntax_hir::ExternalDeclaration::Declaration(declaration) => todo!(),
             }
         }
 
@@ -99,7 +99,7 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
                 cyntax_hir::TypeSpecifierStateMachine::Double => mir::Ty::F64,
                 cyntax_hir::TypeSpecifierStateMachine::LongDouble => mir::Ty::F64, // Often maps to f64
                 cyntax_hir::TypeSpecifierStateMachine::StructOrUnion(hir_id) => {
-                    let struct_ty = self.hir_map.tags.get(&hir_id).unwrap();
+                    let struct_ty = self.hir_map.get_struct_ty(&hir_id).unwrap();
                     let mut struct_fields = vec![];
                     if let StructTypeKind::Complete(fields) = struct_ty.kind {
                         let mut offset = 0;
@@ -132,7 +132,12 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
                 let inner = self.lower_ty_kind(ty_kind.deref());
                 mir::Ty::Ptr(Box::new(inner))
             }
-            cyntax_hir::TyKind::Function { return_ty, parameters } => todo!(),
+            cyntax_hir::TyKind::Function { return_ty, parameters } => {
+                let inner = self.lower_ty_kind(&return_ty);
+                let params = parameters.iter().map(|p| self.lower_ty_kind(&p.ty.kind)).collect::<Vec<_>>();
+
+                mir::Ty::Function { params: params, ret: Box::new(inner) }
+            }
             cyntax_hir::TyKind::Array(ty_kind, expression) => todo!(),
         }
     }
@@ -359,8 +364,19 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
                 }
             }
             cyntax_hir::ExpressionKind::DeclarationReference(hir_id) => {
-                dbg!(&self.hir_map.ordinary.get(hir_id).unwrap());
-                Operand::Place(Place::new_slot(self.ss_map.get(hir_id).unwrap().clone()))
+                // dbg!(&self.hir_map.ordinary.get(hir_id).unwrap());
+                // todo: this isnt exactly accurate, a declaration reference can be a parameter, which is a different type of place than a local declaration or even a globlal declaration
+                match self.hir_map.nodes.get(hir_id) {
+                    Some(cyntax_hir::HirNode::Declaration(decl)) => Operand::Place(Place::new_slot(self.ss_map.get(&decl.id).unwrap().clone())),
+                    Some(cyntax_hir::HirNode::FunctionDefinition(fndef)) => Operand::Place(Place { kind: PlaceKind::Function(fndef.id), offset: 0 }),
+                    Some(s) => {
+                        unimplemented!("{:#?}", s)
+                    }
+                    None => {
+                        panic!()
+                    }
+                }
+                // dbg!(&hir_id, &self.ss_map);
             }
             cyntax_hir::ExpressionKind::Cast(ty, expression) => todo!(),
             cyntax_hir::ExpressionKind::MemberAccess(expression, spanned) => {
@@ -381,7 +397,6 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
                     }
                     _ => panic!(),
                 }
-               
             }
             cyntax_hir::ExpressionKind::AddressOf(expression) => {
                 let operand = self.lower_expression(&expression);
@@ -392,11 +407,21 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
                     //     let addr = self.insert(InstructionKind::StackAddr, vec![Operand::Place(stack_slot)], Some(cyntax_mir::Ty::Ptr(Box::new(value.ty.clone())))).unwrap();
                     //     Operand::Value(addr)
                     // }
-
-                    Operand::Place(Place { kind: PlaceKind::Slot(slot_id), offset }) => {
+                    Operand::Place(Place { kind: PlaceKind::Slot(slot_id), .. }) => {
                         let ty = self.func.slots[slot_id.0].ty.clone();
                         let addr = self.insert(InstructionKind::StackAddr, vec![operand.clone()], Some(cyntax_mir::Ty::Ptr(Box::new(ty)))).unwrap();
                         Operand::Value(addr)
+                    }
+                    Operand::Place(Place { kind: PlaceKind::Function(func_id), .. }) => {
+                        let hn = self.hir_map.nodes.get(func_id).unwrap();
+                        if let HirNode::FunctionDefinition(fndef) = hn {
+                            let ptr_to_ty = cyntax_mir::Ty::Ptr(Box::new(self.lower_ty_kind(&fndef.ty.kind)));
+                            
+                            let addr = self.insert(InstructionKind::FuncAddr, vec![Operand::FunctionIdentifier(fndef.identifier)], Some(ptr_to_ty)).unwrap();
+                            Operand::Value(addr)
+                        } else {
+                            panic!()
+                        }
                     }
                     _ => todo!(),
                 }
@@ -429,11 +454,15 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
             }
             cyntax_hir::ExpressionKind::Call(expression, args) => {
                 let target = self.lower_expression(&expression);
-                let args = args.iter().map(|expr| self.lower_expression(expr)).collect();
-                let func_result = self.insert(InstructionKind::Call, args, Some(cyntax_mir::Ty::I32)).unwrap();
+                let args = args.iter().map(|expr| self.lower_expression(expr));
+                let mut v = Vec::new();
+                v.push(target);
+                v.extend(args);
+                
+                let func_result = self.insert(InstructionKind::Call, v, Some(cyntax_mir::Ty::I32)).unwrap();
 
                 cyntax_mir::Operand::Value(func_result)
-            },
+            }
         }
     }
     fn current_block_has_terminator(&mut self) -> bool {
