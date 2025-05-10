@@ -36,15 +36,15 @@ impl<'src> CliffLower<'src> {
     pub fn lower(mut self, tu: &cyntax_mir::TranslationUnit) {
         println!("====mir done. cliff below====");
         self.lower_translation_unit(tu);
-        self.module.clear_context(&mut self.ctx);
         let obj = self.module.finish();
-        
+
         std::fs::write("./target/cyntax/build.o", obj.emit().unwrap()).unwrap();
     }
     pub fn lower_translation_unit(&mut self, tu: &cyntax_mir::TranslationUnit) {
         self.declare_functions(&tu);
 
         for func in &tu.functions {
+            self.module.clear_context(&mut self.ctx);
             self.lower_function(func);
         }
     }
@@ -198,7 +198,7 @@ impl<'src> CliffLower<'src> {
                     cyntax_mir::InstructionKind::Call => {
                         let addr = Self::read_rvalue(&ins.inputs[0], &mut self.module, &self.functions, &func.slots, &slot_map, &mut builder, &ins_map);
                         // let arguments = &ins.inputs[1..];
-                        
+
                         // let mut arg_tys = vec![];
                         // for arg in arguments {
                         //     let v = arg.as_value().unwrap();
@@ -218,7 +218,6 @@ impl<'src> CliffLower<'src> {
 
                         let inst = builder.ins().call_indirect(sr, addr, &[]);
                         ins_map.insert(ins.output.as_ref().unwrap().id, builder.inst_results(inst)[0]);
-
                     }
                     cyntax_mir::InstructionKind::FuncAddr => {
                         let func_identifier = ins.inputs[0].as_function_identifier().unwrap();
@@ -268,7 +267,10 @@ impl<'src> CliffLower<'src> {
                 let v = builder.ins().stack_load(Self::cliff_ty(field_ty), *ss, *offset);
                 v
             }
-            Operand::Place(Place { kind: PlaceKind::Function((func_identifier, func_hir_id)), offset }) => {
+            Operand::Place(Place {
+                kind: PlaceKind::Function((func_identifier, func_hir_id)),
+                offset,
+            }) => {
                 let func_id = *functions.get(func_identifier).unwrap();
                 let func_ref = module.declare_func_in_func(func_id, builder.func);
 
@@ -281,7 +283,6 @@ impl<'src> CliffLower<'src> {
                 let func_id = *functions.get(fnid).unwrap();
                 let func_ref = module.declare_func_in_func(func_id, builder.func);
                 builder.ins().func_addr(ir::types::I64, func_ref)
-
             }
             Operand::BlockId(block_id) => panic!("??"),
             a => todo!("taking rvalue of {:?} not impl", o),
