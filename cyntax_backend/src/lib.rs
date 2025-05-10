@@ -23,6 +23,7 @@ impl<'src> CliffLower<'src> {
         let mut flag_builder = settings::builder();
         flag_builder.set("use_colocated_libcalls", "false").unwrap();
         flag_builder.set("is_pic", "false").unwrap();
+        // flag_builder.set("opt_level", "speed_and_size").unwrap();
         let isa_builder = cranelift_native::builder().unwrap_or_else(|msg| {
             panic!("host machine is not supported: {}", msg);
         });
@@ -37,6 +38,7 @@ impl<'src> CliffLower<'src> {
         self.lower_translation_unit(tu);
         self.module.clear_context(&mut self.ctx);
         let obj = self.module.finish();
+        
         std::fs::write("./target/cyntax/build.o", obj.emit().unwrap()).unwrap();
     }
     pub fn lower_translation_unit(&mut self, tu: &cyntax_mir::TranslationUnit) {
