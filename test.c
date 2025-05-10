@@ -18,7 +18,7 @@ int method_name(something)() {
 
 proto(method_name(run)) {
 
-   int (*test)() = &method_name(something);
+   int (*test)() = method_name(something);
 
    int x = test();
    int (*test2)() = &method_name(something);

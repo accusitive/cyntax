@@ -174,7 +174,7 @@ pub struct Place {
 pub enum PlaceKind {
     Slot(StackSlotId),
     Argument(usize),
-    Function(usize),
+    Function((Identifier, usize)),
 }
 #[derive(Debug, Clone)]
 pub struct Instruction {
@@ -243,7 +243,7 @@ impl Place {
             _ => None,
         }
     }
-    pub fn as_fn(&self) -> Option<usize> {
+    pub fn as_fn(&self) -> Option<(Identifier, usize)> {
         match self.kind {
             PlaceKind::Function(id) => Some(id),
             _ => None,

@@ -368,7 +368,7 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
                 // todo: this isnt exactly accurate, a declaration reference can be a parameter, which is a different type of place than a local declaration or even a globlal declaration
                 match self.hir_map.nodes.get(hir_id) {
                     Some(cyntax_hir::HirNode::Declaration(decl)) => Operand::Place(Place::new_slot(self.ss_map.get(&decl.id).unwrap().clone())),
-                    Some(cyntax_hir::HirNode::FunctionDefinition(fndef)) => Operand::Place(Place { kind: PlaceKind::Function(fndef.id), offset: 0 }),
+                    Some(cyntax_hir::HirNode::FunctionDefinition(fndef)) => Operand::Place(Place { kind: PlaceKind::Function((fndef.identifier, fndef.id)), offset: 0 }),
                     Some(s) => {
                         unimplemented!("{:#?}", s)
                     }
@@ -413,7 +413,7 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
                         Operand::Value(addr)
                     }
                     Operand::Place(Place { kind: PlaceKind::Function(func_id), .. }) => {
-                        let hn = self.hir_map.nodes.get(func_id).unwrap();
+                        let hn = self.hir_map.nodes.get(&func_id.1).unwrap();
                         if let HirNode::FunctionDefinition(fndef) = hn {
                             let ptr_to_ty = cyntax_mir::Ty::Ptr(Box::new(self.lower_ty_kind(&fndef.ty.kind)));
                             
