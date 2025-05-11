@@ -208,7 +208,30 @@ impl<'src> CliffLower<'src> {
 
                         let mut s = self.module.make_signature();
                         let output = &ins.output.as_ref().unwrap().ty;
+                        // for arg in &ins.inputs[1..] {
+                        //     match arg {
+                        //         Operand::Value(value) => {
+                        //             s.params.push(AbiParam { value_type: Self::cliff_ty(&value.ty), purpose: ir::ArgumentPurpose::Normal, extension: ir::ArgumentExtension::None });
+                        //         },
+                        //         Operand::Place(place) => {
+                        //             match place.kind {
+                        //                 PlaceKind::Slot(stack_slot_id) => {
+                        //                     let slot = slot_map.get(&stack_slot_id.0).unwrap();
+                        //                 },
+                        //                 PlaceKind::Argument(_) => todo!(),
+                        //                 PlaceKind::Function(_) => todo!(),
+                        //                 PlaceKind::Parameter(_) => todo!(),
+                        //             }
+                        //         },
+                        //         Operand::BlockId(block_id) => todo!(),
+                        //         Operand::FunctionIdentifier(symbol_u32) => todo!(),
+                        //     }
+                        // }
+                        let args = ins.inputs[1..].iter().map(|a| Self::read_rvalue(a, &mut self.module, &self.functions, &func.slots, &slot_map, &mut builder, &ins_map)).collect::<Vec<_>>();
 
+                        // for arg in args {
+                        //     s.params.push(AbiParam { value_type: Self::cliff_ty(arg), purpose: (), extension: () });
+                        // }
                         s.returns.push(AbiParam {
                             value_type: Self::cliff_ty(output),
                             purpose: ir::ArgumentPurpose::Normal,
@@ -216,7 +239,7 @@ impl<'src> CliffLower<'src> {
                         });
                         let sr = builder.import_signature(s);
 
-                        let inst = builder.ins().call_indirect(sr, addr, &[]);
+                        let inst = builder.ins().call_indirect(sr, addr, &args);
                         ins_map.insert(ins.output.as_ref().unwrap().id, builder.inst_results(inst)[0]);
                     }
                     cyntax_mir::InstructionKind::FuncAddr => {
@@ -284,6 +307,10 @@ impl<'src> CliffLower<'src> {
                 let func_ref = module.declare_func_in_func(func_id, builder.func);
                 builder.ins().func_addr(ir::types::I64, func_ref)
             }
+
+            // cyntax_mir::InstructionKind::Argument(idx) => {
+            //     ins_map.insert(ins.output.as_ref().unwrap().id, builder.block_params(entry.unwrap())[idx]);
+            // }
             Operand::BlockId(block_id) => panic!("??"),
             a => todo!("taking rvalue of {:?} not impl", o),
         }

@@ -369,6 +369,13 @@ impl<'a, 'hir> FunctionLowerer<'a, 'hir> {
                 match self.hir_map.nodes.get(hir_id) {
                     Some(cyntax_hir::HirNode::Declaration(decl)) => Operand::Place(Place::new_slot(self.ss_map.get(&decl.id).unwrap().clone())),
                     Some(cyntax_hir::HirNode::FunctionDefinition(fndef)) => Operand::Place(Place { kind: PlaceKind::Function((fndef.identifier, fndef.id)), offset: 0 }),
+                      Some(cyntax_hir::HirNode::FunctionParameter(param)) => {
+                        let ty = self.lower_ty_kind(&param.ty.kind);
+                        let p = self.param_map.get(&param.id).unwrap();
+                        let arg = self.insert(InstructionKind::Argument(*p), vec![], Some(ty)).unwrap();
+                        Operand::Value(arg)
+                      }
+                    // Some(cyntax_hir::HirNode::FunctionParameter(param)) => Operand::Place(Place { kind: PlaceKind::Parameter((param.identifier.as_ref().unwrap().value, param.id)), offset: 0 }),
                     Some(s) => {
                         unimplemented!("{:#?}", s)
                     }

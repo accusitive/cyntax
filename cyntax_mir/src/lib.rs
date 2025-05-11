@@ -175,6 +175,8 @@ pub enum PlaceKind {
     Slot(StackSlotId),
     Argument(usize),
     Function((Identifier, usize)),
+    Parameter((Identifier, usize)),
+
 }
 #[derive(Debug, Clone)]
 pub struct Instruction {

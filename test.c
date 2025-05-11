@@ -12,25 +12,20 @@
 // used for harness to define the extern symbol
 #define proto(name) int name params
 
-int method_name(something)()
+int method_name(something)(int x)
 {
-   return 42;
+   return x;
 }
 
 proto(method_name(run))
 {
 
-   // int (*test)() = method_name(something);
+   int (*test)() = method_name(something);
    int x = 0;
-   if (1) {
-      x = 5;
-   }  // int y = 0;
-   // for (int i = 0; i < 100; i = i + 1)
-   // {
-   //    x = x + i;
-   // }
-   // while (test(x) < 100) {
-   // x = x + 1;
-   // }
-   return x;
+   int y = 0;
+   while (test(x) < 100)
+   {
+      x = x + 1;
+   }
+   return x + y;
 }
